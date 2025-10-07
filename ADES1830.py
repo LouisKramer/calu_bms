@@ -1,11 +1,13 @@
 from ADES1830_REG import RegisterMap
 from ADES1830_HAL import HAL
 import time
+import struct
 
 class ADES1830:
     def __init__(self):
         self.hal = HAL()
         self.register_map = RegisterMap("registers.json", hal=self.hal)
+        self.nr_of_cells = 16
         self.initialize_registers()
 
     def initialize_registers(self):
@@ -17,46 +19,53 @@ class ADES1830:
         self.rdcva = self.register_map.get_register("RDCVA")
     
     def set_ref_power_up(self, value: int):
-        self.hal.wakeup()
         self.cfga.read()
         self.cfga.set_ref_pwr_up(value)
         self.cfga.read()
         return self.cfga.get_ref_pwr_up()
 
-    def get_cell_voltages(self, mode: str = "normal"): #other modes: "average", "filtered", "switch"
-        self.hal.wakeup()
-        if mode == "normal":
-            self.rdcva.read()
-            cell1 = self.rdcva.get_cell_voltage_1() * 0.00015 + 1.5
-            cell2 = self.rdcva.get_cell_voltage_2() * 0.00015 + 1.5
-            cell3 = self.rdcva.get_cell_voltage_3() * 0.00015 + 1.5
-        elif mode == "average":
-            pass  # Implement average mode reading
-        elif mode == "filtered":
-            pass  # Implement filtered mode reading
-        elif mode == "switch":
-            pass  # Implement switch mode reading
-        return cell1, cell2, cell3
+    def get_cell_voltage(self, cell: int = 1, mode: str = "normal"):
+        # Check parameters
+        if cell < 1 or cell > self.nr_of_cells:  # Assuming nr_of_cells is defined in the class
+            raise ValueError(f"Cell must be between 1 and {self.nr_of_cells}")
+        cell_voltages = self.get_all_cell_voltages(mode=mode)
+        return cell_voltages[cell-1]
     
+    def get_all_cell_voltages(self, mode: str = "normal"):
+        # Check parameters
+        if mode not in ["normal", "average", "filtered", "switch"]:
+            raise ValueError("Mode must be 'normal', 'average', 'filtered', or 'switch'")
+        if mode == "normal":
+            address=0x00C #RDCVALL
+        elif mode == "average":
+            address=0x04C #RDACALL
+        elif mode == "filtered":
+            address=0x018 #RDFCALL
+        elif mode == "switch":
+            address=0x010 #RDSALL
+        data = self.hal.read(address=address,length=32)
+        if len(data) != 32:
+            raise ValueError("Expected 36-byte array from rdcva.read()")
+        raw_voltages = struct.unpack('<16H', data[:32])
+        cell_voltages = [voltage * 0.00015 + 1.5 for voltage in raw_voltages]
+        return cell_voltages  # Or handle other modes appropriately
+        
+
     def get_device_id(self):
-        self.hal.wakeup()
         self.rdsid.read()
         return self.rdsid.get_device_id()
 
     def get_internal_temp(self):
-        self.hal.wakeup()
         self.rdstata.read()
         i_temp = ((self.rdstata.get_internal_temp() * 0.00015 + 1.5) / 0.0075) - 273
         return i_temp
 
     def get_reference_voltage2(self):
-        self.hal.wakeup()
         self.rdstata.read()
         v_ref2 = self.rdstata.get_second_voltage_ref() * 0.00015 + 1.5
         return v_ref2
     
     def get_digital_supply_voltage(self):
-        self.hal.wakeup()
         self.rdstatb.read()
         dig_sup_vol = self.rdstatb.get_digital_supply_voltage() * 0.00015 + 1.5
         return dig_sup_vol

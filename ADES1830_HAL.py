@@ -103,7 +103,7 @@ class HAL:
         time.sleep_us(10) #wati for 10 us until ok to communicate
 
 
-    def read(self, address, length = 6) -> int:
+    def read(self, address, length = 6):
         """Read 48-bit register at 16-bit address using SPI."""
         if address > 0xFFFF:
             raise ValueError(f"Address {address:04x} exceeds 16-bit max")
@@ -121,11 +121,14 @@ class HAL:
         data_crc = buf[0:length] + bytes([buf[length] & 0xFC])
         #print(f"Received data: {list(data)}")
         received_pec = ((buf[length] & 0x03) << 8) | buf[length + 1]
-        calculated_pec = crc10(data_crc, receive=True)
+        calculated_pec = crc10(data_crc, length = length, receive=True)
         if received_pec != calculated_pec:
-            print("PEC mismatch")
+            raise ValueError("PEC mismatch")
         value = int.from_bytes(data, "little")
-        return value & 0xFFFFFFFFFFFF  # Ensure 48-bit
+        if length <= 6 :
+            return value & 0xFFFFFFFFFFFF  # Ensure 48-bit
+        else:
+            return data
 
     def write(self, address, value):
         """Write 48-bit value to 16-bit address using SPI."""

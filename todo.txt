@@ -1,5 +1,6 @@
 TODO:
 - update folder struct
+- script for data deploymetent to target over USB 
 - HW Slave 1.3.0.0:
     - Add dip-switch (4bit --> max. 16 strings) to set string position.
     - 
@@ -12,5 +13,8 @@ TODO:
 
 - SW Slave 1.0.0.0:
     - Develop "FSM"
-    - Error handling
-    - HAL shall support read all commands 
+    - Error handling HAL
+    - HAL shall support read all commands --> DONE
+    - ADES1830.py add func to read all voltages --> DONE
+    - ADES1830.py add Discharge functionalities
+    - FTP server for OTA updates
