@@ -1,0 +1,16 @@
+TODO:
+- update folder struct
+- HW Slave 1.3.0.0:
+    - Add dip-switch (4bit --> max. 16 strings) to set string position.
+    - 
+- HW Master 1.x.x.x:
+    - 
+- HW Active Balancer 1.0.0.0:
+    - Routing PCB
+- HW Teststand 1.x.x.x
+    - develop concept
+
+- SW Slave 1.0.0.0:
+    - Develop "FSM"
+    - Error handling
+    - HAL shall support read all commands 
