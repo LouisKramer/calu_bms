@@ -36,12 +36,27 @@ ades = ADES1830.ADES1830()
 # Instantiate registers
 while True:
     ades.hal.wakeup()
+    ades.set_ref_power_up(1)
+    time.sleep_ms(5)
     uv = ades.get_cell_undervoltage()
     print(f"Undervoltage: {uv:.4f}")
     ades.set_cell_undervoltage(2.5)
     time.sleep_ms(1)
     uv = ades.get_cell_undervoltage()
     print(f"Undervoltage: {uv:.4f}")
+
+    pwm = ades.get_pwm()
+    print(f"PWM: {list(pwm)}")
+
+    pwm = ades.set_pwm([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15])
+    print(f"PWM: {list(pwm)}")
+
+    cell_pwm = ades.set_pwm_cell(10, 4)
+    print(f"PWM cell 4: {cell_pwm}")
+
+    pwm = ades.get_pwm()
+    print(f"PWM: {list(pwm)}")
+
     ades.set_ref_power_up(1)
     #ades.start_cell_volt_conv(redundant=False, continuous=True, discharge_permitted=False, reset_filter=False, openwire=0)
     #ades.start_s_adc_conv(continuous=True, discharge_permitted=False, openwire=0)

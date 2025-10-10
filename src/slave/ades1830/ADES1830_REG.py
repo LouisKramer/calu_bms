@@ -159,3 +159,10 @@ class RegisterMap:
         if name not in self.registers:
             raise ValueError(f"Register {name} not found")
         return self.registers[name](hal=hal or self.hal)
+
+    def write_defaults(self):
+        """Write default values to all writable registers."""
+        for name in self.registers:
+            reg = self.get_register(name)
+            if not reg.is_read_only:
+                reg.write(reg.value)

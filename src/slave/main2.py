@@ -127,21 +127,16 @@ class bms_config_handler(bms_config):
    def __init__(self):
       super().__init__()
 
-   def update_settings_from_device(self):
-      super().uv = ades.get_cell_undervoltage()
-      super().ov = ades.get_cell_overvoltage()
-      super().bal_start_vol = ades.get_balance_start_voltage()
-      super().bal_th = ades.get_balance_threshold()
-      super().bal_en = ades.get_balance_enable()
-      #super().ext_bal_en =  # TODO
-
    def set_config(self, new_settings):
       super().from_dict(new_settings)
       ades.set_cell_undervoltage(super().uv)
       ades.set_cell_overvoltage(super().ov)
-      ades.set_balance_start_voltage(super().bal_start_vol)
-      ades.set_balance_threshold(super().bal_th)
-      ades.set_balance_enable(super().bal_en)
+      ades.set_balance_start_voltage(super().bal_start_vol) # TODO: not part of ADES, impl. here?
+      ades.set_balance_threshold(super().bal_th) #TODO
+      if(super().bal_en == 1):
+         ades.unmute_discharge()
+      else:
+         ades.mute_discharge()
       #external_balance(new_settings["ext_bal_en"]) # TODO
       return super().to_dict()
    
@@ -377,7 +372,7 @@ class bms_monitor_handler(bms_monitor):
 class bms_balancing:
    def __init__(self):
       self.bal_en = [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-      self.pwm = [128,128,128,128,128,128,128,128,128,128,128,128,128,128,128,128]
+      self.pwm =    [8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8]
     
    def to_dict(self):
          return {
@@ -394,14 +389,12 @@ class bms_balancing_handler(bms_config):
    def __init__(self):
       super().__init__()
 
-   def update_balancing_from_device(self):
-      super().bal_en = ades.get_discharge_cell_enable()
-      super().pwm = ades.get_cell_pwm()
-
    def set_config(self, new_settings):
       super().from_dict(new_settings)
-      ades.set_discharge_cell_enable(super().bal_en)
-      ades.set_cell_pwm(super().pwm)
+      for x in range(len(super().bal_en)):
+         if super().bal_en[x] == 0:
+            super.pwm[x] = 0
+      ades.set_pwm(super().pwm)
       return super().to_dict()
    
    def get_config(self):
@@ -458,14 +451,17 @@ async def listen_to_master_task():
          await asyncio.sleep_ms(10)
 
 async def main():
-   # 1. Init ADES1830 (get nr of cells, device id)
-   ades.hal.wakeup()
+   # Init ADES1830
+   while ades.init() == False:
+      print("ADES1830 init failed")
+      await asyncio.sleep(1)
+   # Get device ID   
    info.set_id(ades.get_device_id())
    info.set_ncells(16) #TODO: get this from ADES
+   # Write default config to ADES1830
+   ades.reset_reg_to_default()
    # 2. Init OneWire Temp sensors (get nr of sensors)
    info.set_ntemp(ds18.get_roms())  
-   # 2. Get current settings from ADES
-   config.update_settings_from_device()
 
    # 4. discover master
    while True:

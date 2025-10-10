@@ -18,33 +18,42 @@ class ADES1830:
         self.cfga = self.register_map.get_register("CFGA")
         self.cfgb = self.register_map.get_register("CFGB")
         self.rdcva = self.register_map.get_register("RDCVA")
+        self.pwma = self.register_map.get_register("PWMA")
+        self.pwmb = self.register_map.get_register("PWMB")
     
+    def init(self) -> bool:
+        self.hal.wakeup()
+        self.soft_reset()
+        time.sleep_ms(50)
+        self.hal.wakeup()
+        self.reset_command_counter()
+        self.reset_reg_to_default()
+        # Turn on Reference voltage
+        if self.set_ref_power_up(1) != 1 :
+            return False
+
+    def reset_reg_to_default(self):
+        self.register_map.write_defaults()
+
     def set_ref_power_up(self, value: int):
-        self.cfga.read()
         self.cfga.set_ref_pwr_up(value)
-        self.cfga.read()
         return self.cfga.get_ref_pwr_up()
     
     def get_cell_undervoltage(self):
-        self.cfgb.read()
         return self.to_voltage_12bit(self.cfgb.get_undervoltage())
 
     def get_cell_overvoltage(self):
-        self.cfgb.read()
         return self.to_voltage_12bit(self.cfgb.get_overvoltage())
     
-    def set_cell_undervoltage(self, uv):
-        self.cfgb.read()
+    def set_cell_undervoltage(self, uv : float):
         val = self.to_code_12bit(uv)
         self.cfgb.set_undervoltage(val)
-        self.cfgb.read()
-        return self.cfgb.get_undervoltage()
+        return self.to_voltage_12bit(self.cfgb.get_undervoltage())
 
-    def set_cell_overvoltage(self,ov):
-        self.cfgb.read()
-        self.cfgb.set_overvoltage(ov)
-        self.cfgb.read()
-        return self.cfgb.get_overvoltage()
+    def set_cell_overvoltage(self,ov : float):
+        val = self.to_code_12bit(ov)
+        self.cfgb.set_overvoltage(val)
+        return self.to_voltage_12bit(self.cfgb.get_overvoltage())
     
     def get_cell_voltage(self, cell: int = 1, mode: str = "normal"):
         # Check parameters
@@ -72,22 +81,77 @@ class ADES1830:
         cell_voltages = [self.to_voltage_16bit(voltage) for voltage in raw_voltages]
         return cell_voltages  # Or handle other modes appropriately
 
+    def get_pwm(self):
+        # Get integer values from pwma and pwmb
+        pwm_int_a = self.pwma.get_pwm()
+        pwm_int_b = self.pwmb.get_pwm()
+        # Convert integers to bytes (little-endian)
+        pwm_bytes_a = pwm_int_a.to_bytes(6,"little")  # 12 4-bit values = 6 bytes
+        pwm_bytes_b = pwm_int_b.to_bytes(2,"little")  # 4 4-bit values = 2 bytes
+
+        pwm_bytes = pwm_bytes_a + pwm_bytes_b  # 6 + 2 = 8 bytes
+        # Unpack bytes into 4-bit values
+        pwm = []
+        for b in pwm_bytes:
+            high, low = self.unpack_nibbles(b)
+            pwm.append(high)
+            pwm.append(low)
+
+        # Validate the resulting list
+        if len(pwm) != 16:
+            raise ValueError("Expected 16 PWM values, got {}".format(len(pwm)))
+        if any(not (0 <= x <= 15) for x in pwm):
+            raise ValueError("PWM values must be between 0 and 15 (4-bit)")
+
+        return pwm
+    
+    def get_pwm_cell(self, cell):
+        pwm = bytearray(self.get_pwm())
+        return pwm[cell]
+    
+    def set_pwm(self, pwm):
+        # Validate input
+        if len(pwm) != 16:
+            raise ValueError("PWM list must have exactly 16 elements")
+        if any(not (0 <= x <= 15) for x in pwm):
+            raise ValueError("PWM values must be integers between 0 and 15 (4-bit)")
+
+        # Pack 4-bit values into bytes (two 4-bit values per byte)
+        pwm_bytes_a = bytearray()
+        for i in range(0, 11, 2):  # Process pwm[0:12] in pairs
+            pwm_bytes_a.append(self.pack_nibbles(pwm[i],pwm[i + 1]))
+
+        pwm_bytes_b = bytearray()
+        for i in range(12, 15, 2):  # Process pwm[13:] in pairs
+            pwm_bytes_b.append(self.pack_nibbles(pwm[i],pwm[i + 1]))
+
+        # Convert packed bytes to integers
+        pwm_int_a = int.from_bytes(pwm_bytes_a, "little")
+        pwm_int_b = int.from_bytes(pwm_bytes_b, "little")
+        # Pass integers to set_pwm methods
+        self.pwma.set_pwm(pwm_int_a)
+        self.pwmb.set_pwm(pwm_int_b)
+    
+        return self.get_pwm()
+    
+    def set_pwm_cell(self, cell_pwm, cell):
+        pwm = bytearray(self.get_pwm())
+        pwm[cell] = cell_pwm
+        self.set_pwm(pwm)
+        return self.get_pwm_cell(cell)
+
     def get_device_id(self):
-        self.rdsid.read()
         return self.rdsid.get_device_id()
 
     def get_internal_temp(self):
-        self.rdstata.read()
         i_temp = self.rdstata.get_internal_temp()
         return self.code_to_temp(i_temp)
 
     def get_reference_voltage2(self):
-        self.rdstata.read()
         v_ref2 = self.rdstata.get_second_voltage_ref()
         return self.to_voltage_16bit(v_ref2)
     
     def get_digital_supply_voltage(self):
-        self.rdstatb.read()
         dig_sup_vol = self.rdstatb.get_digital_supply_voltage()
         return self.to_voltage_16bit(dig_sup_vol)
 
@@ -154,9 +218,31 @@ class ADES1830:
 
     def clear_s_adc_registers(self):
         self.hal.command(0x716)  # CLRSPIN
-    
+
     def clear_flags(self):
         self.hal.command(0x717)  # CLRFLAG
+
+    def clear_ov_uv(self):
+        self.hal.command(0x715) #CLOVUV
+
+    def soft_reset(self):
+        self.hal.command(0x027) # SRST
+    
+    def reset_command_counter(self): # RSTCC
+        self.hal.command(0x02E)
+
+    def snapshot(self): # SNAP
+        self.hal.command(0x02D)
+    
+    def release_snapshot(self): #UNSNAP
+        self.hal.command(0x02F)
+
+    def mute_discharge(self): #MUTE
+        self.hal.command(0x028)
+
+    def unmute_discharge(self): #UNMUTE
+        self.hal.command(0x029)
+
 #################################################################
 #  Conversion helpers
 #################################################################
@@ -239,3 +325,18 @@ class ADES1830:
         # Calculate temperature
         temperature = (signed_code * LSB) + OFFSET
         return temperature
+
+    def pack_nibbles(self, high_nibble, low_nibble):
+        # Ensure inputs are 4-bit values (0 to 15)
+        high_nibble &= 0xF  # Mask to keep only the lower 4 bits
+        low_nibble &= 0xF   # Mask to keep only the lower 4 bits
+        return (high_nibble << 4) | low_nibble
+
+    def unpack_nibbles(self, byte):
+        # Ensure the input is a valid byte (0 to 255)
+        byte &= 0xFF
+        # Extract high nibble (upper 4 bits)
+        high_nibble = (byte >> 4) & 0xF
+        # Extract low nibble (lower 4 bits)
+        low_nibble = byte & 0xF
+        return high_nibble, low_nibble

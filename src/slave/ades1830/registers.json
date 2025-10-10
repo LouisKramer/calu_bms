@@ -21,10 +21,25 @@
             "ref_pwr_up": {
                 "bit_start": 7,
                 "width": 1,
+                "default": "0x1"
+            },
+            "comp_threshold": {
+                "bit_start": 0,
+                "width": 3,
+                "default": "0x2"
+            },
+            "iir_filter": {
+                "bit_start": 40,
+                "width": 3,
+                "default": "0x5"
+            },
+            "mute_discharge": {
+                "bit_start": 44,
+                "width": 1,
                 "default": "0x0"
             },
-            "mute_dischartge": {
-                "bit_start": 44,
+            "snapshot": {
+                "bit_start": 45,
                 "width": 1,
                 "default": "0x0"
             }
@@ -33,7 +48,7 @@
     {
         "name": "CFGB",
         "read_address":  "0x0026",
-        "write_address": "0x0022",
+        "write_address": "0x0024",
         "is_read_only": false,
         "fields": {
             "undervoltage": {
@@ -122,6 +137,32 @@
                 "bit_start": 43,
                 "width": 1,
                 "default": "0x0001"
+            }
+        }
+    },
+    {
+        "name": "PWMA",
+        "read_address": "0x0022",
+        "write_address":"0x0020",
+        "is_read_only": false,
+        "fields": {
+            "pwm": {
+                "bit_start": 0,
+                "width": 48,
+                "default": "0x000000000000"
+            }
+        }
+    },
+    {
+        "name": "PWMB",
+        "read_address": "0x0023",
+        "write_address":"0x0021",
+        "is_read_only": false,
+        "fields": {
+            "pwm": {
+                "bit_start": 0,
+                "width": 16,
+                "default": "0x0000"
             }
         }
     }
