@@ -16,6 +16,7 @@ class ADES1830:
         self.rdstatb = self.register_map.get_register("RDSTATB")
         self.rdstatc = self.register_map.get_register("RDSTATC")
         self.cfga = self.register_map.get_register("CFGA")
+        self.cfgb = self.register_map.get_register("CFGB")
         self.rdcva = self.register_map.get_register("RDCVA")
     
     def set_ref_power_up(self, value: int):
@@ -23,7 +24,28 @@ class ADES1830:
         self.cfga.set_ref_pwr_up(value)
         self.cfga.read()
         return self.cfga.get_ref_pwr_up()
+    
+    def get_cell_undervoltage(self):
+        self.cfgb.read()
+        return self.to_voltage_12bit(self.cfgb.get_undervoltage())
 
+    def get_cell_overvoltage(self):
+        self.cfgb.read()
+        return self.to_voltage_12bit(self.cfgb.get_overvoltage())
+    
+    def set_cell_undervoltage(self, uv):
+        self.cfgb.read()
+        val = self.to_code_12bit(uv)
+        self.cfgb.set_undervoltage(val)
+        self.cfgb.read()
+        return self.cfgb.get_undervoltage()
+
+    def set_cell_overvoltage(self,ov):
+        self.cfgb.read()
+        self.cfgb.set_overvoltage(ov)
+        self.cfgb.read()
+        return self.cfgb.get_overvoltage()
+    
     def get_cell_voltage(self, cell: int = 1, mode: str = "normal"):
         # Check parameters
         if cell < 1 or cell > self.nr_of_cells:  # Assuming nr_of_cells is defined in the class
@@ -43,13 +65,12 @@ class ADES1830:
             address=0x018 #RDFCALL
         elif mode == "switch":
             address=0x010 #RDSALL
-        data = self.hal.read(address=address,length=32)
+        data = self.hal.read(address=address, length=32)
         if len(data) != 32:
             raise ValueError("Expected 36-byte array from rdcva.read()")
         raw_voltages = struct.unpack('<16H', data[:32])
-        cell_voltages = [voltage * 0.00015 + 1.5 for voltage in raw_voltages]
+        cell_voltages = [self.to_voltage_16bit(voltage) for voltage in raw_voltages]
         return cell_voltages  # Or handle other modes appropriately
-        
 
     def get_device_id(self):
         self.rdsid.read()
@@ -57,19 +78,22 @@ class ADES1830:
 
     def get_internal_temp(self):
         self.rdstata.read()
-        i_temp = ((self.rdstata.get_internal_temp() * 0.00015 + 1.5) / 0.0075) - 273
-        return i_temp
+        i_temp = self.rdstata.get_internal_temp()
+        return self.code_to_temp(i_temp)
 
     def get_reference_voltage2(self):
         self.rdstata.read()
-        v_ref2 = self.rdstata.get_second_voltage_ref() * 0.00015 + 1.5
-        return v_ref2
+        v_ref2 = self.rdstata.get_second_voltage_ref()
+        return self.to_voltage_16bit(v_ref2)
     
     def get_digital_supply_voltage(self):
         self.rdstatb.read()
-        dig_sup_vol = self.rdstatb.get_digital_supply_voltage() * 0.00015 + 1.5
-        return dig_sup_vol
-    
+        dig_sup_vol = self.rdstatb.get_digital_supply_voltage()
+        return self.to_voltage_16bit(dig_sup_vol)
+
+#################################################################
+#  Commands
+#################################################################        
     def start_cell_volt_conv(self, redundant: bool= False, 
                              continuous: bool = False, 
                              discharge_permitted: bool = False, 
@@ -133,3 +157,85 @@ class ADES1830:
     
     def clear_flags(self):
         self.hal.command(0x717)  # CLRFLAG
+#################################################################
+#  Conversion helpers
+#################################################################
+    def to_code_12bit(self, voltage):
+        LSB = 0.0024
+        OFFSET = 1.5
+        # Calculate digital code
+        digital_code = (voltage - OFFSET) / LSB
+        # Round to nearest integer
+        digital_code = round(digital_code)
+        # Clamp to signed 12-bit range (-2048 to 2047)
+        digital_code = max(min(digital_code, 2047), -2048)
+        # Convert to 12-bit two's complement (0x000 to 0xFFF representation)
+        if digital_code < 0:
+            digital_code = (digital_code + 4096) & 0xFFF  # Two's complement for 12 bits
+        return digital_code
+    
+    def to_voltage_12bit(self, digital_code):
+        LSB = 0.0024
+        OFFSET = 1.5
+        # Convert 12-bit code to signed integer (-2048 to 2047)
+        if digital_code & 0x800:  # If sign bit is set (negative)
+            signed_code = digital_code - 4096
+        else:
+            signed_code = digital_code
+        # Calculate voltage
+        voltage = (signed_code * LSB) + OFFSET
+        return voltage
+    
+    def to_code_16bit(self, voltage):
+        LSB = 0.00015
+        OFFSET = 1.5
+        # Calculate digital code
+        digital_code = (voltage - OFFSET) / LSB
+        # Round to nearest integer
+        digital_code = round(digital_code)
+        # Clamp to signed 16-bit range (-32768 to 32767)
+        digital_code = max(min(digital_code, 32767), -32768)
+        # Convert to 16-bit two's complement (0x0000 to 0xFFFF representation)
+        if digital_code < 0:
+            digital_code = (digital_code + 65536) & 0xFFFF  # Two's complement for 16 bits
+        return digital_code
+
+    def to_voltage_16bit(self, digital_code):
+        LSB = 0.00015
+        OFFSET = 1.5
+
+        # Convert 16-bit code to signed integer (-32768 to 32767)
+        if digital_code & 0x8000:  # If sign bit is set (negative)
+            signed_code = digital_code - 65536
+        else:
+            signed_code = digital_code
+
+        # Calculate voltage
+        voltage = (signed_code * LSB) + OFFSET
+        return voltage
+
+    def temp_to_16bit_code(self, temperature):
+        LSB = 0.02
+        OFFSET = -73.0
+        # Calculate digital code
+        digital_code = (temperature - OFFSET) / LSB
+        # Round to nearest integer
+        digital_code = round(digital_code)
+        # Clamp to signed 16-bit range (-32768 to 32767)
+        digital_code = max(min(digital_code, 32767), -32768)
+        # Convert to 16-bit two's complement (0x0000 to 0xFFFF representation)
+        if digital_code < 0:
+            digital_code = (digital_code + 65536) & 0xFFFF  # Two's complement for 16 bits
+        return digital_code
+
+    def code_to_temp(self, digital_code):
+        LSB = 0.02
+        OFFSET = -73.0
+        # Convert 16-bit code to signed integer (-32768 to 32767)
+        if digital_code & 0x8000:  # If sign bit is set (negative)
+            signed_code = digital_code - 65536
+        else:
+            signed_code = digital_code
+        # Calculate temperature
+        temperature = (signed_code * LSB) + OFFSET
+        return temperature
