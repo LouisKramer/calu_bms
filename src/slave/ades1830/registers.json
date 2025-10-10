@@ -31,6 +31,24 @@
         }
     },
     {
+        "name": "CFGB",
+        "read_address":  "0x0026",
+        "write_address": "0x0022",
+        "is_read_only": false,
+        "fields": {
+            "undervoltage": {
+                "bit_start": 0,
+                "width": 12,
+                "default": "0x0"
+            },
+            "overvoltage": {
+                "bit_start": 12,
+                "width": 12,
+                "default": "0x0"
+            }
+        }
+    },
+    {
         "name": "RDCVA",
         "read_address":  "0x0004",
         "write_address": null,
