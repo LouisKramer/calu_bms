@@ -24,11 +24,12 @@ def deploy_files():
     
     # Transfer each file using ampy
     for file in files:
-        print(f"Transferring {file}")
+        filename = os.path.basename(file)
+        print(f"Transferring {file} as {filename}")
         try:
             # Run ampy command to transfer the file, preserving the path
             subprocess.run(
-                ["ampy", "--port", PORT, "put", file, file],
+                ["ampy", "--port", PORT, "put", file, filename],
                 check=True,
                 capture_output=True,
                 text=True
