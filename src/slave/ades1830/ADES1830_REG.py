@@ -28,6 +28,7 @@ class REGISTER:
             self.hal.write(self.write_address, self.value)
 
     def get_bits(self, bit_start, width):
+        self.read()
         mask = (1 << width) - 1
         return (self.value >> bit_start) & mask
 
@@ -37,6 +38,7 @@ class REGISTER:
         mask = (1 << width) - 1
         if field_value > mask:
             raise ValueError("Field value exceeds width")
+        self.read()
         self.value &= ~(mask << bit_start)
         self.value |= (field_value & mask) << bit_start
         self.value &= self.MAX_VALUE
