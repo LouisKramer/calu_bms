@@ -333,11 +333,12 @@ class bms_monitor_handler(bms_monitor):
       ades.start_aux2_adc_conv()
 
       while True:
+         status.set_state("Monitoring")
          try:
             # 1. read sensors
             super().vcell = ades.get_all_cell_voltages(mode="average")
             super().temp = ds18.get_temperatures()
-            super().vstr = ades.get_string_voltage()
+            super().vstr = ades.get_string_voltage()#TODO: implement 
             status.set_state(ades.get_status())
             # 2. validate sensor data (basic checks)
             if super().vcell  is None or super().temp is None or super().vstr is None:
@@ -394,7 +395,10 @@ class bms_balancing_handler(bms_config):
       for x in range(len(super().bal_en)):
          if super().bal_en[x] == 0:
             super.pwm[x] = 0
-      ades.set_pwm(super().pwm)
+      pwm = ades.set_pwm(super().pwm)
+      if pwm != super().pwm :
+         print("set_pwm failed")
+         error.set_error(error_code.ERROR_ADES)
       return super().to_dict()
    
    def get_config(self):
@@ -452,6 +456,7 @@ async def listen_to_master_task():
 
 async def main():
    # Init ADES1830
+   status.set_state("Init")
    while ades.init() == False:
       print("ADES1830 init failed")
       await asyncio.sleep(1)
@@ -475,7 +480,7 @@ async def main():
          break
       else:
          await asyncio.sleep(1)
-
+   status.set_state("Idle")
    #5. Master discovered --> listen to commands
    asyncio.create_task(listen_to_master_task())
    
