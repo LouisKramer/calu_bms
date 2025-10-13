@@ -141,6 +141,32 @@
         }
     },
     {
+        "name": "RDSTATD",
+        "read_address": "0x0033",
+        "write_address": null,
+        "is_read_only": true,
+        "fields": {
+            "ov_uv_flag": {
+                "bit_start": 0,
+                "width": 32,
+                "default": "0x0000"
+            }
+        }
+    },
+    {
+        "name": "RDAUXD",
+        "read_address": "0x001F",
+        "write_address": null,
+        "is_read_only": true,
+        "fields": {
+            "string_voltage": {
+                "bit_start": 32,
+                "width": 16,
+                "default": "0x0000"
+            }
+        }
+    },
+    {
         "name": "PWMA",
         "read_address": "0x0022",
         "write_address":"0x0020",

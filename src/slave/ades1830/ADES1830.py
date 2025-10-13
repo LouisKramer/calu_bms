@@ -15,13 +15,15 @@ class ADES1830:
         self.rdstata = self.register_map.get_register("RDSTATA")
         self.rdstatb = self.register_map.get_register("RDSTATB")
         self.rdstatc = self.register_map.get_register("RDSTATC")
+        self.rdstatd = self.register_map.get_register("RDSTATD")
         self.cfga = self.register_map.get_register("CFGA")
         self.cfgb = self.register_map.get_register("CFGB")
         self.rdcva = self.register_map.get_register("RDCVA")
+        self.rdauxd = self.register_map.get_register("RDAUXA")
         self.pwma = self.register_map.get_register("PWMA")
         self.pwmb = self.register_map.get_register("PWMB")
     
-    def init(self) -> bool:
+    def init(self) -> int:
         self.hal.wakeup()
         self.soft_reset()
         time.sleep_ms(50)
@@ -30,7 +32,12 @@ class ADES1830:
         self.reset_reg_to_default()
         # Turn on Reference voltage
         if self.set_ref_power_up(1) != 1 :
-            return False
+            return 0
+        self.start_cell_volt_conv(redundant=False, continuous=False, discharge_permitted=False, reset_filter=False, openwire=0)
+        time.sleep_ms(1)
+        vcell = self.get_all_cell_voltages()
+        return len([x for x in vcell if x > 1.1]) # TODO: magic nr
+            
 
     def reset_reg_to_default(self):
         self.register_map.write_defaults()
@@ -50,11 +57,15 @@ class ADES1830:
         self.cfgb.set_undervoltage(val)
         return self.to_voltage_12bit(self.cfgb.get_undervoltage())
 
-    def set_cell_overvoltage(self,ov : float):
+    def set_cell_overvoltage(self, ov : float):
         val = self.to_code_12bit(ov)
         self.cfgb.set_overvoltage(val)
         return self.to_voltage_12bit(self.cfgb.get_overvoltage())
     
+    def get_string_voltage(self):
+        value = self.rdauxd.get_string_voltage()
+        return self.to_voltage_16bit(value, lsb = 0.00375, offset=37.5)
+
     def get_cell_voltage(self, cell: int = 1, mode: str = "normal"):
         # Check parameters
         if cell < 1 or cell > self.nr_of_cells:  # Assuming nr_of_cells is defined in the class
@@ -155,6 +166,25 @@ class ADES1830:
         dig_sup_vol = self.rdstatb.get_digital_supply_voltage()
         return self.to_voltage_16bit(dig_sup_vol)
 
+    def get_ov_uv_flag(self):
+        flags = self.rdstatd.ov_uv_flag()
+        if flags == 0:
+            return 0
+
+        result = []
+        for cell in range(16):
+            # UV bit is at position 2*cell, OV bit is at position 2*cell + 1
+            uv_bit = (flags >> (2 * cell)) & 1
+            ov_bit = (flags >> (2 * cell + 1)) & 1
+
+            # Add to result if the bit is set
+            if uv_bit:
+                result.append((cell + 1, "UV"))
+            if ov_bit:
+                result.append((cell + 1, "OV"))
+
+        return result
+            
 #################################################################
 #  Commands
 #################################################################        
@@ -223,7 +253,8 @@ class ADES1830:
         self.hal.command(0x717)  # CLRFLAG
 
     def clear_ov_uv(self):
-        self.hal.command(0x715) #CLOVUV
+        #FIXME: send which flags have to be cleared
+        self.hal.command(0x715) #CLOVUV 
 
     def soft_reset(self):
         self.hal.command(0x027) # SRST
@@ -272,9 +303,9 @@ class ADES1830:
         voltage = (signed_code * LSB) + OFFSET
         return voltage
     
-    def to_code_16bit(self, voltage):
-        LSB = 0.00015
-        OFFSET = 1.5
+    def to_code_16bit(self, voltage, lsb = 0.00015, offset = 1.5):
+        LSB = lsb
+        OFFSET = offset
         # Calculate digital code
         digital_code = (voltage - OFFSET) / LSB
         # Round to nearest integer
@@ -286,9 +317,9 @@ class ADES1830:
             digital_code = (digital_code + 65536) & 0xFFFF  # Two's complement for 16 bits
         return digital_code
 
-    def to_voltage_16bit(self, digital_code):
-        LSB = 0.00015
-        OFFSET = 1.5
+    def to_voltage_16bit(self, digital_code, lsb = 0.00015, offset = 1.5):
+        LSB = lsb
+        OFFSET = offset
 
         # Convert 16-bit code to signed integer (-32768 to 32767)
         if digital_code & 0x8000:  # If sign bit is set (negative)

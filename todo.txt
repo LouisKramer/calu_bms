@@ -12,7 +12,8 @@ TODO:
     - develop concept
 
 - SW Slave 1.0.0.0:
-    - Develop "FSM"
+    - Remove magic numbers.
+    - Develop "FSM" --> DONE
     - Error handling HAL
     - HAL shall support read all commands --> DONE
     - ADES1830.py add func to read all voltages --> DONE
