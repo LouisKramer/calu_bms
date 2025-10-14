@@ -32,9 +32,9 @@ class error_handler():
       while self.current_error != error_code.ERROR_NO:
           code = self.current_error
           if code == error_code.ERROR_ADES:
-              pattern = [0.1, 0.1] * 2  # Quick double blink
+              pattern = [0.5, 0.5] * 2  # Quick double blink
           elif code == error_code.ERROR_WLAN:
-              pattern = [0.5, 0.5]      # Slow blink
+              pattern = [1, 1]      # Slow blink
           elif code == error_code.ERROR_1WIRE:
               pattern = [0.2, 0.1] * 3  # Triple fast blink
           elif code == error_code.ERROR_COMM:
@@ -50,15 +50,16 @@ class error_handler():
       
       self.led.off()  # Turn off LED when error resolved
       self.blink_task = None
-   def set_error(self, error_code, str = "error"):
+
+   def set_error(self, err_code, str = "error"):
       print(str)
       """Set the error code and start blinking/sending if needed."""
-      if error_code == self.current_error:
+      if err_code == self.current_error:
          return  # No change
-      self.current_error = error_code
-      if error_code != error_code.ERROR_NO and self.blink_task is None:
+      self.current_error = err_code
+      if err_code != error_code.ERROR_NO and self.blink_task is None:
          self.blink_task = asyncio.create_task(self.blink_led())
-      status.err(self.current_error)
+      status.set_err(self.current_error)
 
    def clear_error(self):
       """Resolve the error."""
@@ -240,15 +241,16 @@ class bms_info_handler(bms_info):
          raise TypeError("ID must be an integer")
       if id < 0 or id > 0xFFFFFFFFFFFF:  # 2^48 - 1
          raise ValueError("ID must be a 48-bit number (0 to 281474976710655)")
-      super().id = id
+      self.id = id
 
    def set_ncells(self, ncell):
       # Check if ncells is between 3 and 16
       if not isinstance(ncell, int):
          raise TypeError("ncells must be an integer")
       if ncell < 3 or ncell > 16:
-         raise ValueError("ncells must be between 3 and 16")
-      super().ncell = ncell
+         error.set_error(error_code.ERROR_ADES, f"ncells must be between 3 and 16")
+         #raise ValueError("ncells must be between 3 and 16")
+      self.ncell = ncell
 
    def set_ntemp(self, ntemp):
       # Check if ntemp is between 0 and 4
@@ -256,7 +258,7 @@ class bms_info_handler(bms_info):
          raise TypeError("ntemp must be an integer")
       if ntemp < 0 or ntemp > 4:
          raise ValueError("ntemp must be between 0 and 4")
-      super().ntemp = ntemp
+      self.ntemp = ntemp
 #################################################################
 #  Status Handler
 #################################################################
@@ -287,13 +289,13 @@ class bms_status_handler(bms_status):
    
    def set_led(self, led):
       self.led.value(led)
-      super().led = led
+      self.led = led
 
    def set_state(self, state):
-      super().state = state
+      self.state = state
 
    def set_err(self, err):
-      super().err = err
+      self.err = err
 #################################################################
 #  Monitor Handler
 #################################################################
@@ -328,10 +330,10 @@ class bms_monitor_handler(bms_monitor):
       while True:
          try:
             # 1. read sensors
-            super().vcell = ades.get_all_cell_voltages(mode="average")
+            self.vcell = ades.get_all_cell_voltages(mode="average")
             status.set_state(ades.get_status())
             # 2. validate sensor data (basic checks)
-            if super().vcell  is None or super().temp is None or super().vstr is None:
+            if self.vcell  is None or self.temp is None or self.vstr is None:
                error_handler.set_error(error_code.ERROR_ADES)
             else:
                # 3. update data_dict with new sensor values
@@ -351,7 +353,7 @@ class bms_monitor_handler(bms_monitor):
             ades.start_aux_adc_conv(openwire=False, pullup=False)
             #ades.start_aux2_adc_conv()
             await asyncio.sleep_ms(1) #taux = 1ms conversion time
-            super().vstr = ades.get_string_voltage()
+            self.vstr = ades.get_string_voltage()
          except: 
             error.set_error(error_code.ERROR_ADES)
             print(f"Aux read error: {e}")
@@ -360,7 +362,7 @@ class bms_monitor_handler(bms_monitor):
    async def _mon_temp_task(self):
       while True:
          try: 
-            super().temp = ds18.get_temperatures()
+            self.temp = ds18.get_temperatures()
          except: 
             error.set_error(error_code.ERROR_ADES)
             print(f"Temperature read error: {e}")
@@ -494,10 +496,9 @@ async def listen_to_master_task():
          await asyncio.sleep_ms(10)
 
 async def main():
-   # Init ADES1830
    status.set_state("Init")
    ncells = ades.init()
-   while ncells < 0:
+   while ncells <= 3:
       print("ADES1830 init failed try again..")
       await asyncio.sleep(1)
       ncells = ades.init()
@@ -505,8 +506,9 @@ async def main():
    info.set_id(ades.get_device_id())
    info.set_ncells(ncells)
    # 2. Init OneWire Temp sensors (get nr of sensors)
-   info.set_ntemp(ds18.get_roms())  
+   info.set_ntemp(len(ds18.get_roms()))  
    # 4. discover master
+   print("Discovering master...")
    while True:
       master, msg = e.recv(timeout_ms=10) 
       if msg == b'I AM YOUR MASTER':
@@ -517,7 +519,7 @@ async def main():
          e.send(master, data_bytes)
          break
       else:
-         await asyncio.sleep(1)
+         await asyncio.sleep(5)
    status.set_state("Idle")
    #5. Master discovered --> listen to commands
    asyncio.create_task(listen_to_master_task())

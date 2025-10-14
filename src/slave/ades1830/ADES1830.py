@@ -19,7 +19,7 @@ class ADES1830:
         self.cfga = self.register_map.get_register("CFGA")
         self.cfgb = self.register_map.get_register("CFGB")
         self.rdcva = self.register_map.get_register("RDCVA")
-        self.rdauxd = self.register_map.get_register("RDAUXA")
+        self.rdauxd = self.register_map.get_register("RDAUXD")
         self.pwma = self.register_map.get_register("PWMA")
         self.pwmb = self.register_map.get_register("PWMB")
     
@@ -36,8 +36,11 @@ class ADES1830:
         self.start_cell_volt_conv(redundant=False, continuous=False, discharge_permitted=False, reset_filter=False, openwire=0)
         time.sleep_ms(1)
         vcell = self.get_all_cell_voltages()
-        return len([x for x in vcell if x > 1.1]) # TODO: magic nr
-            
+        nr_of_cells = len([x for x in vcell if x > 1.1]) 
+        if nr_of_cells == None: # TODO: magic nr
+            return 0
+        else:
+            return nr_of_cells
 
     def reset_reg_to_default(self):
         self.register_map.write_defaults()
