@@ -3,20 +3,18 @@ import DS18B20
 import asyncio
 import network
 import espnow
-import socket
 import json
 from machine import WDT, Pin
-from enum import IntEnum
 
 FW_VERSION = "1.0.0.0"
 HW_VERSION = "1.0.0.0"
 USR_LED = 14
 ERR_LED = 4
-
+TEMP_OWM_PIN = 9
 #################################################################
 #  Error handler
 #################################################################
-class error_code(IntEnum):
+class error_code:
    ERROR_NO = 0
    ERROR_ADES = 1
    ERROR_WLAN = 3
@@ -233,7 +231,7 @@ class bms_info_handler(bms_info):
    def __init__(self):
       super().__init__()
 
-   def get_info():
+   def get_info(self):
       return super().to_dict()
    
    def set_id(self, id):
@@ -284,7 +282,7 @@ class bms_status_handler(bms_status):
       super().__init__()
       self.led = Pin(led_pin, Pin.OUT)
 
-   def get_status():
+   def get_status(self):
       return super().to_dict()
    
    def set_led(self, led):
@@ -463,7 +461,7 @@ watchdog = Watchdog(timeout=50000)
 status = bms_status_handler(led_pin = USR_LED)
 error = error_handler(led_pin = ERR_LED)
 ades = ADES1830.ADES1830()
-ds18 = DS18B20.DS18B20()
+ds18 = DS18B20.DS18B20(TEMP_OWM_PIN, False)
 command= bms_command_handler()
 
 config = bms_config_handler()
