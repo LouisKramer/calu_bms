@@ -4,6 +4,7 @@ import asyncio
 import network
 import espnow
 import json
+import sys
 from machine import WDT, Pin
 
 FW_VERSION = "1.0.0.0"
@@ -72,12 +73,11 @@ class Watchdog:
    def __init__(self, timeout=5000):
       self.wdt = WDT(timeout=timeout)
       self.task = None
-      self.start()
    
    async def _feed_task(self):
       while True:
          self.wdt.feed()
-         await asyncio.sleep(1)
+         await asyncio.sleep(2)
    
    def start(self):
       if self.task is None:
@@ -262,12 +262,11 @@ class bms_info_handler(bms_info):
 #################################################################
 #  Status Handler
 #################################################################
-class BMS_STATE(IntEnum):
+class BMS_STATE:
    INIT = 0,
    IDLE = 10,
    MONITORING = 20,
    FW_UPDATE = 99
-
 class bms_status:
    def __init__(self):
       self.state = BMS_STATE.INIT
@@ -502,12 +501,13 @@ async def listen_to_master_task():
          await asyncio.sleep_ms(10)
 
 async def main():
-   # Init ADES1830
+   # Init
    status.set_state(BMS_STATE.INIT)
+   watchdog.start()
    ncells = ades.init()
    while ncells <= 3:
       print("ADES1830 init failed try again..")
-      await asyncio.sleep(1)
+      await asyncio.sleep(5)
       ncells = ades.init()
    # Get device ID   
    info.set_id(ades.get_device_id())
