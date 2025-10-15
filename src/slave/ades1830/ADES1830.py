@@ -175,15 +175,8 @@ class ADES1830:
         result_uv = []
         for cell in range(16):
             # UV bit is at position 2*cell, OV bit is at position 2*cell + 1
-            uv_bit = (flags >> (2 * cell)) & 1
-            ov_bit = (flags >> (2 * cell + 1)) & 1
-
-            # Add to result if the bit is set
-            if uv_bit:
-                result_uv.append((cell + 1, "UV"))
-            if ov_bit:
-                result_ov.append((cell + 1, "OV"))
-
+            result_uv[cell] = (flags >> (2 * cell)) & 1
+            result_ov[cell] = (flags >> (2 * cell + 1)) & 1
         return result_ov,result_uv
             
 #################################################################
