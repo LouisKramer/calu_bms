@@ -171,10 +171,8 @@ class ADES1830:
 
     def get_ov_uv_flag(self):
         flags = self.rdstatd.ov_uv_flag()
-        if flags == 0:
-            return 0
-
-        result = []
+        result_ov = []
+        result_uv = []
         for cell in range(16):
             # UV bit is at position 2*cell, OV bit is at position 2*cell + 1
             uv_bit = (flags >> (2 * cell)) & 1
@@ -182,11 +180,11 @@ class ADES1830:
 
             # Add to result if the bit is set
             if uv_bit:
-                result.append((cell + 1, "UV"))
+                result_uv.append((cell + 1, "UV"))
             if ov_bit:
-                result.append((cell + 1, "OV"))
+                result_ov.append((cell + 1, "OV"))
 
-        return result
+        return result_ov,result_uv
             
 #################################################################
 #  Commands
