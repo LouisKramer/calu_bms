@@ -3,7 +3,6 @@ import DS18B20
 import asyncio
 import network
 import espnow
-import socket
 import json
 from machine import WDT, Pin
 from enum import IntEnum
@@ -12,7 +11,6 @@ FW_VERSION = "1.0.0.0"
 HW_VERSION = "1.0.0.0"
 USR_LED = 14
 ERR_LED = 4
-
 #################################################################
 #  Error handler
 #################################################################
@@ -24,7 +22,7 @@ class error_code(IntEnum):
    ERROR_OTHER = 5
    ERROR_COMM = 6
 class error_handler():
-   def __init__(self, led_pin=2):
+   def __init__(self, led_pin=ERR_LED):
         self.current_error = error_code.ERROR_NO  # Variable to hold error code
         self.led = Pin(led_pin, Pin.OUT)
         self.blink_task = None  # To manage the blinking loop
@@ -60,12 +58,12 @@ class error_handler():
       self.current_error = error_code
       if error_code != error_code.ERROR_NO and self.blink_task is None:
          self.blink_task = asyncio.create_task(self.blink_led())
-      status.err(self.current_error)
+      status.set_err(self.current_error)
 
    def clear_error(self):
       """Resolve the error."""
       self.current_error = error_code.ERROR_NO
-      status.err(self.current_error)
+      status.set_err(self.current_error)
 #################################################################
 #  Watchdog
 #################################################################
@@ -262,9 +260,15 @@ class bms_info_handler(bms_info):
 #################################################################
 #  Status Handler
 #################################################################
+class BMS_STATE(IntEnum):
+   INIT = 0,
+   IDLE = 10,
+   MONITORING = 20,
+   FW_UPDATE = 99
+
 class bms_status:
    def __init__(self):
-      self.state = "run"
+      self.state = BMS_STATE.INIT
       self.led   = 0
       self.err   = error_code.ERROR_NO
       self.ov_flag    = [0] * 16 #TODO magic number
@@ -290,8 +294,9 @@ class bms_status_handler(bms_status):
    def set_led(self, led):
       self.led.value(led)
       super().led = led
+   
 
-   def set_state(self, state):
+   def set_state(self, state:BMS_STATE):
       super().state = state
 
    def set_err(self, err):
@@ -451,7 +456,7 @@ class bms_balancing_handler():
 #################################################################
 
 # A WLAN interface must be active to send()/recv()
-sta = network.WLAN(network.WLAN.IF_STA)
+sta = network.WLAN(network.WLAN.STA_IF)
 sta.active(True)
 sta.disconnect()   # Because ESP8266 auto-connects to last Access Point
 # initialize espnow
@@ -464,10 +469,11 @@ status = bms_status_handler(led_pin = USR_LED)
 error = error_handler(led_pin = ERR_LED)
 ades = ADES1830.ADES1830()
 ds18 = DS18B20.DS18B20()
-command= bms_command_handler()
 
+command= bms_command_handler()
 config = bms_config_handler()
 info = bms_info_handler()
+
 monitor = bms_monitor_handler()
 balancer = bms_balancing_handler()
 
@@ -497,7 +503,7 @@ async def listen_to_master_task():
 
 async def main():
    # Init ADES1830
-   status.set_state("Init")
+   status.set_state(BMS_STATE.INIT)
    ncells = ades.init()
    while ncells < 0:
       print("ADES1830 init failed try again..")
