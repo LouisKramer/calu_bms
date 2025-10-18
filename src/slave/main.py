@@ -109,8 +109,8 @@ class error_handler():
     def __init__(self, led_pin=ERR_LED, debug=True):
         # Setup LED
         self.led = machine.Pin(led_pin, machine.Pin.OUT)
-        self.led.off()
-        sys.excepthook = self.excepthook
+        self.led.on()#led is inverted
+        #sys.excepthook = self.excepthook
         self.blink_task = None
         self.debug = debug
         self.has_error = False
@@ -134,14 +134,15 @@ class error_handler():
         self.has_error = True
         self.err_msg = message
         self.err_lvl = level
+        print(f"Error: {message}")
         if self.debug:
             print(f"[{level.upper()}] {message}")
                 # Indicate via LED
-        if level != 'critical':
+        if level != 'error':
             if self.blink_task is None:
                 self.blink_task = asyncio.create_task(self.__blink_led(self.ERROR_LEVELS[level]))
         else:
-            self.led.on()
+            self.led.off()#led is inverted
         
 
     def get_error(self):
@@ -160,7 +161,7 @@ class error_handler():
 #  Watchdog
 #################################################################
 class Watchdog:
-   def __init__(self, timeout=5000):
+   def __init__(self, timeout=50000):
       self.wdt = WDT(timeout=timeout)
       self.task = None
    
@@ -203,11 +204,11 @@ class bms_monitor_handler():
         self.cfg_cell_ov = 3.6
         self.cfg_str_uv = 25.0
         self.cfg_str_ov = 25.0
-        self.cfg_bal_pwm = 0
-        self.cfg_bal_en = False
+        self.cfg_bal_pwm = 15
+        self.cfg_bal_en = True
         self.cfg_ext_bal_en = False
         self.cfg_bal_th = 0.2
-        self.cfg_bal_start_vol = 3.4
+        self.cfg_bal_start_vol = 1
 
         self.sta = "off"
         self.sta_string_ov_uv = 0
@@ -219,6 +220,7 @@ class bms_monitor_handler():
         self.ades = None
         self.ds18 = None
         self.err = error
+        print(self.get_config())
 
     def configure(self, cell_uv: float, 
                   cell_ov: float, 
@@ -286,16 +288,18 @@ class bms_monitor_handler():
 
     # Monitors cell voltages
     async def __mon_cell_task(self):
+        print("Run cell monitoring task")
         self.ades.start_cell_volt_conv(redundant=False, continuous=True, discharge_permitted=False, reset_filter=False, openwire=0)
         #ades.start_s_adc_conv(continuous=True, discharge_permitted=False, openwire=0)
         while True:
             # Read sensors
             self.mon_vcell = self.ades.get_all_cell_voltages(mode="average")
             # wait before next reading
-            await asyncio.sleep_ms(8) # Average updates every 8ms
+            await asyncio.sleep(1) # Average updates every 8ms
 
    # Monitor Auxilary measurements
     async def __mon_aux_task(self):
+        print("Run aux monitoring task")
         while True:
             self.ades.start_aux_adc_conv(openwire=False, pullup=False)
             #ades.start_aux2_adc_conv()
@@ -304,11 +308,14 @@ class bms_monitor_handler():
             await asyncio.sleep(1) 
 
     async def __mon_temp_task(self):
+        print("Run temperature monitoring task")
         while True:
             self.mon_temp = self.ds18.get_temperatures()
             await asyncio.sleep(2) 
+
     # Monitors Errors, Warnings,Cell/String Undervoltage, Cell/String Overvoltage etc.
     async def __mon_state_task(self):
+        print("Run ADES1830 state monitoring task")
         while True:
             self.sta_cell_ov, self.sta_cell_uv = self.ades.get_ov_uv_flag()
 
@@ -320,29 +327,31 @@ class bms_monitor_handler():
                 self.sta_string_ov_uv = 1
             else: 
                 self.sta_string_ov_uv = 0
-            await asyncio.sleep_ms(100) 
+            await asyncio.sleep(3) 
 
     async def __bal_task(self):
+        print("Run cell balancing task")
         while True:
             bal_pwm = [0] * MAX_NCELL
             if self.cfg_bal_en == 1:
                 for i, cell in enumerate(self.mon_vcell):
-                    if cell > self.cfg_bal_start_vol and i < self.inf_ncell:
+                    if cell > self.cfg_bal_start_vol:
                         bal_pwm[i] = self.cfg_bal_pwm
                     else:
                         bal_pwm[i] = 0
 
-                if (max(self.mon_vcell) - min(self.mon_vcell)) >= self.cfg_bal_th and (max(self.mon_vcell) > self.cfg_cell_uv):
-                    max_index = self.mon_vcell.index(max(self.mon_vcell))   
-                    self.bal_pwm[max_index] = self.cfg_bal_pwm
+                #if (max(self.mon_vcell) - min(self.mon_vcell)) >= self.cfg_bal_th and (max(self.mon_vcell) > self.cfg_cell_uv):
+                #    max_index = self.mon_vcell.index(max(self.mon_vcell))   
+                #    bal_pwm[max_index] = self.cfg_bal_pwm
 
             else:
                 bal_pwm= [0] * MAX_NCELL
 
             if bal_pwm != self.sta_bal_pwm :
                 try:
+                    print(f"Change balancing pwm to: {bal_pwm}")
                     pwm = self.ades.set_pwm(bal_pwm)
-                    assert pwm != bal_pwm 
+                    assert pwm == bal_pwm 
                 except Exception as err:
                     print(f"Set PWM ADES1830 error: {err}")
 
@@ -352,9 +361,10 @@ class bms_monitor_handler():
             if self.cfg_ext_bal_en == 1:
                 pass
 
-            await asyncio.sleep_ms(10) 
+            await asyncio.sleep(10) 
 
     def start(self):
+        print("Start monitoring")
         self.sta = "monitoring"
         if self.cell_task is None:
             self.cell_task = asyncio.create_task(self.__mon_cell_task())
@@ -367,6 +377,7 @@ class bms_monitor_handler():
         if self.bal_task is None:
             self.bal_task = asyncio.create_task(self.__bal_task())   
     def stop(self):
+        print("Stop monitoring")
         self.sta = "off"
         if self.cell_task is not None:
             self.cell_task.cancel()
@@ -490,9 +501,11 @@ class bms_command_handler:
         self.led_usr = machine.Pin(USR_LED, machine.Pin.OUT)
         self.led_usr.off()
 
-    def start(self):
-        if self.listen_to_master_task is None:
+    def start(self, sim = False):
+        if self.listen_to_master_task is None and sim == False:
             self.listen_to_master_task = asyncio.create_task(self.__listen_to_master_task())
+        elif self.listen_to_master_task is None and sim == True:
+            self.listen_to_master_task = asyncio.create_task(self.__sim_master_task())
         return self.listen_to_master_task
     
     def stop(self):
@@ -500,8 +513,10 @@ class bms_command_handler:
             self.listen_to_master_task.cancel()
             self.listen_to_master_task = None
 
-    async def connect(self):
+    async def connect(self, sim = False):
         # A WLAN interface must be active to send()/recv()
+        if sim == True:
+            return
         try: 
             sta = network.WLAN(network.WLAN.STA_IF)
             sta.active(True)
@@ -559,14 +574,25 @@ class bms_command_handler:
             else:
                 await asyncio.sleep_ms(10)       
 
+    async def __sim_master_task(self):
+        while True:
+            self.turn_on_led()
+            await asyncio.sleep(1)    
+            self.turn_off_led()
+            await asyncio.sleep(1) 
+            print(self.get_data())
+            await asyncio.sleep(5)
+            print(self.get_info())
+            await asyncio.sleep(3)  
+
     def turn_on_led(self):
        print("LED turned ON")
-       self.led_usr.on()
+       self.led_usr.off()#led is inverted
        return self.monitor.get_status()
  
     def turn_off_led(self):
        print("LED turned OFF")
-       self.led_usr.off()
+       self.led_usr.on()#led is inverted
        return self.monitor.get_status()
     
     def start_monitoring(self):
@@ -613,13 +639,17 @@ class bms_command_handler:
 #  Main
 #################################################################    
 async def main():
-    error = error_handler(ERR_LED, True)
-    watchdog = Watchdog()
-    wd_task = watchdog.start()
+    print("Init BMS...")
+    try: 
+        error = error_handler(ERR_LED, True)
+        watchdog = Watchdog()
+        wd_task = watchdog.start()
+    except Exception as err:
+        print(err)
 
     monitor = bms_monitor_handler(error = error)
     try :
-        monitor.configure()
+        #monitor.configure()
         monitor.initialize()
         monitor.start()
     except Exception as err:
@@ -628,14 +658,13 @@ async def main():
     await asyncio.sleep(1)
 
     commands = bms_command_handler(monitor = monitor,error = error)
-    await commands.connect()
-    cmd_task = commands.start()
+    await commands.connect(sim=True)
+    cmd_task = commands.start(sim=True)
     while True:
         await asyncio.sleep(5)
 
 
-if __name__ == '__main__':
-    try: 
-        asyncio.run(main())
-    except Exception as err:
-        print("running main failed.")
+try: 
+    asyncio.run(main())
+except Exception as err:
+    print("running main failed.")

@@ -170,13 +170,13 @@ class ADES1830:
         return self.to_voltage_16bit(dig_sup_vol)
 
     def get_ov_uv_flag(self):
-        flags = self.rdstatd.ov_uv_flag()
+        flags = self.rdstatd.get_ov_uv_flag()
         result_ov = []
         result_uv = []
-        for cell in range(16):
+        for cell in range(15):
             # UV bit is at position 2*cell, OV bit is at position 2*cell + 1
-            result_uv[cell] = (flags >> (2 * cell)) & 1
-            result_ov[cell] = (flags >> (2 * cell + 1)) & 1
+            result_uv.append((flags >> (2 * cell)) & 1)
+            result_ov.append((flags >> (2 * cell + 1)) & 1)
         return result_ov,result_uv
             
 #################################################################
@@ -295,7 +295,7 @@ class ADES1830:
             signed_code = digital_code
         # Calculate voltage
         voltage = (signed_code * LSB) + OFFSET
-        return voltage
+        return round(voltage, 2)
     
     def to_code_16bit(self, voltage, lsb = 0.00015, offset = 1.5):
         LSB = lsb
@@ -323,7 +323,7 @@ class ADES1830:
 
         # Calculate voltage
         voltage = (signed_code * LSB) + OFFSET
-        return voltage
+        return round(voltage, 3)
 
     def temp_to_16bit_code(self, temperature):
         LSB = 0.02
@@ -349,7 +349,7 @@ class ADES1830:
             signed_code = digital_code
         # Calculate temperature
         temperature = (signed_code * LSB) + OFFSET
-        return temperature
+        return round(temperature, 1)
 
     def pack_nibbles(self, high_nibble, low_nibble):
         # Ensure inputs are 4-bit values (0 to 15)

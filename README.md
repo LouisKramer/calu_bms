@@ -3,6 +3,8 @@ BMS diy for ESP32 S3 WROOM N8R8
 Micropython: https://docs.micropython.org/en/latest/index.html
 
     - ESP32_GENERIC_S3-SPIRAM_OCT-20250911-v1.26.1 
+    - esptool.exe erase_flash
+    - esptool.exe --baud 460800 write_flash 0 ESP32_GENERIC_S3-SPIRAM_OCT-20250911-v1.26.1.bin
     - https://micropython.org/download/ESP32_GENERIC_S3/
 
 Transfer data to esp:

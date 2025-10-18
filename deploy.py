@@ -4,7 +4,7 @@ from pathlib import Path
 
 # Configuration
 SRC_DIR = "./src/slave"
-PORT = "COM4"
+PORT = "COM6"
 
 def get_all_files(directory):
     """Recursively get all files in the specified directory."""
