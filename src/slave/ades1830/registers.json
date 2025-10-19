@@ -137,6 +137,11 @@
                 "bit_start": 43,
                 "width": 1,
                 "default": "0x0001"
+            },
+            "conversion_counter": {
+                "bit_start": 16,
+                "width": 16,
+                "default": "0x0000"
             }
         }
     },

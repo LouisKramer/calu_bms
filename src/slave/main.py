@@ -7,6 +7,13 @@ import network
 import espnow
 import json
 import sys
+from collections import deque
+import requests
+
+HA_URL = 'http://192.168.1.90:8123'  # Home Assistant IP and port
+API_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI4NDZjNWFkNmJiNjc0MWY1ODU3NGM0MWJmYTFmNjEzNCIsImlhdCI6MTc2MDg3MDQ1MSwiZXhwIjoyMDc2MjMwNDUxfQ.4IwK58gY4JIm-PCbIRpyZDwZWMDSjxca0_8Z9Yg-iPs'  # From Home Assistant
+ENTITY_ID = 'sensor.micropython_temperature'
+
 
 FW_VERSION = "1.0.0.0"
 HW_VERSION = "1.0.0.0"
@@ -14,89 +21,6 @@ USR_LED = 14
 ERR_LED = 4
 TEMP_OWM_PIN = 9
 MAX_NCELL = 16
-
-#print("main started")
-
-# Main execution
-# Initialize ADES1830
-#ades = ADES1830.ADES1830()
-#ds18 = DS18B20.DS18B20(data_pin=9, pullup=False)
-#startup sequence:
-# 1. wakeup
-# 2. softreset and wait for 50ms
-# 3. wakeup
-# 4. clear communication counter
-# 5. Set REFON bit in CFGA (must be set before checking reset/cleared values)
-# 6. Write config to Registers
-#   a. CFGA.CTH[2:0] = 0b010 S-ADC comparison threshold to 9mv
-#   b. CFGA.REFON = 1
-#   c. CFGA.FC[2:0] = 0b101 set IIR filter to 32
-#   d. CFGA rest is default as in datasheet
-#   e. CFGB.VUV = 0
-#   f. CFGB.VOV = 0
-#   g. CFGB rest is default as in datasheet
-# 7. Wait for T_REFUP = 5ms
-# 8. Disable Balancing --> set all PWM to 0
-# 9. Reset IIR filter change CFGA.FC[2:0] = 0b001 set IIR filter to 2
-# 10. Clear flags in RDSTATC
-
-# 11. Start continious cell measurement
-# 12. Enable Balancing --> set all PWMs to x
-# 13. Read device ID
-# 14. Read cell voltage data.
-# ...
-
-# Instantiate registers
-while False:
-    temp_sens = ds18.get_roms()
-    print(temp_sens)
-    print(f"NR of Temp sensors = {len(temp_sens)}")
-    temps=ds18.get_temperatures()
-    print(f"Temperatures: {temps}")
-    ades.hal.wakeup()
-    ades.set_ref_power_up(1)
-    time.sleep_ms(5)
-    uv = ades.get_cell_undervoltage()
-    print(f"Undervoltage: {uv:.4f}")
-    ades.set_cell_undervoltage(2.5)
-    time.sleep_ms(1)
-    uv = ades.get_cell_undervoltage()
-    print(f"Undervoltage: {uv:.4f}")
-
-    pwm = ades.get_pwm()
-    print(f"PWM: {list(pwm)}")
-
-    #pwm = ades.set_pwm([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,0])
-    #print(f"PWM: {list(pwm)}")
-
-    #cell_pwm = ades.set_pwm_cell(10, 4)
-    #print(f"PWM cell 4: {cell_pwm}")
-
-    pwm = ades.get_pwm()
-    print(f"PWM: {list(pwm)}")
-
-    ades.set_ref_power_up(1)
-    ades.start_cell_volt_conv(redundant=False, continuous=True, discharge_permitted=False, reset_filter=False, openwire=0)
-    #ades.start_s_adc_conv(continuous=True, discharge_permitted=False, openwire=0)
-    #ades.start_aux_adc_conv(openwire=False, pullup=False)
-    #ades.start_aux2_adc_conv()
-    time.sleep_ms(1)
-    for i in range(2):
-        cell = ades.get_all_cell_voltages()
-        cell3 = ades.get_cell_voltage(cell=3)
-    #    internal_temp = ades.get_internal_temp()
-    #    device_id = ades.get_device_id()
-    #    reference_voltage2 = ades.get_reference_voltage2()
-    #    digital_supply_voltage = ades.get_digital_supply_voltage()
-        print(f"Cell Voltages: {cell[0]:.4f} V, {cell[1]:.4f} V, {cell[2]:.4f} V")
-    #    print(f"Internal Temp: {internal_temp:.2f} °C")
-    #    print(f"Device ID: {device_id:04x}")
-    #    print(f"Reference Voltage 2: {reference_voltage2:.4f} V")
-    #    print(f"Digital Supply Voltage: {digital_supply_voltage:.4f} V")
-        asyncio.sleep_ms(1)
-
-        
-    time.sleep(5)
 #################################################################
 #  Error Handler
 #################################################################
@@ -216,61 +140,89 @@ class bms_monitor_handler():
         self.sta_cell_ov = []
         self.sta_cell_uv = []
         self.sta_bal_pwm = []
+        self.sta_conv_cnt = []
 
         self.ades = None
         self.ds18 = None
         self.err = error
         print(self.get_config())
 
-    def configure(self, cell_uv: float, 
-                  cell_ov: float, 
-                  str_uv: float, 
-                  str_ov: float, 
-                  bal_pwm: float, 
-                  bal_th: float, 
-                  bal_start_voltage: float, 
-                  bal_en: bool, ext_bal_en: bool):
-        # Check types
-        if not all(isinstance(x, float) for x in [cell_uv, cell_ov, str_uv, str_ov, bal_th, bal_pwm, bal_start_voltage]):
+    def configure(self, cell_uv: float = None, 
+                    cell_ov: float = None, 
+                    str_uv: float = None, 
+                    str_ov: float = None, 
+                    bal_pwm: float = None, 
+                    bal_th: float = None, 
+                    bal_start_voltage: float = None, 
+                    bal_en: bool = None, 
+                    ext_bal_en: bool = None):
+        # Check types for provided parameters
+        float_params = [cell_uv, cell_ov, str_uv, str_ov, bal_th, bal_pwm, bal_start_voltage]
+        if any(x is not None and not isinstance(x, float) for x in float_params):
             raise TypeError("Voltage and threshold parameters must be floats")
-        if not all(isinstance(x, bool) for x in [bal_en, ext_bal_en]):
+        bool_params = [bal_en, ext_bal_en]
+        if any(x is not None and not isinstance(x, bool) for x in bool_params):
             raise TypeError("Enable parameters must be booleans")
 
         # Check voltage ranges (assuming typical Li-ion battery parameters)
-        if not (2.5 <= cell_uv <= 3.6):
-            raise ValueError("Cell undervoltage must be between 2.5V and 3.6V")
-        if not (3.6 <= cell_ov <= 4.3):
-            raise ValueError("Cell overvoltage must be between 4.0V and 4.3V")
-        if not (cell_uv < cell_ov):
+        if cell_uv is not None:
+            if not (2.5 <= cell_uv <= 3.6):
+                raise ValueError("Cell undervoltage must be between 2.5V and 3.6V")
+            self.cfg_cell_uv = cell_uv
+
+        if cell_ov is not None:
+            if not (3.6 <= cell_ov <= 4.3):
+                raise ValueError("Cell overvoltage must be between 4.0V and 4.3V")
+            self.cfg_cell_ov = cell_ov
+
+        # Ensure cell_uv < cell_ov if both are provided or one is provided and the other is already set
+        if (cell_uv is not None and cell_ov is not None and not (cell_uv < cell_ov)) or \
+           (cell_uv is not None and hasattr(self, 'cfg_cell_ov') and not (cell_uv < self.cfg_cell_ov)) or \
+           (cell_ov is not None and hasattr(self, 'cfg_cell_uv') and not (self.cfg_cell_uv < cell_ov)):
             raise ValueError("Cell overvoltage must be greater than undervoltage")
 
         # Check string voltage ranges (assuming series configuration of up to 16 cells)
-        if not (cell_uv * 16 <= str_uv <= cell_ov * 16):
-            raise ValueError("String undervoltage must be within cell voltage range for 16 cells")
-        if not (cell_ov * 16 <= str_ov <= cell_ov * 16 + 1.0):
-            raise ValueError("String overvoltage must be within reasonable range")
-        if not (str_uv < str_ov):
+        if str_uv is not None:
+            ref_cell_uv = cell_uv if cell_uv is not None else self.cfg_cell_uv
+            ref_cell_ov = cell_ov if cell_ov is not None else self.cfg_cell_ov
+            if not (ref_cell_uv * 16 <= str_uv <= ref_cell_ov * 16):
+                raise ValueError("String undervoltage must be within cell voltage range for 16 cells")
+            self.cfg_str_uv = str_uv
+
+        if str_ov is not None:
+            ref_cell_ov = cell_ov if cell_ov is not None else self.cfg_cell_ov
+            if not (ref_cell_ov * 16 <= str_ov <= ref_cell_ov * 16 + 1.0):
+                raise ValueError("String overvoltage must be within reasonable range")
+            self.cfg_str_ov = str_ov
+
+        # Ensure str_uv < str_ov if both are provided or one is provided and the other is already set
+        if (str_uv is not None and str_ov is not None and not (str_uv < str_ov)) or \
+           (str_uv is not None and hasattr(self, 'cfg_str_ov') and not (str_uv < self.cfg_str_ov)) or \
+           (str_ov is not None and hasattr(self, 'cfg_str_uv') and not (self.cfg_str_uv < str_ov)):
             raise ValueError("String overvoltage must be greater than undervoltage")
-        
-        # Check balance PWM (0-100% for 4-bit PWM)
-        if not (0 <= bal_pwm <= 100):
-            raise ValueError("Balance PWM must be between 0 and 255")
+
+        # Check balance PWM (0-100% for PWM)
+        if bal_pwm is not None:
+            if not (0 <= bal_pwm <= 100):
+                raise ValueError("Balance PWM must be between 0 and 100")
+            self.cfg_bal_pwm = self.__pwm_percentage_to_hex(bal_pwm)
 
         # Check balance threshold and start voltage
-        if not (0.001 <= bal_th <= 2.0):
-            raise ValueError("Balance threshold must be between 0.001V and 2.0V")
-        if not (3.0 <= bal_start_voltage <= 4.2):
-            raise ValueError("Balance start voltage must be between 3.0V and 4.2V")
+        if bal_th is not None:
+            if not (0.001 <= bal_th <= 2.0):
+                raise ValueError("Balance threshold must be between 0.001V and 2.0V")
+            self.cfg_bal_th = bal_th
 
-        self.cfg_cell_uv        = cell_uv
-        self.cfg_cell_ov        = cell_ov
-        self.cfg_str_uv         = str_uv
-        self.cfg_str_ov         = str_ov
-        self.cfg_bal_en         = bal_en
-        self.cfg_ext_bal_en     = ext_bal_en
-        self.cfg_bal_th         = bal_th
-        self.cfg_bal_start_vol  = bal_start_voltage
-        self.cfg_bal_pwm        = self.__pwm_percentage_to_hex(bal_pwm)
+        if bal_start_voltage is not None:
+            if not (3.0 <= bal_start_voltage <= 4.2):
+                raise ValueError("Balance start voltage must be between 3.0V and 4.2V")
+            self.cfg_bal_start_vol = bal_start_voltage
+
+        # Update boolean parameters if provided
+        if bal_en is not None:
+            self.cfg_bal_en = bal_en
+        if ext_bal_en is not None:
+            self.cfg_ext_bal_en = ext_bal_en
 
     def initialize(self):
         self.sta = "init"
@@ -286,6 +238,13 @@ class bms_monitor_handler():
         self.ades.set_cell_overvoltage(self.cfg_cell_ov)
         self.inf_block_pos = 0 #TODO: Read in block position from DIP switches
 
+    def restart(self):
+        self.sta = "restart"
+        print("Restart monitoring")
+        self.ades.init()
+        self.inf_id = self.ades.get_device_id()
+        self.ades.set_cell_undervoltage(self.cfg_cell_uv)
+        self.ades.set_cell_overvoltage(self.cfg_cell_ov)
     # Monitors cell voltages
     async def __mon_cell_task(self):
         print("Run cell monitoring task")
@@ -317,8 +276,16 @@ class bms_monitor_handler():
     async def __mon_state_task(self):
         print("Run ADES1830 state monitoring task")
         while True:
-            self.sta_cell_ov, self.sta_cell_uv = self.ades.get_ov_uv_flag()
+            # check conversion counter
+            self.sta_conv_cnt.append(self.ades.get_conversion_counter())
+            print(f"conversion counter {self.sta_conv_cnt}")
+            if len(self.sta_conv_cnt) > 3:
+                self.sta_conv_cnt.pop(0)
+                if all(x == self.sta_conv_cnt[0] for x in self.sta_conv_cnt):
+                    self.restart()
 
+            # check OV UV flags    
+            self.sta_cell_ov, self.sta_cell_uv = self.ades.get_ov_uv_flag()
             if all(x == 0 for x in self.sta_cell_ov) and all(x == 0 for x in self.sta_cell_ov):
                 self.sta_cell_ov_uv = 0
             else:
@@ -584,6 +551,31 @@ class bms_command_handler:
             await asyncio.sleep(5)
             print(self.get_info())
             await asyncio.sleep(3)  
+            #data = self.get_data()
+            #temperature = data.get("temp")
+            #headers = {
+            #    'Authorization': 'Bearer ' + API_TOKEN,
+            #    'Content-Type': 'application/json'
+            #    }
+            ## Prepare payload
+            #payload = json.dumps({
+            #    'state': temperature,
+            #    'attributes': {
+            #    'unit_of_measurement': '°C',
+            #    'friendly_name': 'MicroPython Temperature'
+            #    }
+            #})   
+            ## Send POST request
+            #try:
+            #    response = requests.post(
+            #        f'{HA_URL}/api/states/{ENTITY_ID}',
+            #        data=payload,
+            #        headers=headers
+            #    )
+            #    print('Response:', response.text)
+            #    response.close()
+            #except Exception as e:
+            #    print('Error:', e) 
 
     def turn_on_led(self):
        print("LED turned ON")
@@ -649,7 +641,6 @@ async def main():
 
     monitor = bms_monitor_handler(error = error)
     try :
-        #monitor.configure()
         monitor.initialize()
         monitor.start()
     except Exception as err:

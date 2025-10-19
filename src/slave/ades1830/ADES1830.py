@@ -32,13 +32,13 @@ class ADES1830:
         self.reset_reg_to_default()
         # Turn on Reference voltage
         if self.set_ref_power_up(1) != 1 :
-            return 0
+            raise Exception(f"Reference Power-Up not set")
         self.start_cell_volt_conv(redundant=False, continuous=False, discharge_permitted=False, reset_filter=False, openwire=0)
         time.sleep_ms(1)
         vcell = self.get_all_cell_voltages()
-        nr_of_cells = len([x for x in vcell if x > 1.1]) 
-        if nr_of_cells == None: # TODO: magic nr
-            return 0
+        nr_of_cells = len([x for x in vcell if x > 1.1]) # TODO: magic nr
+        if nr_of_cells == None: 
+            raise ValueError(f"Initial Cell detection not successful")
         else:
             return nr_of_cells
 
@@ -178,7 +178,16 @@ class ADES1830:
             result_uv.append((flags >> (2 * cell)) & 1)
             result_ov.append((flags >> (2 * cell + 1)) & 1)
         return result_ov,result_uv
-            
+    
+    def get_conversion_counter(self):
+        reg = self.rdstatc.get_conversion_counter()
+        print(reg)
+        msb = (reg & 0xFF)<<6
+        print(msb)
+        lsb = ((reg >> 10) & 0xFF)
+        print(lsb)
+        print(msb + lsb)
+        return msb + lsb 
 #################################################################
 #  Commands
 #################################################################        
