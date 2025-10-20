@@ -124,10 +124,10 @@ class bms_monitor_handler():
         self.inf_id = 0
         self.inf_block_pos = 0
 
-        self.cfg_cell_uv = 2.5
+        self.cfg_cell_uv = 0.8
         self.cfg_cell_ov = 3.6
-        self.cfg_str_uv = 25.0
-        self.cfg_str_ov = 25.0
+        self.cfg_str_uv = 15.0
+        self.cfg_str_ov = 20.0
         self.cfg_bal_pwm = 15
         self.cfg_bal_en = True
         self.cfg_ext_bal_en = False
@@ -223,7 +223,8 @@ class bms_monitor_handler():
             self.cfg_bal_en = bal_en
         if ext_bal_en is not None:
             self.cfg_ext_bal_en = ext_bal_en
-
+    def write_config(self):
+        pass
     def initialize(self):
         self.sta = "init"
         # Init and get nr of temp sens
@@ -231,17 +232,20 @@ class bms_monitor_handler():
         self.inf_ntemp = len(self.ds18.get_roms())
         #Init, and get number of detected cells
         self.ades = ADES1830.ADES1830()
-        self.inf_ncell = self.ades.init()
+        self.inf_ncell = self.ades.init(self.cfg_cell_ov, self.cfg_cell_uv)
         # Get device ID   
         self.inf_id = self.ades.get_device_id()
-        self.ades.set_cell_undervoltage(self.cfg_cell_uv)
-        self.ades.set_cell_overvoltage(self.cfg_cell_ov)
         self.inf_block_pos = 0 #TODO: Read in block position from DIP switches
 
     def restart(self):
         self.sta = "restart"
         print("Restart monitoring")
-        self.ades.init()
+        self.ades.hal.wakeup()
+        self.ades.soft_reset()
+        self.inf_ncell = self.ades.init(self.cfg_cell_ov, self.cfg_cell_uv)
+        #self.ades.clear_flags() #TODO: not properly implemented
+        self.ades.clear_cell_voltage_registers()
+        self.ades.clear_aux_registers()
         self.inf_id = self.ades.get_device_id()
         self.ades.set_cell_undervoltage(self.cfg_cell_uv)
         self.ades.set_cell_overvoltage(self.cfg_cell_ov)
@@ -390,7 +394,7 @@ class bms_monitor_handler():
             "state": self.sta,
             "str_ov_uv_flag": self.sta_string_ov_uv,
             "cell_ov": self.sta_cell_ov,
-            "cell_uv": self.sta_cell_ov
+            "cell_uv": self.sta_cell_uv
         }
     def get_config(self):
         return self.__to_dict_config()
@@ -548,9 +552,12 @@ class bms_command_handler:
             self.turn_off_led()
             await asyncio.sleep(1) 
             print(self.get_data())
-            await asyncio.sleep(5)
+            await asyncio.sleep(3)
             print(self.get_info())
             await asyncio.sleep(3)  
+            print(self.get_status())
+            await asyncio.sleep(3)  
+            self.monitor.ades.clear_ov_uv(ov_uv = "all")
             #data = self.get_data()
             #temperature = data.get("temp")
             #headers = {

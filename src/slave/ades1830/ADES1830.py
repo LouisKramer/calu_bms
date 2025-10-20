@@ -23,13 +23,15 @@ class ADES1830:
         self.pwma = self.register_map.get_register("PWMA")
         self.pwmb = self.register_map.get_register("PWMB")
     
-    def init(self) -> int:
+    def init(self, ov, uv) -> int:
         self.hal.wakeup()
         self.soft_reset()
         time.sleep_ms(50)
         self.hal.wakeup()
         self.reset_command_counter()
-        self.reset_reg_to_default()
+        #self.reset_reg_to_default()
+        self.set_cell_undervoltage(uv)
+        self.set_cell_overvoltage(ov)
         # Turn on Reference voltage
         if self.set_ref_power_up(1) != 1 :
             raise Exception(f"Reference Power-Up not set")
@@ -181,12 +183,8 @@ class ADES1830:
     
     def get_conversion_counter(self):
         reg = self.rdstatc.get_conversion_counter()
-        print(reg)
-        msb = (reg & 0xFF)<<6
-        print(msb)
+        msb = (reg & 0xFF) << 6
         lsb = ((reg >> 10) & 0xFF)
-        print(lsb)
-        print(msb + lsb)
         return msb + lsb 
 #################################################################
 #  Commands
@@ -253,11 +251,48 @@ class ADES1830:
         self.hal.command(0x716)  # CLRSPIN
 
     def clear_flags(self):
+        #FIXME: send which flags have to be cleared
         self.hal.command(0x717)  # CLRFLAG
 
-    def clear_ov_uv(self):
-        #FIXME: send which flags have to be cleared
-        self.hal.command(0x715) #CLOVUV 
+    def clear_ov_uv(self, ov_uv: str = "all", cell: int = None): #ov,uv all, int 1-16 
+        if ov_uv not in ["ov", "uv", "all"]:
+            raise ValueError("ov_uv must be 'ov', 'uv', or 'all'")
+        if cell is not None and not (1 <= cell <= 16):
+            raise ValueError("cell must be between 1 and 16")
+
+        # Initialize 6-byte data array (48 bits, 32 for OV/UV flags, rest zero-filled)
+        data = [0] * 6
+
+        if cell is None:
+            # Clear flags for all cells
+            if ov_uv == "all":
+                # Set all UV (bits 0,2,...,30) and OV (bits 1,3,...,31) to 1
+                for i in range(16):
+                    data[i // 4] |= (1 << (2 * i % 8))       # UV bit
+                    data[i // 4] |= (1 << (2 * i % 8 + 1))   # OV bit
+            elif ov_uv == "uv":
+                # Set all UV bits (0,2,...,30) to 1
+                for i in range(16):
+                    data[i // 4] |= (1 << (2 * i % 8))
+            elif ov_uv == "ov":
+                # Set all OV bits (1,3,...,31) to 1
+                for i in range(16):
+                    data[i // 4] |= (1 << (2 * i % 8 + 1))
+        else:
+            # Clear flags for specific cell (1-16)
+            cell_idx = cell - 1  # Convert to 0-based index
+            byte_idx = cell_idx // 4  # Determine which byte
+            bit_offset = 2 * (cell_idx % 4)  # UV bit position
+            if ov_uv in ["uv", "all"]:
+                data[byte_idx] |= (1 << bit_offset)      # Set UV bit
+            if ov_uv in ["ov", "all"]:
+                data[byte_idx] |= (1 << (bit_offset + 1))  # Set OV bit
+        result = 0
+        for i in range(6):
+            result |= (data[i] << (i * 8))
+        # Write data and send command
+        self.hal.write(0x715, result)# CLOVUV
+
 
     def soft_reset(self):
         self.hal.command(0x027) # SRST
