@@ -175,7 +175,7 @@ class ADES1830:
         flags = self.rdstatd.get_ov_uv_flag()
         result_ov = []
         result_uv = []
-        for cell in range(15):
+        for cell in range(16):
             # UV bit is at position 2*cell, OV bit is at position 2*cell + 1
             result_uv.append((flags >> (2 * cell)) & 1)
             result_ov.append((flags >> (2 * cell + 1)) & 1)
