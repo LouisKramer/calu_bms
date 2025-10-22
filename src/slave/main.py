@@ -113,6 +113,7 @@ class bms_monitor_handler():
         self.temp_task = None
         self.state_task = None
         self.bal_task = None
+        self.request_restart = False
 
         self.mon_temp = {}
         self.mon_vstr   = 0.0
@@ -226,6 +227,7 @@ class bms_monitor_handler():
 
     def initialize(self):
         self.sta = "init"
+        self.request_restart = False
         # Init and get nr of temp sens
         self.ds18 = DS18B20.DS18B20(data_pin=TEMP_OWM_PIN, pullup=False)
         self.inf_ntemp = len(self.ds18.get_roms())
@@ -238,13 +240,6 @@ class bms_monitor_handler():
         self.ades.set_cell_overvoltage(self.cfg_cell_ov)
         self.inf_block_pos = 0 #TODO: Read in block position from DIP switches
 
-    def restart(self):
-        self.sta = "restart"
-        print("Restart monitoring")
-        self.ades.init()
-        self.inf_id = self.ades.get_device_id()
-        self.ades.set_cell_undervoltage(self.cfg_cell_uv)
-        self.ades.set_cell_overvoltage(self.cfg_cell_ov)
     # Monitors cell voltages
     async def __mon_cell_task(self):
         print("Run cell monitoring task")
@@ -282,7 +277,8 @@ class bms_monitor_handler():
             if len(self.sta_conv_cnt) > 3:
                 self.sta_conv_cnt.pop(0)
                 if all(x == self.sta_conv_cnt[0] for x in self.sta_conv_cnt):
-                    self.restart()
+                    self.request_restart = True
+                    self.err.handle_error('warning', f"Restart requested, reason: conversiont counter stalled")
 
             # check OV UV flags    
             self.sta_cell_ov, self.sta_cell_uv = self.ades.get_ov_uv_flag()
@@ -320,7 +316,7 @@ class bms_monitor_handler():
                     pwm = self.ades.set_pwm(bal_pwm)
                     assert pwm == bal_pwm 
                 except Exception as err:
-                    print(f"Set PWM ADES1830 error: {err}")
+                    self.err.handle_error('error', f"Set PWM ADES1830 error: {err}")
 
             self.sta_bal_pwm = bal_pwm
 
@@ -429,6 +425,7 @@ class bms_monitor_handler():
                        bal_start_voltage= cfg_bal_start_vol,
                        bal_en           = cfg_bal_en,
                        ext_bal_en       = cfg_ext_bal_en)      
+        
     def __pwm_percentage_to_hex(pwm_percentage: float) -> int:
         if not isinstance(pwm_percentage, (int, float)):
             raise ValueError("PWM percentage must be a number")
@@ -652,6 +649,12 @@ async def main():
     await commands.connect(sim=True)
     cmd_task = commands.start(sim=True)
     while True:
+        if monitor.request_restart == True:
+            monitor.stop()
+            await asyncio.sleep(1)
+            monitor.initialize()
+            monitor.start()
+
         await asyncio.sleep(5)
 
 
