@@ -84,3 +84,46 @@ class PCA9685:
     def all_off(self):
         """Turn off all channels."""
         self.set_all_pwm(0, 0)
+    
+    def enable_odd_channels(self, duty, mask=None):
+        """Enable specified odd-numbered channels (1, 3, ..., 15) with duty cycle.
+        
+        :param duty: Duty cycle (0-100%).
+        :param mask: List or set of odd channels to enable (e.g., [1, 5]). If None, enable all odd channels.
+        """
+        if duty < 0 or duty > 100:
+            raise ValueError("Duty cycle must be 0-100%")
+        valid_odd_channels = set(range(1, 16, 2))  # {1, 3, 5, 7, 9, 11, 13, 15}
+        if mask is not None:
+            mask = set(mask)
+            if not mask.issubset(valid_odd_channels):
+                raise ValueError("Mask contains invalid odd channels. Must be subset of " + str(valid_odd_channels))
+        else:
+            mask = valid_odd_channels
+        
+        self.all_off()  # Turn off all channels first
+        for channel in valid_odd_channels:
+            if channel in mask:
+                self.set_duty(channel, duty)
+    
+    def enable_even_channels(self, duty, mask=None):
+        """Enable specified even-numbered channels (0, 2, ..., 14) with duty cycle.
+        
+        :param duty: Duty cycle (0-100%).
+        :param mask: List or set of even channels to enable (e.g., [0, 4]). If None, enable all even channels.
+        """
+        if duty < 0 or duty > 100:
+            raise ValueError("Duty cycle must be 0-100%")
+        valid_even_channels = set(range(0, 16, 2))  # {0, 2, 4, 6, 8, 10, 12, 14}
+        if mask is not None:
+            mask = set(mask)
+            if not mask.issubset(valid_even_channels):
+                raise ValueError("Mask contains invalid even channels. Must be subset of " + str(valid_even_channels))
+        else:
+            mask = valid_even_channels
+        # Turn off all channels first
+        self.all_off()  
+        # Turn on even channels masked 
+        for channel in valid_even_channels:
+            if channel in mask:
+                self.set_duty(channel, duty)
