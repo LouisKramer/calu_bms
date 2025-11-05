@@ -161,9 +161,12 @@ def find_e24_resistor(target_value, R2, Vin, Vout):
 if __name__ == "__main__":
     R2 = 10000
     Ua = 2
+    G_prev = 1.0
 
     for i in range(1, 33):
         Uin = i * 4
         R1 = R2 * ((Uin / Ua) - 1)
         Re24, error, G_act, G_corr = find_e24_resistor(R1, R2, Uin, Ua)
-        print(f"BAT{i}: Uin = {Uin}, R1 = {R1}, R1_e24 = {Re24}, error = {error}%, Gain_corr = {G_corr}")
+        G_comb = round(G_corr * G_prev,3)
+        G_prev = G_corr
+        print(f"BAT{i:2d}:  Uin = {Uin:4d},  R1 = {R1:8.1f},  R1_e24 = {Re24:20},  error = {error:4.1f}%,  Gain_corr = {G_corr:.3f},  G_combined = {G_comb:.3f}")

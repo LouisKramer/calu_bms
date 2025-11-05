@@ -8,13 +8,13 @@ class ADS1118:
     """
     MicroPython library for the ADS1118 16-bit ADC, supporting either SN74HC154 demultiplexer
     or single CS pin for chip selection, optimized for single-shot conversions with asynchronous reads.
-    VCC is assumed to be 3.3V. Accepts an existing SPI instance.
+    VCC is either 3.3V or %V. Accepts an existing SPI instance.
     Calibration offsets are stored persistently in a JSON file and loaded at initialization.
     """
  
     # FSR positive values based on PGA, VCC=5V
-    _FSR_5V = [5.0, 2.5, 1.25, 0.625, 0.3125, 0.15625, 0.078125, 0.078125]
-    _FSR = [3.3, 3.3, 2.048, 1.024, 0.512, 0.256, 0.128, 0.064]
+    _FSR_5V = [5.0, 4.096, 2.048, 1.024, 0.512, 0.256, 0.256, 0.256]
+    _FSR = [3.3, 3.3, 2.048, 1.024, 0.512, 0.256, 0.256, 0.256]
 
     # Data rates in SPS
     _DR_SPS = [8, 16, 32, 64, 128, 250, 475, 860]
@@ -22,13 +22,14 @@ class ADS1118:
     def __init__(
         self,
         spi,
+        vcc=3.3,
         demux=None,
         demux_output=None,
         cs_pin=None,
         pga=2,
         dr=4,
         channel_mux = None,
-        single_ended = True,
+        gain = [1.0, 1.0, 1.0, 1.0],
         pull_up_en=1,
         cal_file="ads1118_cal.json",
     ):
@@ -36,6 +37,7 @@ class ADS1118:
         Initialize the ADS1118 with an SPI instance and either a demultiplexer or a single CS pin.
 
         :param spi: machine.SPI instance for communication.
+        :param vcc: Supply voltage (3.3V or 5.0V).
         :param demux: SN74HC138 demultiplexer instance (optional, if cs_pin is None).
         :param demux_output: Demultiplexer output (0-15, required if demux is provided).
         :param cs_pin: GPIO pin number for direct CS control (optional, if demux is None).
@@ -63,6 +65,13 @@ class ADS1118:
             raise ValueError("DR must be between 0 and 7")
         if channel_mux is None or len(channel_mux) == 0 or len(channel_mux) > 8:
             raise ValueError("Channel MUX must be provided and contain 1-8 entries")
+        if vcc != 3.3 or vcc != 5.0:
+            raise ValueError("Only VCC of 3.3V or 5V is supported")
+        if gain is None or len(gain) != len(channel_mux):
+            raise ValueError("Gain list must match number of channels in channel_mux")
+        for g in gain:
+            if g <= -2.0 or g >= 2.0:
+                raise ValueError("Gain correction factors must be positive")
         self.spi = spi
         self.demux = demux
         self.demux_output = demux_output
@@ -74,6 +83,8 @@ class ADS1118:
         self.pull_up_en = pull_up_en
         self.cal_file = cal_file
         self.offset = [0, 0, 0, 0]  # Signed offsets for channels 0, 1,2,3
+        self.gain = gain  # Gain correction factors for channels 0,1,2,3
+        self.frs = self._FSR_5V if vcc == 5.0 else self._FSR
         self._load_calibration()
 
     def _load_calibration(self):
@@ -218,7 +229,7 @@ class ADS1118:
         Returns:
             Float: LSB size in volts (FSR / 32768 for single-ended, FSR / 65536 for differential).
         """
-        fsr = self._FSR[self.pga]
+        fsr = self.frs[self.pga]
         if signed:
             return fsr / 32768  # 15-bit resolution for single-ended
         else:
@@ -292,16 +303,21 @@ from machine import Pin, SoftSPI, SoftI2C
 from SN74HC154 import SN74HC154
 from ADS1118 import ADS1118
 from PCA9685 import PCA9685
+from DS18B20 import DS18B20
 import asyncio
 
 SLAVE_MAX = True
 
 if SLAVE_MAX :
-    NR_OF_ADCS = 8
+    NR_OF_ADCS = 12
     NR_OF_PCA = 2
 else:
-    NR_OF_ADCS = 4
+    NR_OF_ADCS = 6
     NR_OF_PCA = 1
+
+#Initialize DS18B20 temperature sensors
+temp_sens = DS18B20(pin_num=5)  # GPIO5 for
+
 
 # Initialize I2C for PCA9685
 i2c = SoftI2C(scl=Pin(9), sda=Pin(8), freq=400000)  # I2C0, 400 kHz
@@ -324,101 +340,141 @@ pcas = [PCA9685(i2c, address=0x40 + i) for i in range(NR_OF_PCA)]
 for pca in pcas:
     pca.set_pwm_freq(100)  # 100 Hz PWM
 
-# Initialize 8 ADS1118 instances
-mux = {0: 0b111, 1: 0b110, 2: 0b101, 3: 0b100}
-adcs = [
-    ADS1118(spi=spi, demux=demux, demux_output=i, pga=2, dr=4, channel_mux=mux)
-    for i in range(NR_OF_ADCS)
-]
+# Initialize ADS1118 instances
+mux = {0: 0b000, 1: 0b010, 2: 0b011}
+adcs = []
 
-mux = {0: 0b100}
-adc_string_0 = ADS1118(spi=spi, demux=demux, demux_output=8, pga=2, dr=7, channel_mux=mux)
-adc_string_1 = ADS1118(spi=spi, demux=demux, demux_output=9, pga=2, dr=7, channel_mux=mux)
-
-def start_all_even_adc_conversions():
-    for i, adc in enumerate(adcs):
-        adc.start_conversions_all(0)
-
-def start_all_odd_adc_conversions():
-    for i, adc in enumerate(adcs):
-        adc.start_conversions_all(1)
-
-def read_all_even_adc_channels():
-    voltages = []
-    for i, adc in enumerate(adcs):
-        voltages.append(adc.read_voltage_all(0))
-    return voltages
-
-def read_all_odd_adc_channels():
-    voltages = []
-    for i, adc in enumerate(adcs):
-        voltages.append(adc.read_voltage_all(1))
-    return voltages
+adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0x1, pga=2, dr=4, channel_mux=mux, gain=[1.0, 1.0, 1.0]))
+adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0x2, pga=2, dr=4, channel_mux=mux, gain=[1.0, 1.0, 1.0]))
+adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0x3, pga=2, dr=4, channel_mux=mux, gain=[1.0, 1.0, 1.0]))
+adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0x4, pga=2, dr=4, channel_mux=mux, gain=[1.0, 1.0, 1.0]))
+adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0x5, pga=2, dr=4, channel_mux=mux, gain=[1.0, 1.0, 1.0]))
+adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0x6, pga=2, dr=4, channel_mux={0: 0b000, 1: 0b011}, gain=[1.0, 1.0]))
+if SLAVE_MAX :
+    adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0xF, pga=2, dr=4, channel_mux=mux, gain=[1.0, 1.0, 1.0]))
+    adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0xE, pga=2, dr=4, channel_mux=mux, gain=[1.0, 1.0, 1.0]))
+    adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0xD, pga=2, dr=4, channel_mux=mux, gain=[1.0, 1.0, 1.0]))
+    adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0xC, pga=2, dr=4, channel_mux=mux, gain=[1.0, 1.0, 1.0]))
+    adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0xB, pga=2, dr=4, channel_mux=mux, gain=[1.0, 1.0, 1.0]))
+    adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0x0, pga=2, dr=4, channel_mux={0: 0b000, 1: 0b011}, gain=[1.0, 1.0]))
 
 
 async def read_all_adc():
+    """
+    Asynchronously reads all ADC channels from all ADS1118 instances and returns their voltages as a list.
+    """
     num_adcs = len(adcs)
-    num_channels = adcs[0].nr_of_ch
-    if not all(adc.nr_of_ch == num_channels for adc in adcs):
-        raise ValueError("All ADCs must have the same number of channels")
-    vol = [0] * (num_adcs * num_channels)
+    total_channels = 0
+    max_channels = 0
+    for adc in adcs:
+        total_channels = total_channels + adc.nr_of_ch
+        max_channels = adc.nr_of_ch if adc.nr_of_ch > max_channels else max_channels
+    vol = [0] * total_channels
     
     # Initialize pipeline
     for adc in adcs:
         try:
-            adc.start_conversions_all(channel=0, ret=False)
+            await adc.start_conversions_all(channel=0, ret=False)
         except Exception as e:
             print(f"Error initializing ADC: {e}")
-    
 
     # Read all channels
-    for j in range(num_channels):
-        channel = (j + 1) % num_channels
+    for j in range(max_channels):
+        prev_nr_of_ch = 0
         for i, adc in enumerate(adcs):
-            try:
-                vol[j + i * num_channels] = adc.start_conversions_all(channel=channel, ret=True)
+            if j <= adc.nr_of_ch - 1:
+                try:
+                    vol[j + i * prev_nr_of_ch] = await adc.start_conversions_all(channel=j, ret=True)
+                except Exception as e:
+                    print(f"Error reading ADC {i} channel {j}: {e}")
+                    vol[j + i * prev_nr_of_ch] = None
+            else:
+                pass
+            prev_nr_of_ch = adc.nr_of_ch
 
-            except Exception as e:
-                print(f"Error reading ADC {i} channel {j}: {e}")
-                vol[j + i * num_channels] = None
         #wait to complete conversion.
         # SPI @1MHz and 2 bytes takes adc_read_time = ~100us (16us for 2 bytes, rest overhead)
         # @ 128 SPS every ~8ms a new value
         # --> one round trip should at least last: 10ms
         # whitout delay: nr_of_adcs * adc_read_time
-        asyncio.sleep(adc.get_conversion_delay() - (num_adcs * 0.0001))
+        await asyncio.sleep(adc.get_conversion_delay() - (num_adcs * 0.0001))
     # total roundtrip time = num_channels * (conversion_delay - (nr_of_adcs * adc_read_time))
     # trt = ~70ms
     return vol
 
 async def main():
-    odd_mask  = [0] * 16
-    even_mask = [0] * 16
+    odd_mask  = [1] * 16
+    even_mask = [1] * 16
     # Optional: Calibrate all ADCs once at startup (assuming inputs shorted)
-    for adc in adcs:
-        await adc.calibrate(0)
-        await adc.calibrate(1)
+    #for adc in adcs:
+    #    await adc.calibrate(0)
+    #    await adc.calibrate(1)
 
-    while True:
-        # Enable odd PCA9685 channels (1, 3, ..., 15)
+    # TODO: odd and even Balancing must be synced over all slaves!!!!!!
+    while True: 
+        # Enable odd PCA9685 channel Balancing (1, 3, ..., 15)
         for pca in pcas:
             pca.enable_odd_channels(50, mask=odd_mask)
         await asyncio.sleep(0.3)
-        # Step 3: Enable even PCA9685 channels (0, 2, ..., 14)
+        # Enable even PCA9685 channel Balancing (0, 2, ..., 14)
         for pca in pcas:
             pca.enable_even_channels(50, mask=even_mask)
         await asyncio.sleep(0.3)
 
-        voltages = read_all_adc()
-        string_vol_0 = await adc_string_0.read_voltage(channel = 0)
-        string_vol_1 = await adc_string_1.read_voltage(channel = 0)
-
-        # Read string voltage ADS1118 without demux
+        # Read voltages
+        voltages = await read_all_adc()
+        cell_voltages_1 = voltages[0:15]
+        string_voltage_1 = voltages[16]
+        if SLAVE_MAX :
+            cell_voltages_2 = voltages[17:32]
+            string_voltage_2 = voltages[33]
         # Read temperatures DS18B20
-        # Check for over temperature
-        # Check for String OV,UV
-        # Check for OV=3.6V UV=2.6V
+        temperatures = temp_sens.get_temperatures()
+
+        # Transfer data to master
+
+        # Receive commands from master
+        bal_ch = [1,3,5,6,7,9,22,31] # balancing command from master
+
+        for ch in bal_ch:
+            if ch <= 15:
+                    pcas[0].set_duty(ch, 50)
+            else:
+                    pcas[1].set_duty(ch, 50)
+            
+
+        # Check for over temperature TODO: replace magic numbers with config from master
+        for t in temperatures.values():
+            if t >= 60.0:
+                print("Over Temperature detected!")
+        # Cross check sum of cell voltages with string voltage --> aproximation TODO: replace magic numbers with config from master
+        sum_cell_voltages_1 = sum([v for v in cell_voltages_1 if v is not None])
+        if abs(sum_cell_voltages_1 - string_voltage_1) > 2.0:
+            print("Voltage mismatch in string 1!")
+        if SLAVE_MAX:
+            sum_cell_voltages_2 = sum([v for v in cell_voltages_2 if v is not None])
+            if abs(sum_cell_voltages_2 - string_voltage_2) > 2.0:
+                print("Voltage mismatch in string 2!")
+        # Check for String OV,UV TODO: replace magic numbers with config from master
+        if string_voltage_1 is not None:
+            if string_voltage_1 >= 57.6: 
+                print("Over Voltage detected in string 1!")
+            elif string_voltage_1 <= 41.6:
+                print("Under Voltage detected in string 1!")
+        # Check for OV=3.6V UV=2.6V TODO: replace magic numbers with config from master
+        for i, v in enumerate(cell_voltages_1): 
+            if v is not None:
+                if v >= 3.6:
+                    print(f"Over Voltage detected in string 1, cell {i}!")
+                elif v <= 2.6:
+                    print(f"Under Voltage detected in string 1, cell {i}!")
         # build odd_mask bal_th = 3.4V ,bal_diff_th = 0.2V
+        for i, v in enumerate(cell_voltages_1): 
+            if v is not None:
+                if v >= 3.4:
+                    odd_mask[i*2+1] = 1
+                elif v <= 3.2:
+                    odd_mask[i*2+1] = 0
         # build even_mask bal_th = 3.4V ,bal_diff_th = 0.2V
 
 
