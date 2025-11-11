@@ -133,6 +133,67 @@ class Slaves:
                         print("Removing inactive slave:", binascii.hexlify(self.slaves[i].mac, ':'))
                         self.slaves[i] = None
             await asyncio.sleep(self.ttl) #TODO: adjust time
+
+    def slave_listener(self, e):
+        while True:
+            mac, msg = e.irecv(0)
+            if mac is None:
+                return
+            if msg:
+                # Deserialize JSON
+                dict = json.loads(msg)
+                # Check message type
+                msg_type = dict.get("type")
+                if msg_type == HELLO_MSG:
+                    if self.is_known(mac) == False:
+                        #   Check if Battery string Address matches into setup
+                        e.add_peer(mac)
+                        s = self.push(BMSSlave(mac))#create new slave instance and add to list
+                        s.set_info(dict)
+                        print("Discovered:", binascii.hexlify(mac, ':'))
+                        e.send(mac, WELCOME_MSG) # puts slave into sync state
+
+                # Handle SYNC ACK messages
+                elif msg_type == SYNC_ACK_MSG:
+                    if self.is_known(mac) == False:
+                        e.send(mac, pack_reconnect())
+                    else:
+                        self.check_sync_ack(dict, mac, e)
+
+                # Handle SYNC FIN messages
+                elif msg_type == SYNC_FIN_MSG:  # slave is in synced mode... waiting for config
+                    if self.is_known(mac) == False:
+                        e.send(mac, pack_reconnect())
+                    else:
+                        s = self.get_by_mac(mac)
+                        s.last_seen = time.ticks_us()
+                        s.synced = True
+                        s.configure(e)
+
+                # Handle CONFIG ACK messages
+                elif msg_type == CONF_ACK_MSG:  # slave is configured and runs
+                    if self.is_known(mac) == False:
+                        e.send(mac, pack_reconnect())
+                    else:
+                        s = self.get_by_mac(mac)
+                        s.last_seen = time.ticks_us()
+                        s.configured = True   
+
+                # Handle DATA messages
+                elif msg_type == DATA_MSG:
+                    if self.is_known(mac) == False:
+                        e.send(mac, pack_reconnect())
+                    else:
+                        s = self.get_by_mac(mac)
+                        s.last_seen = time.ticks_us()
+                        # Store data in slave instance. Main task will Process data.
+                        s.set_data(dict)
+                        print("Data from", binascii.hexlify(mac, ':'), ":", dict)
+
+                # Handle Unknown messages
+                else:
+                    e.send(mac, pack_reconnect())
+                    print("Unknown message type from", binascii.hexlify(mac, ':'), "msg:", msg)        
     
 class BMSSlave(Slaves):
     def __init__(self, mac):
