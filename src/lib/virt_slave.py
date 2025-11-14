@@ -1,105 +1,226 @@
-import time, binascii
+import time, binascii, os, json
 from common.common import *
+from common.logger import *
 import asyncio
 
+log_slave=create_logger("slave_handler", level=LogLevel.INFO)
+class slave_config:
+    SLAVE_CONFIG_FILE = "slave_config.json"
+    _DEFAULTS = {
+        'balancing_start_voltage': 3.4,
+        'balancing_threshold': 0.01,      # 10 mV
+        'balancing_en': True,
+        'balancing_ext_en': False,
+        'over_voltage_cell': 3.65,
+        'critical_over_voltage_cell': 3.7,
+        'under_voltage_cell': 3.00,
+        'critical_under_voltage_cell': 2.80,
+        'voltage_hyst': 0.1,
+        'over_temp': 60.0,
+        'under_temp': 0.0,
+        'ttl': 3600,
+        'sync_interval': 10
+    }
+
+    # ------------------------------------------------------------------ #
+    def __init__(self, filename=SLAVE_CONFIG_FILE):
+        self.filename = filename
+        # start with defaults
+        for k, v in self._DEFAULTS.items():
+            setattr(self, k, v)
+        # try to load a persisted file (ignore errors – we keep defaults)
+        self.load()
+
+    # ------------------------------------------------------------------ #
+    def validate(self):
+        """Log warning if any value is out of sensible range."""
+        if not (3.0 <= self.balancing_start_voltage <= 3.6):
+            log_slave.warn("balancing_start_voltage must be 3.0-3.6 V", ctx="slave_config")
+
+        if not (0.001 <= self.balancing_threshold <= 0.1):
+            log_slave.warn("balancing_threshold must be 1-100 mV", ctx="slave_config")
+
+        if not (self.under_voltage_cell < self.over_voltage_cell):
+            log_slave.warn("under_voltage_cell must be lower than over_voltage_cell", ctx="slave_config")
+
+        if not (self.critical_under_voltage_cell < self.under_voltage_cell):
+            log_slave.warn("critical_under_voltage_cell must be lower than under_voltage_cell", ctx="slave_config")
+
+        if not (self.over_voltage_cell < self.critical_over_voltage_cell):
+            log_slave.warn("over_voltage_cell must be lower than critical_over_voltage_cell", ctx="slave_config")
+
+        if not (self.under_temp <= self.over_temp):
+            log_slave.warn("under_temp must be <= over_temp", ctx="slave_config")
+
+        if not (1 <= self.sync_interval <= 3600):
+            log_slave.warn("sync_interval out of range", ctx="slave_config")
+
+        if not (60 <= self.ttl <= 86400):
+            log_slave.warn("ttl out of range", ctx="slave_config")
+        return True
+
+    # ------------------------------------------------------------------ #
+    def to_dict(self):
+        """Return a plain dict that can be JSON-serialised."""
+        return {k: getattr(self, k) for k in self._DEFAULTS}
+
+    # ------------------------------------------------------------------ #
+    def from_dict(self, data: dict):
+        """Apply values from a dict (only known keys)."""
+        for k, v in data.items():
+            if k in self._DEFAULTS:
+                setattr(self, k, v)
+        self.validate()
+        return self
+
+    # ------------------------------------------------------------------ #
+    def save(self, filename=None):
+        """
+        Persist the current configuration to ``filename`` (default: the one
+        given at __init__).  Overwrites the file atomically if possible.
+        """
+        if filename is None:
+            filename = self.filename
+
+        tmp = filename + '.tmp'
+        try:
+            with open(tmp, 'w') as f:
+                json.dump(self.to_dict(), f, indent=2)
+            # atomic replace (works on ESP32/ESP8266/Pyboard)
+            if os.name != 'posix':          # MicroPython on bare metal
+                try:
+                    os.remove(filename)
+                except OSError as e:
+                    log_slave.warn(f"Failed to save config to {filename}: {e}", ctx="slave_config")
+            os.rename(tmp, filename)
+        except Exception as e:
+            # clean up temporary file on failure
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+            log_slave.warn(f"Failed to save config to {filename}: {e}", ctx="slave_config")
+
+    # ------------------------------------------------------------------ #
+    def load(self, filename=None):
+        """
+        Load configuration from ``filename`` (default: the one given at
+        __init__).  If the file does not exist or is corrupted the defaults
+        are kept.
+        """
+        if filename is None:
+            filename = self.filename
+
+        if filename not in os.listdir():
+            return  # keep defaults
+
+        try:
+            with open(filename, 'r') as f:
+                data = json.load(f)
+            self.from_dict(data)
+        except Exception as e:
+            # keep defaults, but inform the user 
+            log_slave.warn(f"[Slave Config] Load error ({filename}): {e} – using defaults", ctx="slave_config")
+
+
+# ----------------------------------------------------------------------
+#  Slaves – dynamic container with a hard upper limit (MAX_NR_OF_SLAVES)
+# ----------------------------------------------------------------------
 class Slaves:
-    MAX_NR_OF_SLAVES = 16
+    MAX_NR_OF_SLAVES = 16                     # unchanged – still the hard limit
 
-    def __init__(self, interval, ttl):
-        # init max number of slaves
-        self.slaves = [None]*self.MAX_NR_OF_SLAVES
-        self.T1 = 0
-        self.bal_start_voltage = 0
-        self.bal_threshold = 0
-        self.ext_bal_en = False
-        self.bal_en = False
-        self.interval = interval
-        self.ttl = ttl
-    def nr_of_slaves(self):
-        count = 0
-        for i in range(self.MAX_NR_OF_SLAVES):
-            if self.slaves[i] is not None:
-                count += 1
-        return count
-    
-    def get_nr_of_total_cells(self):
-        nr_of_total_cells=0
-        for slave in self.slaves:
-            if slave is not None and hasattr(slave, 'nr_of_cells') and slave.vstr:
-                nr_of_total_cells = nr_of_total_cells + slave.nr_of_cells
-        return nr_of_total_cells
-    
+    def __init__(self, config: slave_config):
+        self.cfg = config
+        # start with an *empty* list – we grow only when push() is called
+        self._slaves: list["virt_slave | None"] = []
+
+    # ------------------------------------------------------------------
+    #  Basic bookkeeping
+    # ------------------------------------------------------------------
+    def __len__(self) -> int:
+        """Number of active (non-None) slaves."""
+        return sum(1 for s in self._slaves if s is not None)
+
+    def __iter__(self):
+        """Iterate over active slaves only."""
+        return (s for s in self._slaves if s is not None)
+
+    def nr_of_slaves(self) -> int:
+        return len(self)
+
+    # ------------------------------------------------------------------
+    #  Helper to enforce the hard limit
+    # ------------------------------------------------------------------
+    def _ensure_capacity(self):
+        """Raise if we would exceed the hard limit."""
+        if len(self._slaves) >= self.MAX_NR_OF_SLAVES:
+            log_slave.warn(f"Cannot add more than {self.MAX_NR_OF_SLAVES} slaves", ctx="slave handler")
+
+    # ------------------------------------------------------------------
+    #  Core CRUD operations 
+    # ------------------------------------------------------------------
+    def push(self, virt_slave=None) -> "virt_slave | None":
+        """Add a new slave if there is room; return the stored instance."""
+        log_slave.info(f"Add slave {binascii.hexlify(virt_slave.mac, ":")} to list", ctx="slave handler")
+        self._ensure_capacity()
+        self._slaves.append(virt_slave)
+        return virt_slave
+
+    def pop(self, mac) -> bool:
+        """Remove slave identified by MAC address."""
+        for i, s in enumerate(self._slaves):
+            if s is not None and s.mac == mac:
+                self._slaves[i] = None          # keep a hole – list stays compact
+                return True
+        log_slave.warn(f"Unable to remove slave {binascii.hexlify(mac, ":")} from list", ctx="slave handler")
+        return False
+
+    def get_by_mac(self, mac) -> "virt_slave | None":
+        for s in self._slaves:
+            if s is not None and s.mac == mac:
+                return s
+        return None
+
+    def get_by_addr(self, addr) -> "virt_slave | None":
+        for s in self._slaves:
+            if s is not None and s.string_address == addr:
+                return s
+        return None
+
+    def is_known(self, mac) -> bool:
+        return any(s is not None and s.mac == mac for s in self._slaves)
+
+    # ------------------------------------------------------------------
+    #  Data aggregation 
+    # ------------------------------------------------------------------
+    def get_nr_of_total_cells(self) -> int:
+        total = 0
+        for slave in self._slaves:
+            if slave and hasattr(slave, "nr_of_cells") and slave.vstr:
+                total += slave.nr_of_cells
+        return total
+
+    def _sorted_by_address(self, attr):
+        """Helper used by the three “get_all_*” methods."""
+        items = []
+        for slave in self._slaves:
+            if slave and hasattr(slave, attr) and getattr(slave, attr):
+                items.append((slave.string_address, getattr(slave, attr)))
+        items.sort(key=lambda x: x[0])
+        return [val for _, val in items]
+
     def get_all_cell_voltages(self):
-        # Create a list of tuples with (string_address, vcell) for non-None slaves
-        all_voltages = []
-        for slave in self.slaves:
-            if slave is not None and hasattr(slave, 'vcell') and slave.vcell:
-                all_voltages.append((slave.string_address, slave.vcell))
-        
-        # Sort by string_address
-        all_voltages.sort(key=lambda x: x[0])
-        
-        # Return just the voltages in order
-        return [voltage for _, voltage in all_voltages]
-    
+        return self._sorted_by_address("vcell")
+
     def get_all_str_voltages(self):
-        # Create a list of tuples with (string_address, vstr) for non-None slaves
-        all_voltages = []
-        for slave in self.slaves:
-            if slave is not None and hasattr(slave, 'vstr') and slave.vstr:
-                all_voltages.append((slave.string_address, slave.vstr))
-        
-        # Sort by string_address
-        all_voltages.sort(key=lambda x: x[0])
-        
-        # Return just the voltages in order
-        return [voltage for _, voltage in all_voltages]
+        return self._sorted_by_address("vstr")
 
-    def get_all_str_temperatures(self):
-        # Create a list of tuples with (string_address, temp) for non-None slaves
-        all_temps = []
-        for slave in self.slaves:
-            if slave is not None and hasattr(slave, 'temp') and slave.temp:
-                all_temps.append((slave.string_address, slave.temp))
-        
-        # Sort by string_address
-        all_temps.sort(key=lambda x: x[0])
-        
-        # Return just the temperatures in order
-        return [temp for _, temp in all_temps]
+    def get_all_temperatures(self):
+        return self._sorted_by_address("temp")
 
-    def push(self, BMSSlave = None):
-        for i in range(self.MAX_NR_OF_SLAVES):
-            if self.slaves[i] is None:
-                self.slaves[i] = BMSSlave
-                return self.slaves[i]
-        return None
-    
-    def pop(self, mac):
-        for i in range(self.MAX_NR_OF_SLAVES):
-            if self.slaves[i] is not None and self.slaves[i].mac == mac:
-                self.slaves[i] = None
-                return True
-        return False
-    
-    def get_by_mac(self,mac):
-        for i in range(self.MAX_NR_OF_SLAVES):
-            if self.slaves[i] is not None and self.slaves[i].mac == mac:
-                return self.slaves[i]
-        return None
-    
-    def get_by_addr(self,addr):
-        for i in range(self.MAX_NR_OF_SLAVES):
-            if self.slaves[i] is not None and self.slaves[i].string_address == addr:
-                return self.slaves[i]
-        return None
-
-    def is_known(self, mac):
-        for i in range(self.MAX_NR_OF_SLAVES):
-            if self.slaves[i] is not None and self.slaves[i].mac == mac:
-                return True
-        return False
-    
+    # ------------------------------------------------------------------
+    #  Sync / GC helpers 
+    # ------------------------------------------------------------------
     def sync_slaves(self, e):
         self.T1 = time.ticks_us()
         e.send(BROADCAST, pack_sync_req(self.T1))
@@ -109,93 +230,103 @@ class Slaves:
         s = self.get_by_mac(mac)
         deadline = time.ticks_add(self.T1, SYNC_DEADLINE)
         if time.ticks_diff(deadline, time.ticks_us()) > 0:
-            print("ACK from", binascii.hexlify(mac, ':'), "T2=", T2)
+            log_slave.info(f"ACK from {binascii.hexlify(mac, ":")} T2={T2}", ctx="slave sync")
             s.last_seen = time.ticks_us()
             T3 = time.ticks_us()
             e.send(mac, pack_sync_ref(self.T1, T2, T3))
         else:
-            # MAC garbage collector will handele this
-            print("Late ACK from", binascii.hexlify(mac, ':'), "ignored")
+            log_slave.warn("Late ACK from", binascii.hexlify(mac, ":"), "ignored", ctx="slave handler")
 
-    async def sync_slaves_task(self,e):
+    async def sync_slaves_task(self, e):
         while True:
-            self.sync_slaves(e)
-            await asyncio.sleep(self.interval)
+            try: 
+                self.sync_slaves(e)
+                log_slave.info("Syncing slaves:", ctx="slave sync")
+            except Exception as e:
+                log_slave.warn(e, ctx="slave sync")
+            await asyncio.sleep(self.cfg.sync_interval)
 
     async def slave_gc(self):
-        #TODO: this should trigger a critical error!!!!!
         while True:
+            log_slave.info(f"Run slave GC", ctx="slave handler")
             now = time.ticks_us()
-            for i in range(self.MAX_NR_OF_SLAVES):
-                if self.slaves[i] is not None:
-                    diff = time.ticks_diff(now, self.slaves[i].last_seen)
-                    if diff > self.ttl * 1_000_000:
-                        print("Removing inactive slave:", binascii.hexlify(self.slaves[i].mac, ':'))
-                        self.slaves[i] = None
-            await asyncio.sleep(self.ttl) #TODO: adjust time
+            for slave in self._slaves:
+                if slave and time.ticks_diff(now, slave.last_seen) > self.cfg.ttl * 1_000_000:
+                    log_slave.info("Removing inactive slave:", binascii.hexlify(slave.mac, ":"), ctx="slave sync")
+                    # replace with None – keeps the list length stable
+                    self._slaves[self._slaves.index(slave)] = None
+            await asyncio.sleep(self.cfg.ttl)
 
+    # ------------------------------------------------------------------
+    #  Message listener 
+    # ------------------------------------------------------------------
     def slave_listener(self, e):
         while True:
             mac, msg = e.irecv(0)
             if mac is None:
                 return
-            if msg:
-                # Deserialize JSON
-                dict = json.loads(msg)
-                # Check message type
-                msg_type = dict.get("type")
-                if msg_type == HELLO_MSG:
-                    if self.is_known(mac) == False:
-                        #   Check if Battery string Address matches into setup
-                        e.add_peer(mac)
-                        s = self.push(BMSSlave(mac))#create new slave instance and add to list
-                        s.set_info(dict)
-                        print("Discovered:", binascii.hexlify(mac, ':'))
-                        e.send(mac, WELCOME_MSG) # puts slave into sync state
+            if not msg:
+                continue
 
-                # Handle SYNC ACK messages
-                elif msg_type == SYNC_ACK_MSG:
-                    if self.is_known(mac) == False:
-                        e.send(mac, pack_reconnect())
-                    else:
-                        self.check_sync_ack(dict, mac, e)
+            try:
+                dict_ = json.loads(msg)
+            except json.JSONDecodeError:
+                e.send(mac, pack_reconnect())
+                continue
 
-                # Handle SYNC FIN messages
-                elif msg_type == SYNC_FIN_MSG:  # slave is in synced mode... waiting for config
-                    if self.is_known(mac) == False:
-                        e.send(mac, pack_reconnect())
-                    else:
-                        s = self.get_by_mac(mac)
-                        s.last_seen = time.ticks_us()
-                        s.synced = True
-                        s.configure(e)
+            msg_type = dict_.get("type")
 
-                # Handle CONFIG ACK messages
-                elif msg_type == CONF_ACK_MSG:  # slave is configured and runs
-                    if self.is_known(mac) == False:
-                        e.send(mac, pack_reconnect())
-                    else:
-                        s = self.get_by_mac(mac)
-                        s.last_seen = time.ticks_us()
-                        s.configured = True   
+            # ---------- HELLO ----------
+            if msg_type == HELLO_MSG:
+                if not self.is_known(mac):
+                    e.add_peer(mac)
+                    s = self.push(virt_slave(mac))
+                    s.set_info(dict_)
+                    log_slave.info(f"Discovered: {binascii.hexlify(mac, ":")}", ctx="slave handler")
+                    e.send(mac, WELCOME_MSG)
 
-                # Handle DATA messages
-                elif msg_type == DATA_MSG:
-                    if self.is_known(mac) == False:
-                        e.send(mac, pack_reconnect())
-                    else:
-                        s = self.get_by_mac(mac)
-                        s.last_seen = time.ticks_us()
-                        # Store data in slave instance. Main task will Process data.
-                        s.set_data(dict)
-                        print("Data from", binascii.hexlify(mac, ':'), ":", dict)
-
-                # Handle Unknown messages
-                else:
+            # ---------- SYNC ACK ----------
+            elif msg_type == SYNC_ACK_MSG:
+                if not self.is_known(mac):
                     e.send(mac, pack_reconnect())
-                    print("Unknown message type from", binascii.hexlify(mac, ':'), "msg:", msg)        
+                else:
+                    self.check_sync_ack(dict_, mac, e)
+
+            # ---------- SYNC FIN ----------
+            elif msg_type == SYNC_FIN_MSG:
+                if not self.is_known(mac):
+                    e.send(mac, pack_reconnect())
+                else:
+                    s = self.get_by_mac(mac)
+                    s.last_seen = time.ticks_us()
+                    s.synced = True
+                    s.configure(e)
+
+            # ---------- CONFIG ACK ----------
+            elif msg_type == CONF_ACK_MSG:
+                if not self.is_known(mac):
+                    e.send(mac, pack_reconnect())
+                else:
+                    s = self.get_by_mac(mac)
+                    s.last_seen = time.ticks_us()
+                    s.configured = True
+
+            # ---------- DATA ----------
+            elif msg_type == DATA_MSG:
+                if not self.is_known(mac):
+                    e.send(mac, pack_reconnect())
+                else:
+                    s = self.get_by_mac(mac)
+                    s.last_seen = time.ticks_us()
+                    s.data(dict_)
+                    log_slave.info(f"Data form: {binascii.hexlify(mac, ":")} : {dict_}", ctx="slave handler")
+
+            # ---------- UNKNOWN ----------
+            else:
+                e.send(mac, pack_reconnect())
+                log_slave.warn(f"Unknown message type from: {binascii.hexlify(mac, ":")}", ctx="slave handler")
     
-class BMSSlave(Slaves):
+class virt_slave(Slaves):
     def __init__(self, mac):
         self.mac = mac
         self.string_address = 0x0  # 0-15
@@ -208,12 +339,12 @@ class BMSSlave(Slaves):
         self.configured = False
         self.vcell = []
         self.temp = []
-        self.vstr = 0
-        
+        self.vstr = 0.0
+
     def configure(self, e):
         e.send(self.mac, pack_config_msg(self.bal_start_voltage, self.bal_threshold,self.ext_bal_en,self.bal_en))
 
-    def set_data(self,dict):
+    def data(self,dict):
         vcell, vstr, temp = unpack_data_msg(dict)
         if vcell is not None:
             if isinstance(vcell, list) and len(vcell) == self.nr_of_cells:
@@ -223,7 +354,6 @@ class BMSSlave(Slaves):
             if isinstance(temp, list) and len(temp) > 0 and len(temp) <= 4:
                 if all(isinstance(t, (int, float)) and -50.0 <= t <= 150.0 for t in temp):
                     self.temp = [float(t) for t in temp]
-        
         if vstr is not None:
             if isinstance(vstr, (int, float)) and (0.0 <= vstr <= 160.0):
                 self.vstr = vstr
@@ -248,3 +378,19 @@ class BMSSlave(Slaves):
             parts = hw_ver.split('.')
             if len(parts) == 4 and all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
                 self.hw_version = hw_ver
+    
+    def get_cell_voltage(self, cell):
+        if 0 <= cell < self.nr_of_cells:
+            return self.vcell[cell]
+        else:
+            return None
+        
+    def get_all_cell_voltages(self):
+        return self.vcell
+    
+    def get_string_voltage(self):
+        return self.vstr
+    
+    def get_all_temperatures(self):
+        return self.temp
+
