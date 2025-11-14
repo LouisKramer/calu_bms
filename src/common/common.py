@@ -1,5 +1,4 @@
 # common.py
-import struct
 from time import ticks_us, ticks_diff
 import json
 
@@ -33,6 +32,7 @@ config_soc = {
     'relaxed_hold_time': 30.0,
     'sampling_interval': 1.0
 }
+
 
 config_prot = {
     'inverter_en_pin': 15,
@@ -128,3 +128,4 @@ def unpack_hello_msg(dict):
     fw_ver = dict.get("fw_ver")
     hw_ver = dict.get("hw_ver")
     return s_addr, ncell, ntemp, fw_ver, hw_ver
+
