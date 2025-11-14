@@ -1,9 +1,9 @@
 # master.py
-import network, espnow, time, binascii
+import network, espnow, time
+import asyncio
 from machine import RTC, SoftSPI
 from common.common import *
-import asyncio
-import json
+from common.logger import *
 from lib.ACS71240 import *
 from lib.ADS1118 import *
 from lib.DS18B20 import *
@@ -49,97 +49,37 @@ while not wlan.isconnected():
     time.sleep(0.5)
 print("Wi-Fi connected. IP:", wlan.ifconfig()[0])
 
+log = create_logger("system", level=LogLevel.INFO)
+log.info("Startup system", ctx="boot")
 # ========================================
-# Listen for slaves
+# MAIN
 # ========================================
-def listener(e, slaves):
-    while True:
-        mac, msg = e.irecv(0)
-        if mac is None:
-            return
-        if msg:
-            # Deserialize JSON
-            dict = json.loads(msg)
-            # Check message type
-            msg_type = dict.get("type")
-            if msg_type == HELLO_MSG:
-                if slaves.is_known(mac) == False:
-                    #   Check if Battery string Address matches into setup
-                    e.add_peer(mac)
-                    s = slaves.push(BMSSlave(mac))#create new slave instance and add to list
-                    s.set_info(dict)
-                    print("Discovered:", binascii.hexlify(mac, ':'))
-                    e.send(mac, WELCOME_MSG) # puts slave into sync state
-
-            # Handle SYNC ACK messages
-            elif msg_type == SYNC_ACK_MSG:
-                if slaves.is_known(mac) == False:
-                    e.send(mac, pack_reconnect())
-                else:
-                    slaves.check_sync_ack(dict, mac, e)
-
-            # Handle SYNC FIN messages
-            elif msg_type == SYNC_FIN_MSG:  # slave is in synced mode... waiting for config
-                if slaves.is_known(mac) == False:
-                    e.send(mac, pack_reconnect())
-                else:
-                    s = slaves.get_by_mac(mac)
-                    s.last_seen = time.ticks_us()
-                    s.synced = True
-                    s.configure(e)
-
-            # Handle CONFIG ACK messages
-            elif msg_type == CONF_ACK_MSG:  # slave is configured and runs
-                if slaves.is_known(mac) == False:
-                    e.send(mac, pack_reconnect())
-                else:
-                    s = slaves.get_by_mac(mac)
-                    s.last_seen = time.ticks_us()
-                    s.configured = True   
-            
-            # Handle DATA messages
-            elif msg_type == DATA_MSG:
-                if slaves.is_known(mac) == False:
-                    e.send(mac, pack_reconnect())
-                else:
-                    s = slaves.get_by_mac(mac)
-                    s.last_seen = time.ticks_us()
-                    # Store data in slave instance. Main task will Process data.
-                    s.set_data(dict)
-                    print("Data from", binascii.hexlify(mac, ':'), ":", dict)
-
-            # Handle Unknown messages
-            else:
-                e.send(mac, pack_reconnect())
-                print("Unknown message type from", binascii.hexlify(mac, ':'), "msg:", msg)
-
-
 async def main():
+
     # ESP-NOW
     e = espnow.ESPNow()
     e.active(True)
-    e.irq(listener)
-
+    # TODO:add watchdog
     rtc = RTC()
+    slave_cfg = slave_config()
+    slaves = Slaves(config = slave_cfg)
+    e.irq(slaves.slave_listener)
+    cur = ACS71240(viout_pin=ADC_CURRENT_BAT_PIN, fault_pin=CURRENT_FAULT_PIN)
+    spi = SoftSPI(baudrate=1000000, polarity=0, phase=0, sck=Pin(SPI_SCLK_PIN), mosi=Pin(SPI_MOSI_PIN), miso=Pin(SPI_MISO_PIN))
+    vol = ADS1118(spi=spi, cs_pin = SPI_CS_PIN, channel_mux={0: 0b000, 1: 0b011}) #channel 0 = Bat, channel 1 = inv
+    tmp = DS18B20(data_pin=OWM_TEMP_PIN, pullup=False)
+    soc_estimator = BatterySOC(config_soc)
+    protector = BatteryProtection(config_prot, inverter_en_pin = BAT_FAULT_PIN ,current_sensor=cur, slaves=slaves)
 
-    slaves = Slaves(SLAVE_SYNC_INTERVAL, SLAVE_TTL)
-    
     # Start tasks
     ntp = ntp_sync(NTP_HOST, NTP_PORT, NTP_TIMEOUT, NTP_SYNC_INTERVAL, rtc)
     ntp_sync_task = asyncio.create_task(ntp.ntp_task())
     slave_sync_task = asyncio.create_task(slaves.sync_slaves_task(e))
     slave_gc_task = asyncio.create_task(slaves.slave_gc())
-    soc_auto_safe_task = asyncio.create_task(autosave_task(soc_estimator, 300))
-
-    cur = ACS71240(viout_pin=ADC_CURRENT_BAT_PIN, fault_pin=CURRENT_FAULT_PIN)
-    spi = SoftSPI(baudrate=1000000, polarity=0, phase=0, sck=Pin(SPI_SCLK_PIN), mosi=Pin(SPI_MOSI_PIN), miso=Pin(SPI_MISO_PIN))
-    vol = ADS1118(spi=spi, cs_pin = SPI_CS_PIN, channel_mux={0: 0b000, 1: 0b011}) #channel 0 = Bat, channel 1 = inv
-    tmp = DS18B20(data_pin=OWM_TEMP_PIN, pullup=False)
-
     await asyncio.sleep(60) # TODO: make this more sophisticated: Wait for slaves to connect and check plausability.
 
-    soc_estimator = BatterySOC(config_soc)
-    protector = BatteryProtection(config_prot, inverter_en_pin = BAT_FAULT_PIN ,current_sensor=cur, slaves=slaves)
+    soc_auto_safe_task = asyncio.create_task(autosave_task(soc_estimator, 300))
+    
     while True:
         current = cur.read_current(samples=10)
         bat_vol = await vol.read_voltage(channel=0)
@@ -152,10 +92,13 @@ async def main():
 
         soc = await soc_estimator.update(current, bat_vol, temp)
 
-        #FIXME: protector should consider all stringvoltages and string temperatures.
+        #FIXME: protector should consider  and string temperatures.
         prot_status = await protector.update(v_cells, bat_vol, current, temp, soc)
         #can_bus.send_status(prot_status)
         await asyncio.sleep(config_soc['sampling_interval'])
 
-# Run the async loop
-asyncio.run(main())
+# ----------------------------------------------------------------------
+#  Boot
+# ----------------------------------------------------------------------
+if __name__ == "__main__":
+    asyncio.run(main())
