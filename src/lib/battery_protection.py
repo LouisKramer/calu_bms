@@ -111,7 +111,7 @@ class Fault:
         return any(f.is_debounced() and f.severity == Fault_Severity.CRITICAL for f in cls._registry)
     
     @classmethod
-    def has_warining(cls):
+    def has_warning(cls):
         return any(f.is_debounced() and f.severity == Fault_Severity.WARNING for f in cls._registry)
 
     @classmethod
@@ -159,7 +159,7 @@ class CellProtection:
             self.fault.clear()
 
 class StringProtection:
-    def __init__(self, config, slave: BMSSlave):
+    def __init__(self, config, slave: virt_slave):
         self.vstr = slave.vstr
         self.addr = slave.string_address
         self.fault = Fault
@@ -596,7 +596,7 @@ class BatteryProtection:
     async def update(self, cell_voltages, pack_voltage, current, temperature, soc_percent, slaves):
         if slaves.isinstance(Slaves):
             for s in slaves:
-                if s.isinstance(BMSSlave):
+                if s.isinstance(virt_slave):
                     self._check_cell_voltages(s)
                     self._check_str_voltage(s)
                     self._check_str_temperatures(s.temp)
