@@ -8,6 +8,7 @@ from lib.ACS71240 import *
 from lib.ADS1118 import *
 from lib.DS18B20 import *
 from lib.RELAY import *
+from common.credentials import *
 #from lib.CAN import * Wait for support in micropython-esp32
 #from lib.SOC import BatterySOC, autosave_task
 #from lib.battery_protection import BatteryProtection
@@ -16,9 +17,6 @@ from lib.virt_slave import *
 # ========================================
 # CONFIG
 # ========================================
-WIFI_SSID = 'FRITZ!Box 7530 WC'
-WIFI_PASS = "kramer89"
-
 NTP_HOST = "pool.ntp.org"
 NTP_PORT = 123
 NTP_TIMEOUT = 5  # seconds
