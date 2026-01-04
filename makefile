@@ -1,5 +1,8 @@
 # Makefile for ESP32 MicroPython project deployment
 
+# Path to fw binary
+FW_BINARY := bin/ESP32_GENERIC_S3-SPIRAM_OCT-20250911-v1.26.1.bin
+
 # Path to your requirements.txt (adjust if needed)
 REQUIREMENTS := src/master/requirements.txt
 
@@ -15,6 +18,14 @@ UPLOAD_SCRIPT := toolchain/upload.py
 # Default target: clean + upload
 .PHONY: all
 all: clean upload soft_reset
+
+# Program firmware (upload only)
+.PHONY: fw
+fw:
+	@echo "=== Programming firmware ==="
+	esptool erase_flash
+	esptool --baud 460800 write_flash 0 $(FW_BINARY)
+	@echo "Firmware programming complete!"
 
 # Hard reset
 .PHONY: reset
@@ -64,8 +75,9 @@ run:
 help:
 	@echo "Available targets:"
 	@echo "  make                # Clean + upload (full fresh deploy)"
+	@echo "  make fw             # Program firmware"
 	@echo "  make all            # Same as above"
-	@echo "  make reset          # Full wipe + upload (hard reset)"
+	@echo "  make reset          # Hard reset"
 	@echo "  make soft_reset     # Restart MicroPython interpreter (Ctrl+D)"
 	@echo "  make clean          # Delete all files on device"
 	@echo "  make upload         # Upload files without cleaning"

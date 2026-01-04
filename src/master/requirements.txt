@@ -1,11 +1,12 @@
-# local path relative to this file      destination path
+# local path     destination path
 ../common/common.py     ./common/common.py
 ../common/logger.py     ./common/logger.py
-../lib/ACS71240.py       ./lib/ACS71240.py
+../common/boot.py       ./boot.py
+../lib/ACS71240.py      ./lib/ACS71240.py
 ../lib/ADS1118.py       ./lib/ADS1118.py
 ../lib/DS18B20.py       ./lib/DS18B20.py
-../lib/ntp_sync.py      ./lib/ntp_sync.py
-../lib/relay.py         ./lib/relay.py
+../lib/NTP.py           ./lib/NTP.py
+../lib/RELAY.py         ./lib/RELAY.py
 ../lib/virt_slave.py    ./lib/virt_slave.py
 ../lib/SOC.py           ./lib/SOC.py
 ../master/main.py       ./main.py
