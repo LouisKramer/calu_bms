@@ -23,7 +23,9 @@ all: clean upload soft_reset
 .PHONY: fw
 fw:
 	@echo "=== Programming firmware ==="
-	esptool erase_flash
+	mpremote $(if $(PORT),connect $(PORT)) soft-reset
+	mpremote $(if $(PORT),connect $(PORT)) bootloader
+	esptool erase-flash
 	esptool --baud 460800 write_flash 0 $(FW_BINARY)
 	@echo "Firmware programming complete!"
 
