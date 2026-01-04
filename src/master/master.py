@@ -7,11 +7,11 @@ from common.logger import *
 from lib.ACS71240 import *
 from lib.ADS1118 import *
 from lib.DS18B20 import *
-from lib.relay import *
+from lib.RELAY import *
 #from lib.CAN import * Wait for support in micropython-esp32
 #from lib.SOC import BatterySOC, autosave_task
 #from lib.battery_protection import BatteryProtection
-#from lib.ntp_sync import *
+#from lib.NTP import *
 from lib.virt_slave import *
 # ========================================
 # CONFIG
