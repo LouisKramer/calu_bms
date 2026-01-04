@@ -13,7 +13,7 @@ PORT ?=
 PYTHON := python
 
 # Scripts (place these in the same directory as the Makefile)
-UPLOAD_SCRIPT := toolchain/upload.py
+UPLOAD_SCRIPT := tools/upload.py
 
 # Default target: clean + upload
 .PHONY: all
