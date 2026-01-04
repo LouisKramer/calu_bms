@@ -65,8 +65,8 @@ class ADS1118:
             raise ValueError("DR must be between 0 and 7")
         if channel_mux is None or len(channel_mux) == 0 or len(channel_mux) > 8:
             raise ValueError("Channel MUX must be provided and contain 1-8 entries")
-        if vcc != 3.3 or vcc != 5.0:
-            raise ValueError("Only VCC of 3.3V or 5V is supported")
+        if vcc != 3.3 and vcc != 5.0:
+            raise ValueError("Only VCC of 3.3V or 5V is supported ",vcc)
         if gain is None or len(gain) != len(channel_mux):
             raise ValueError("Gain list must match number of channels in channel_mux")
         for g in gain:
@@ -241,8 +241,8 @@ class ADS1118:
 
         :param channel: Channel (0 or 1).
         """
-        if channel < 0 or channel > self.self.nr_of_ch:
-            raise ValueError(f"Channel must be 0 to {self.self.nr_of_ch}")
+        if channel < 0 or channel > self.nr_of_ch:
+            raise ValueError(f"Channel must be 0 to {self.nr_of_ch}")
         self._start_conversion(channel, 0)
         signed = await self._read(channel, 0)
         self.offset[channel] = signed
@@ -257,8 +257,8 @@ class ADS1118:
 
     async def read_voltage(self, channel):
         """Read voltage in single-shot mode."""
-        if channel < 0 or channel > self.self.nr_of_ch:
-            raise ValueError(f"Channel must be 0 to {self.self.nr_of_ch}")
+        if channel < 0 or channel > self.nr_of_ch:
+            raise ValueError(f"Channel must be 0 to {self.nr_of_ch}")
         self._start_conversion(channel, 0)
         vol = await self._read(channel, ts = 0, sleep = True) - self.offset[channel]
         mux = self.channel_mux[channel]
@@ -276,8 +276,8 @@ class ADS1118:
     
     async def read_voltage_all(self, channel):
         """Read all voltages helper. this function requires to call start_conversions_all first !!!!"""
-        if channel < 0 or channel > self.self.nr_of_ch:
-            raise ValueError(f"Channel must be 0 to {self.self.nr_of_ch}")
+        if channel < 0 or channel > self.nr_of_ch:
+            raise ValueError(f"Channel must be 0 to {self.nr_of_ch}")
         vol = await self._read(channel, ts=0, sleep = False) - self.offset[channel]
         mux = self.channel_mux[channel]
         signed = (False if mux >= 4 else True)
@@ -285,8 +285,8 @@ class ADS1118:
         return voltage
 
     async def start_conversions_all(self, channel, ret = False):
-        if channel < 0 or channel > self.self.nr_of_ch:
-            raise ValueError(f"Channel must be 0 to {self.self.nr_of_ch}")
+        if channel < 0 or channel > self.nr_of_ch:
+            raise ValueError(f"Channel must be 0 to {self.nr_of_ch}")
         if ret:
             vol = self._get_signed(self._start_conversion(channel, 0))- self.offset[channel]
             mux = self.channel_mux[channel]

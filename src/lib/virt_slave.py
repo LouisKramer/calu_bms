@@ -24,6 +24,7 @@ class slave_config:
 
     # ------------------------------------------------------------------ #
     def __init__(self, filename=SLAVE_CONFIG_FILE):
+        log_slave.info("Loading slave configuration...", ctx="slave_config")
         self.filename = filename
         # start with defaults
         for k, v in self._DEFAULTS.items():
@@ -130,6 +131,7 @@ class Slaves:
     MAX_NR_OF_SLAVES = 16                     # unchanged – still the hard limit
 
     def __init__(self, config: slave_config):
+        log_slave.info("Initializing slave handler...", ctx="slave_handler")
         self.cfg = config
         # start with an *empty* list – we grow only when push() is called
         self._slaves: list["virt_slave | None"] = []
@@ -159,9 +161,9 @@ class Slaves:
     # ------------------------------------------------------------------
     #  Core CRUD operations 
     # ------------------------------------------------------------------
-    def push(self, virt_slave=None) -> "virt_slave | None":
+    def push(self, virt_slave=None):
         """Add a new slave if there is room; return the stored instance."""
-        log_slave.info(f"Add slave {binascii.hexlify(virt_slave.mac, ":")} to list", ctx="slave handler")
+        log_slave.info(f"Add slave {log_slave.mac_to_str(virt_slave.mac)} to list", ctx="slave handler")
         self._ensure_capacity()
         self._slaves.append(virt_slave)
         return virt_slave
@@ -172,16 +174,16 @@ class Slaves:
             if s is not None and s.mac == mac:
                 self._slaves[i] = None          # keep a hole – list stays compact
                 return True
-        log_slave.warn(f"Unable to remove slave {binascii.hexlify(mac, ":")} from list", ctx="slave handler")
+        log_slave.warn(f"Unable to remove slave {log_slave.mac_to_str(mac)} from list", ctx="slave handler")
         return False
 
-    def get_by_mac(self, mac) -> "virt_slave | None":
+    def get_by_mac(self, mac):
         for s in self._slaves:
             if s is not None and s.mac == mac:
                 return s
         return None
 
-    def get_by_addr(self, addr) -> "virt_slave | None":
+    def get_by_addr(self, addr):
         for s in self._slaves:
             if s is not None and s.string_address == addr:
                 return s
@@ -230,12 +232,12 @@ class Slaves:
         s = self.get_by_mac(mac)
         deadline = time.ticks_add(self.T1, SYNC_DEADLINE)
         if time.ticks_diff(deadline, time.ticks_us()) > 0:
-            log_slave.info(f"ACK from {binascii.hexlify(mac, ":")} T2={T2}", ctx="slave sync")
+            log_slave.info(f"ACK from {log_slave.mac_to_str(mac)} T2={T2}", ctx="slave sync")
             s.last_seen = time.ticks_us()
             T3 = time.ticks_us()
             e.send(mac, pack_sync_ref(self.T1, T2, T3))
         else:
-            log_slave.warn("Late ACK from", binascii.hexlify(mac, ":"), "ignored", ctx="slave handler")
+            log_slave.warn("Late ACK from", log_slave.mac_to_str(mac), "ignored", ctx="slave handler")
 
     async def sync_slaves_task(self, e):
         while True:
@@ -252,7 +254,7 @@ class Slaves:
             now = time.ticks_us()
             for slave in self._slaves:
                 if slave and time.ticks_diff(now, slave.last_seen) > self.cfg.ttl * 1_000_000:
-                    log_slave.info("Removing inactive slave:", binascii.hexlify(slave.mac, ":"), ctx="slave sync")
+                    log_slave.info("Removing inactive slave:", log_slave.mac_to_str(slave.mac), ctx="slave sync")
                     # replace with None – keeps the list length stable
                     self._slaves[self._slaves.index(slave)] = None
             await asyncio.sleep(self.cfg.ttl)
@@ -282,7 +284,7 @@ class Slaves:
                     e.add_peer(mac)
                     s = self.push(virt_slave(mac))
                     s.set_info(dict_)
-                    log_slave.info(f"Discovered: {binascii.hexlify(mac, ":")}", ctx="slave handler")
+                    log_slave.info(f"Discovered: {log_slave.mac_to_str(mac)}", ctx="slave handler")
                     e.send(mac, WELCOME_MSG)
 
             # ---------- SYNC ACK ----------
@@ -319,12 +321,12 @@ class Slaves:
                     s = self.get_by_mac(mac)
                     s.last_seen = time.ticks_us()
                     s.data(dict_)
-                    log_slave.info(f"Data form: {binascii.hexlify(mac, ":")} : {dict_}", ctx="slave handler")
+                    log_slave.info(f"Data form: {log_slave.mac_to_str(mac)} : {dict_}", ctx="slave handler")
 
             # ---------- UNKNOWN ----------
             else:
                 e.send(mac, pack_reconnect())
-                log_slave.warn(f"Unknown message type from: {binascii.hexlify(mac, ":")}", ctx="slave handler")
+                log_slave.warn(f"Unknown message type from: {log_slave.mac_to_str(mac)}", ctx="slave handler")
     
 class virt_slave(Slaves):
     def __init__(self, mac):

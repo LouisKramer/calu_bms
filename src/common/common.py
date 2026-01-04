@@ -56,6 +56,13 @@ config_prot = {
     'use_hardware_fault': True
 }
 
+config_can = {
+    'can_tx_pin': 40,      # ESP32 GPIO
+    'can_rx_pin': 39,
+    'baudrate': 125000,    # 125 kbps
+    'update_interval': 1.0
+}
+
 def pack_reconnect():
     dict = {"type": RECONECT_MSG}
     return json.dumps(dict)

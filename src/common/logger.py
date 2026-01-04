@@ -219,7 +219,8 @@ class Logger:
         for e in self._buffer:
             counts[e["lvl"]] += 1
         return {"total": len(self._buffer), "counts": {LogLevel.name(k): v for k, v in counts.items()}}
-
+    def mac_to_str(self,mac):
+        return ':'.join('{:02x}'.format(b) for b in mac)
 
 # ----------------------------------------------------------------------
 #  Factory Function
@@ -230,7 +231,7 @@ def create_logger(
     flash: bool = True,
     syslog: bool = True,
     max_buffer: int = 30,
-    host: str = "192.168.1.100"
+    host: str = "192.168.118.71"
 ) -> Logger:
     """
     Create a logger with sensible defaults.
@@ -257,5 +258,5 @@ def create_logger(
         max_files=3,
         syslog_host=syslog_host,
         hostname="bms-01",
-        app_name=f"BMS-{name.capitalize()}"
+        app_name = f"BMS-{name[0].upper() + name[1:] if name else ''}"
     )

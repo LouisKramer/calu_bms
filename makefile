@@ -1,17 +1,76 @@
-# Makefile to deploy files and reset a device using ampy on Windows
+# Makefile for ESP32 MicroPython project deployment
 
-# Default target
-.PHONY: deploy reset
+# Path to your requirements.txt (adjust if needed)
+REQUIREMENTS := src/master/requirements.txt
 
-deploy:
-	@echo Deploying files using deploy.py...
-	python deploy.py
-	@echo Resetting device on COM4...
-	$(MAKE)reset
-	@echo Deployment and reset complete.
+# Optional: specify your serial port here, or pass via command line: make PORT=/dev/ttyUSB0
+PORT ?=
 
+# Python command (use python3 if needed)
+PYTHON := python
+
+# Scripts (place these in the same directory as the Makefile)
+UPLOAD_SCRIPT := toolchain/upload.py
+
+# Default target: clean + upload
+.PHONY: all
+all: clean upload soft_reset
+
+# Hard reset
+.PHONY: reset
 reset:
-	@echo Resetting device on COM4...
-	@ampy --port COM4 put reset.py
-	@ampy --port COM4 run reset.py
-	@echo Reset complete.
+	@echo "=== PERFORMING RESET ==="
+	mpremote $(if $(PORT),connect $(PORT)) reset
+	@echo "Reset done."
+
+# Soft reset the MicroPython interpreter (equivalent to Ctrl+D)
+.PHONY: soft_reset
+soft_reset:
+	@echo "=== PERFORMING SOFT RESET (Ctrl+D) ==="
+	mpremote $(if $(PORT),connect $(PORT)) soft-reset
+	@echo "Soft reset done."
+
+# Delete everything on the device
+.PHONY: clean
+clean:
+	@echo "=== RESETTING ESP32 FILESYSTEM ==="
+	mpremote fs rm -r ./
+	@echo ""
+
+# Upload all files from requirements.txt
+.PHONY: upload
+upload:
+	@echo "=== UPLOADING PROJECT FILES ==="
+	$(PYTHON) $(UPLOAD_SCRIPT) $(REQUIREMENTS) $(if $(PORT),--port $(PORT))
+	@echo "Deployment complete!"
+
+# Connect to REPL (interactive console)
+.PHONY: repl
+repl:
+	mpremote $(if $(PORT),connect $(PORT)) repl
+
+# List files on device
+.PHONY: ls
+ls:
+	mpremote $(if $(PORT),connect $(PORT)) fs ls :
+
+# Run main.py on device after upload
+.PHONY: run
+run:
+	mpremote $(if $(PORT),connect $(PORT)) run :main.py
+
+# Help
+.PHONY: help
+help:
+	@echo "Available targets:"
+	@echo "  make                # Clean + upload (full fresh deploy)"
+	@echo "  make all            # Same as above"
+	@echo "  make reset          # Full wipe + upload (hard reset)"
+	@echo "  make soft_reset     # Restart MicroPython interpreter (Ctrl+D)"
+	@echo "  make clean          # Delete all files on device"
+	@echo "  make upload         # Upload files without cleaning"
+	@echo "  make repl           # Open interactive REPL"
+	@echo "  make ls             # List files on device"
+	@echo "  make run            # Execute main.py"
+	@echo ""
+	@echo "Optional: PORT=/dev/ttyUSB0 make <target>   (or COM3 on Windows)"
