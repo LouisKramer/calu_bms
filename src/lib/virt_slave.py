@@ -4,135 +4,23 @@ from common.logger import *
 import asyncio
 
 log_slave=create_logger("slave_handler", level=LogLevel.INFO)
-class slave_config:
-    SLAVE_CONFIG_FILE = "slave_config.json"
-    _DEFAULTS = {
-        'balancing_start_voltage': 3.4,
-        'balancing_threshold': 0.01,      # 10 mV
-        'balancing_en': True,
-        'balancing_ext_en': False,
-        'over_voltage_cell': 3.65,
-        'critical_over_voltage_cell': 3.7,
-        'under_voltage_cell': 3.00,
-        'critical_under_voltage_cell': 2.80,
-        'voltage_hyst': 0.1,
-        'over_temp': 60.0,
-        'under_temp': 0.0,
-        'ttl': 3600,
-        'sync_interval': 10
-    }
-
-    # ------------------------------------------------------------------ #
-    def __init__(self, filename=SLAVE_CONFIG_FILE):
-        log_slave.info("Loading slave configuration...", ctx="slave_config")
-        self.filename = filename
-        # start with defaults
-        for k, v in self._DEFAULTS.items():
-            setattr(self, k, v)
-        # try to load a persisted file (ignore errors – we keep defaults)
-        self.load()
-
-    # ------------------------------------------------------------------ #
-    def validate(self):
-        """Log warning if any value is out of sensible range."""
-        if not (3.0 <= self.balancing_start_voltage <= 3.6):
-            log_slave.warn("balancing_start_voltage must be 3.0-3.6 V", ctx="slave_config")
-
-        if not (0.001 <= self.balancing_threshold <= 0.1):
-            log_slave.warn("balancing_threshold must be 1-100 mV", ctx="slave_config")
-
-        if not (self.under_voltage_cell < self.over_voltage_cell):
-            log_slave.warn("under_voltage_cell must be lower than over_voltage_cell", ctx="slave_config")
-
-        if not (self.critical_under_voltage_cell < self.under_voltage_cell):
-            log_slave.warn("critical_under_voltage_cell must be lower than under_voltage_cell", ctx="slave_config")
-
-        if not (self.over_voltage_cell < self.critical_over_voltage_cell):
-            log_slave.warn("over_voltage_cell must be lower than critical_over_voltage_cell", ctx="slave_config")
-
-        if not (self.under_temp <= self.over_temp):
-            log_slave.warn("under_temp must be <= over_temp", ctx="slave_config")
-
-        if not (1 <= self.sync_interval <= 3600):
-            log_slave.warn("sync_interval out of range", ctx="slave_config")
-
-        if not (60 <= self.ttl <= 86400):
-            log_slave.warn("ttl out of range", ctx="slave_config")
-        return True
-
-    # ------------------------------------------------------------------ #
-    def to_dict(self):
-        """Return a plain dict that can be JSON-serialised."""
-        return {k: getattr(self, k) for k in self._DEFAULTS}
-
-    # ------------------------------------------------------------------ #
-    def from_dict(self, data: dict):
-        """Apply values from a dict (only known keys)."""
-        for k, v in data.items():
-            if k in self._DEFAULTS:
-                setattr(self, k, v)
-        self.validate()
-        return self
-
-    # ------------------------------------------------------------------ #
-    def save(self, filename=None):
-        """
-        Persist the current configuration to ``filename`` (default: the one
-        given at __init__).  Overwrites the file atomically if possible.
-        """
-        if filename is None:
-            filename = self.filename
-
-        tmp = filename + '.tmp'
-        try:
-            with open(tmp, 'w') as f:
-                json.dump(self.to_dict(), f, indent=2)
-            # atomic replace (works on ESP32/ESP8266/Pyboard)
-            if os.name != 'posix':          # MicroPython on bare metal
-                try:
-                    os.remove(filename)
-                except OSError as e:
-                    log_slave.warn(f"Failed to save config to {filename}: {e}", ctx="slave_config")
-            os.rename(tmp, filename)
-        except Exception as e:
-            # clean up temporary file on failure
-            try:
-                os.remove(tmp)
-            except OSError:
-                pass
-            log_slave.warn(f"Failed to save config to {filename}: {e}", ctx="slave_config")
-
-    # ------------------------------------------------------------------ #
-    def load(self, filename=None):
-        """
-        Load configuration from ``filename`` (default: the one given at
-        __init__).  If the file does not exist or is corrupted the defaults
-        are kept.
-        """
-        if filename is None:
-            filename = self.filename
-
-        if filename not in os.listdir():
-            return  # keep defaults
-
-        try:
-            with open(filename, 'r') as f:
-                data = json.load(f)
-            self.from_dict(data)
-        except Exception as e:
-            # keep defaults, but inform the user 
-            log_slave.warn(f"[Slave Config] Load error ({filename}): {e} – using defaults", ctx="slave_config")
-
 
 # ----------------------------------------------------------------------
 #  Slaves – dynamic container with a hard upper limit (MAX_NR_OF_SLAVES)
 # ----------------------------------------------------------------------
 class Slaves:
-    MAX_NR_OF_SLAVES = 16                     # unchanged – still the hard limit
+    MAX_NR_OF_SLAVES = 16    
 
-    def __init__(self, config: slave_config):
+    def __init__(self, config):
         log_slave.info("Initializing slave handler...", ctx="slave_handler")
         self.cfg = config
+        self.bal_start_voltage = config.get('balancing_start_voltage', 3.4)
+        self.bal_threshold = config.get('balancing_threshold', 0.01)
+        self.bal_en = config.get('balancing_en', True)
+        self.ext_bal_en = config.get('balancing_ext_en', False)
+        self.ttl = config.get('ttl', 3600)
+        self.sync_interval = config.get('sync_interval', 10)
+        self.T1 = 0
         # start with an *empty* list – we grow only when push() is called
         self._slaves: list["virt_slave | None"] = []
 
@@ -221,14 +109,32 @@ class Slaves:
         return self._sorted_by_address("temp")
 
     # ------------------------------------------------------------------
+    #  discover
+    # ------------------------------------------------------------------
+    def discover_slaves(self, e):
+        try:
+            e.send(BROADCAST, pack_search_msg())
+            log_slave.info("Discovering slaves:", ctx="slave discover")
+        except Exception as e:
+            log_slave.warn(e, ctx="slave discover")
+    # ------------------------------------------------------------------
+    #  discover
+    # ------------------------------------------------------------------
+    def request_data_from_slaves(self, e):
+        try:
+            e.send(None, pack_data_req_msg())
+            log_slave.info("Request data from slaves:", ctx="slave data request")
+        except Exception as e:
+            log_slave.warn(e, ctx="slave discover")
+    # ------------------------------------------------------------------
     #  Sync / GC helpers 
     # ------------------------------------------------------------------
     def sync_slaves(self, e):
         self.T1 = time.ticks_us()
-        e.send(BROADCAST, pack_sync_req(self.T1))
+        e.send(None, pack_sync_req(self.T1)) # send sync to all peers
 
     def check_sync_ack(self, msg, mac, e):
-        T2 = msg.get("T2")
+        T1,T2 = unpack_sync_ack(msg)
         s = self.get_by_mac(mac)
         deadline = time.ticks_add(self.T1, SYNC_DEADLINE)
         if time.ticks_diff(deadline, time.ticks_us()) > 0:
@@ -246,18 +152,18 @@ class Slaves:
                 log_slave.info("Syncing slaves:", ctx="slave sync")
             except Exception as e:
                 log_slave.warn(e, ctx="slave sync")
-            await asyncio.sleep(self.cfg.sync_interval)
+            await asyncio.sleep(self.sync_interval)
 
     async def slave_gc(self):
         while True:
             log_slave.info(f"Run slave GC", ctx="slave handler")
             now = time.ticks_us()
             for slave in self._slaves:
-                if slave and time.ticks_diff(now, slave.last_seen) > self.cfg.ttl * 1_000_000:
+                if slave and time.ticks_diff(now, slave.last_seen) > self.ttl * 1_000_000:
                     log_slave.info("Removing inactive slave:", log_slave.mac_to_str(slave.mac), ctx="slave sync")
                     # replace with None – keeps the list length stable
                     self._slaves[self._slaves.index(slave)] = None
-            await asyncio.sleep(self.cfg.ttl)
+            await asyncio.sleep(self.ttl)
 
     # ------------------------------------------------------------------
     #  Message listener 
@@ -265,34 +171,26 @@ class Slaves:
     def slave_listener(self, e):
         while True:
             mac, msg = e.irecv(0)
-            if mac is None:
+            if mac is None or not msg:
                 return
-            if not msg:
-                continue
-
-            try:
-                dict_ = json.loads(msg)
-            except json.JSONDecodeError:
-                e.send(mac, pack_reconnect())
-                continue
-
-            msg_type = dict_.get("type")
+            log_slave.info(f"Received message from: {log_slave.mac_to_str(mac)}", ctx="slave handler")    
+            msg_type = msg[0]
 
             # ---------- HELLO ----------
             if msg_type == HELLO_MSG:
                 if not self.is_known(mac):
                     e.add_peer(mac)
                     s = self.push(virt_slave(mac))
-                    s.set_info(dict_)
+                    s.set_info(msg)
                     log_slave.info(f"Discovered: {log_slave.mac_to_str(mac)}", ctx="slave handler")
-                    e.send(mac, WELCOME_MSG)
+                e.send(mac, pack_welcome(time.ticks_us()))
 
             # ---------- SYNC ACK ----------
             elif msg_type == SYNC_ACK_MSG:
                 if not self.is_known(mac):
                     e.send(mac, pack_reconnect())
                 else:
-                    self.check_sync_ack(dict_, mac, e)
+                    self.check_sync_ack(msg, mac, e)
 
             # ---------- SYNC FIN ----------
             elif msg_type == SYNC_FIN_MSG:
@@ -320,12 +218,12 @@ class Slaves:
                 else:
                     s = self.get_by_mac(mac)
                     s.last_seen = time.ticks_us()
-                    s.data(dict_)
+                    s.data(msg)
                     log_slave.info(f"Data form: {log_slave.mac_to_str(mac)} : {dict_}", ctx="slave handler")
 
             # ---------- UNKNOWN ----------
             else:
-                e.send(mac, pack_reconnect())
+                #e.send(mac, pack_reconnect())
                 log_slave.warn(f"Unknown message type from: {log_slave.mac_to_str(mac)}", ctx="slave handler")
     
 class virt_slave(Slaves):
@@ -344,10 +242,10 @@ class virt_slave(Slaves):
         self.vstr = 0.0
 
     def configure(self, e):
-        e.send(self.mac, pack_config_msg(self.bal_start_voltage, self.bal_threshold,self.ext_bal_en,self.bal_en))
+        e.send(self.mac, pack_config_msg(self.bal_start_voltage, self.bal_threshold, self.ext_bal_en, self.bal_en))
 
-    def data(self,dict):
-        vcell, vstr, temp = unpack_data_msg(dict)
+    def data(self,msg):
+        vcell, vstr, temp = unpack_data_msg(msg)
         if vcell is not None:
             if isinstance(vcell, list) and len(vcell) == self.nr_of_cells:
                 if all(isinstance(v, (int, float)) and 0.0 <= v <= 5.0 for v in vcell):
@@ -360,8 +258,8 @@ class virt_slave(Slaves):
             if isinstance(vstr, (int, float)) and (0.0 <= vstr <= 160.0):
                 self.vstr = vstr
 
-    def set_info(self, dict):
-        s_addr, ncell, ntemp, fw_ver, hw_ver= unpack_hello_msg(dict)
+    def set_info(self, msg):
+        s_addr, ncell, ntemp, fw_ver, hw_ver= unpack_hello_msg(msg)
         if  isinstance(s_addr, int) or (0 <= s_addr <= 15):
             self.string_address = s_addr
        

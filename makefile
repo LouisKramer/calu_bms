@@ -4,8 +4,8 @@
 FW_BINARY := bin/ESP32_GENERIC_S3-SPIRAM_OCT-20250911-v1.26.1.bin
 
 # Path to your requirements.txt (adjust if needed)
-REQUIREMENTS := src/master/requirements.txt
-
+REQUIREMENTS_MASTER := src/master/requirements.txt
+REQUIREMENTS_SLAVE := src/slave/requirements.txt
 # Optional: specify your serial port here, or pass via command line: make PORT=/dev/ttyUSB0
 PORT ?=
 
@@ -16,8 +16,11 @@ PYTHON := python
 UPLOAD_SCRIPT := tools/upload.py
 
 # Default target: clean + upload
-.PHONY: all
-all: clean upload soft_reset
+.PHONY: all_slave
+all_slave: clean appl_slave soft_reset
+
+.PHONY: all_master
+all_master: clean appl_master soft_reset
 
 # Program firmware (upload only)
 .PHONY: fw
@@ -51,11 +54,18 @@ clean:
 	@echo ""
 
 # Upload all files from requirements.txt
-.PHONY: upload
-upload:
-	@echo "=== UPLOADING PROJECT FILES ==="
-	$(PYTHON) $(UPLOAD_SCRIPT) $(REQUIREMENTS) $(if $(PORT),--port $(PORT))
+.PHONY: appl_master
+appl_master:
+	@echo "=== UPLOADING MASTER FILES ==="
+	$(PYTHON) $(UPLOAD_SCRIPT) $(REQUIREMENTS_MASTER) $(if $(PORT),--port $(PORT))
 	@echo "Deployment complete!"
+
+# Upload slave files
+.PHONY: appl_slave
+appl_slave:
+	@echo "=== UPLOADING SLAVE FILES ==="
+	$(PYTHON) $(UPLOAD_SCRIPT) $(REQUIREMENTS_SLAVE) $(if $(PORT),--port $(PORT))
+	@echo "Slave deployment complete!"
 
 # Connect to REPL (interactive console)
 .PHONY: repl
@@ -77,12 +87,14 @@ run:
 help:
 	@echo "Available targets:"
 	@echo "  make                # Clean + upload (full fresh deploy)"
+	@echo "  make all_master     # Same as above for master"
+	@echo "  make all_slave      # Same as above for slave"
 	@echo "  make fw             # Program firmware"
-	@echo "  make all            # Same as above"
 	@echo "  make reset          # Hard reset"
 	@echo "  make soft_reset     # Restart MicroPython interpreter (Ctrl+D)"
 	@echo "  make clean          # Delete all files on device"
-	@echo "  make upload         # Upload files without cleaning"
+	@echo "  make appl_master    # Upload master files without cleaning"
+	@echo "  make appl_slave     # Upload slave files without cleaning"
 	@echo "  make repl           # Open interactive REPL"
 	@echo "  make ls             # List files on device"
 	@echo "  make run            # Execute main.py"

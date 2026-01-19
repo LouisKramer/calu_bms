@@ -57,3 +57,10 @@ class DS18B20:
         :return: Dict with integer keys (starting from 0) and ROM bytes as values
         """
         return {i: rom for i, rom in enumerate(self.roms)}
+    
+    def number_of_sensors(self):
+        """
+        Get the number of detected DS18B20 sensors.
+        :return: Number of sensors
+        """
+        return len(self.roms)

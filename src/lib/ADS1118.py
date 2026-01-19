@@ -1,7 +1,7 @@
 from machine import Pin
 import asyncio
 import json
-import os
+from common.logger import *
 
 
 class ADS1118:
@@ -47,6 +47,7 @@ class ADS1118:
         :param pull_up_en: Enable pull-up on DOUT/DRDY (0 or 1).
         :param cal_file: File path for storing/loading calibration offsets.
         """
+        self.log = create_logger("ads1118", level=LogLevel.INFO, syslog=False)
         if (demux is None and cs_pin is None) or (
             demux is not None and cs_pin is not None
         ):
@@ -106,6 +107,7 @@ class ADS1118:
                     ):
                         self.offset = offsets
         except (OSError, ValueError):
+            self.log.warn("Calibration load failed, using default offsets", ctx="ads1118")
             # File missing, corrupted, or invalid; keep default offsets [0, 0]
             pass
 
@@ -124,7 +126,7 @@ class ADS1118:
             with open(self.cal_file, "w") as f:
                 json.dump(data, f)
         except OSError as e:
-            print(f"Failed to save calibration: {e}")
+            self.log.error(f"Calibration save failed: {e}", ctx="ads1118")
 
     def validate_calibration(self, max_offset=1000):
         """
@@ -149,6 +151,7 @@ class ADS1118:
                 with open(self.cal_file, "w") as f:
                     json.dump(data, f)
         except (OSError, ValueError):
+            self.log.warn("Calibration save failed, using default offsets", ctx="ads1118")
             pass
 
     def set_pga(self, pga):

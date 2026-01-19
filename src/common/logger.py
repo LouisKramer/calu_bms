@@ -57,7 +57,7 @@ class Logger:
         self.max_file_size = max_file_size
         self.max_files = max_files
         self._buffer: list[dict] = []
-
+        self.rtc = RTC()
         self.syslog_host = syslog_host
         self.syslog_port = syslog_port
         self.hostname = hostname
@@ -73,7 +73,7 @@ class Logger:
     # ------------------------------------------------------------------
     def _iso_timestamp(self) -> str:
         try:
-            tm = RTC().rtc.datetime()
+            tm = self.rtc.datetime()
             # tm = (year, month, day, weekday, hour, minute, second, subsecond)
             return f"{tm[0]:04d}-{tm[1]:02d}-{tm[2]:02d}T{tm[4]:02d}:{tm[5]:02d}:{tm[6]:02d}.{time.ticks_ms()%1000:03d}Z"
         except:

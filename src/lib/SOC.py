@@ -1,9 +1,11 @@
 import asyncio
 import time
 import json
+import os
 from collections import deque
+from common.logger import *
 
-
+soc_log = create_logger("soc", level=LogLevel.INFO)
 # =============================================================================
 # Persistence Functions
 # =============================================================================
@@ -29,6 +31,7 @@ def save_state(estimator, path="soc_state.json"):
         # Creates soc_state.json with SOC, timestamps, history
     """
     try:
+        soc_log.info("Saving SOC state to non-volatile storage", ctx="soc")
         state = {
             "soc": estimator.soc,
             "last_time": estimator.last_time,
@@ -40,7 +43,7 @@ def save_state(estimator, path="soc_state.json"):
         with open(path, "w") as f:
             f.write(json.dumps(state))
     except Exception as e:
-        print("Save failed:", e)
+        soc_log.error(f"Failed to save SOC state: {e}", ctx="soc")
 
 
 def load_state(estimator, path="soc_state.json"):
@@ -61,21 +64,23 @@ def load_state(estimator, path="soc_state.json"):
         >>> loaded = load_state(soc_estimator)
         >>> print("Recovered SOC:", soc_estimator.soc)
     """
-    import os
     if path not in os.listdir():
         return False
     try:
+        soc_log.info("Loading SOC state from non-volatile storage", ctx="soc")
         with open(path, "r") as f:
             state = json.loads(f.read())
         estimator.soc = max(0.0, min(100.0, state.get("soc", estimator.soc)))
         estimator.last_time = state.get("last_time", time.time())
         estimator.relaxed_start_time = state.get("relaxed_start_time")
-        estimator.voltage_history = deque(state.get("voltage_history", [])[-10:], maxlen=10)
+        estimator.voltage_history = deque(state.get("voltage_history", [])[-10:], 10)
         estimator.last_voltage = state.get("last_voltage")
         estimator.last_temp = state.get("last_temp")
+        soc_log.info(f"SOC state loaded successfully: SOC={estimator.soc}%", ctx="soc")
         return True
     except Exception as e:
-        print("Load failed:", e)
+        soc_log.error(f"Failed to load SOC state: {e}", ctx="soc")
+
         return False
 
 
@@ -184,11 +189,11 @@ class BatterySOC:
         self.last_voltage = None
         self.last_temp = config.get('initial_temp', 25.0)
         self.relaxed_start_time = None
-        self.voltage_history = deque(maxlen=10)
+        self.voltage_history = deque([],10)
 
         # Load persisted state
         if not load_state(self, "soc_state.json"):
-            print("No saved state — starting from initial SOC")
+            soc_log.info("No saved SOC state found; starting from initial configuration", ctx="soc")
 
     # -------------------------------------------------------------------------
     # Internal Helper Methods
@@ -313,7 +318,7 @@ class BatterySOC:
         self.last_time = now
         self.last_voltage = voltage
         self.last_temp = temperature
-
+        soc_log.info(f"Updated SOC: {self.soc}%", ctx="soc")
         return self.soc
 
     def get_status(self):
