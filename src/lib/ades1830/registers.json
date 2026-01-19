@@ -1,0 +1,200 @@
+[
+    {
+        "name": "RDSID",
+        "read_address": "0x002C",
+        "write_address": null,
+        "is_read_only": true,
+        "fields": {
+            "device_id": {
+                "bit_start": 0,
+                "width": 48,
+                "default": "0x0000"
+            }
+        }
+    },
+    {
+        "name": "CFGA",
+        "read_address":  "0x0002",
+        "write_address": "0x0001",
+        "is_read_only": false,
+        "fields": {
+            "ref_pwr_up": {
+                "bit_start": 7,
+                "width": 1,
+                "default": "0x1"
+            },
+            "comp_threshold": {
+                "bit_start": 0,
+                "width": 3,
+                "default": "0x2"
+            },
+            "iir_filter": {
+                "bit_start": 40,
+                "width": 3,
+                "default": "0x5"
+            },
+            "mute_discharge": {
+                "bit_start": 44,
+                "width": 1,
+                "default": "0x0"
+            },
+            "snapshot": {
+                "bit_start": 45,
+                "width": 1,
+                "default": "0x0"
+            }
+        }
+    },
+    {
+        "name": "CFGB",
+        "read_address":  "0x0026",
+        "write_address": "0x0024",
+        "is_read_only": false,
+        "fields": {
+            "undervoltage": {
+                "bit_start": 0,
+                "width": 12,
+                "default": "0x0"
+            },
+            "overvoltage": {
+                "bit_start": 12,
+                "width": 12,
+                "default": "0x0"
+            }
+        }
+    },
+    {
+        "name": "RDCVA",
+        "read_address":  "0x0004",
+        "write_address": null,
+        "is_read_only": true,
+        "fields": {
+            "cell_voltage_1": {
+                "bit_start": 0,
+                "width": 16,
+                "default": "0x0000"
+            },
+            "cell_voltage_2": {
+                "bit_start": 16,
+                "width": 16,
+                "default": "0x0000"
+            },
+            "cell_voltage_3": {
+                "bit_start": 32,
+                "width": 16,
+                "default": "0x0000"
+            }
+        }
+    },
+    {
+        "name": "RDSTATA",
+        "read_address": "0x0030",
+        "write_address": null,
+        "is_read_only": true,
+        "fields": {
+            "internal_temp": {
+                "bit_start": 16,
+                "width": 16,
+                "default": "0x7FFF"
+            },
+            "second_voltage_ref": {
+                "bit_start": 0,
+                "width": 16,
+                "default": "0x8000"
+            }
+        }
+    },
+    {
+        "name": "RDSTATB",
+        "read_address": "0x0031",
+        "write_address": null,
+        "is_read_only": true,
+        "fields": {
+            "digital_supply_voltage": {
+                "bit_start": 0,
+                "width": 16,
+                "default": "0x7FFF"
+            },
+            "analog_supply_voltage": {
+                "bit_start": 16,
+                "width": 16,
+                "default": "0x7FFF"
+            },
+            "reference_voltage2_res": {
+                "bit_start": 32,
+                "width": 16,
+                "default": "0x7FFF"
+            }
+        }
+    },
+    {
+        "name": "RDSTATC",
+        "read_address": "0x0032",
+        "write_address": null,
+        "is_read_only": true,
+        "fields": {
+            "sleep_mode": {
+                "bit_start": 43,
+                "width": 1,
+                "default": "0x0001"
+            },
+            "conversion_counter": {
+                "bit_start": 16,
+                "width": 16,
+                "default": "0x0000"
+            }
+        }
+    },
+    {
+        "name": "RDSTATD",
+        "read_address": "0x0033",
+        "write_address": null,
+        "is_read_only": true,
+        "fields": {
+            "ov_uv_flag": {
+                "bit_start": 0,
+                "width": 32,
+                "default": "0x0000"
+            }
+        }
+    },
+    {
+        "name": "RDAUXD",
+        "read_address": "0x001F",
+        "write_address": null,
+        "is_read_only": true,
+        "fields": {
+            "string_voltage": {
+                "bit_start": 32,
+                "width": 16,
+                "default": "0x0000"
+            }
+        }
+    },
+    {
+        "name": "PWMA",
+        "read_address": "0x0022",
+        "write_address":"0x0020",
+        "is_read_only": false,
+        "fields": {
+            "pwm": {
+                "bit_start": 0,
+                "width": 48,
+                "default": "0x000000000000"
+            }
+        }
+    },
+    {
+        "name": "PWMB",
+        "read_address": "0x0023",
+        "write_address":"0x0021",
+        "is_read_only": false,
+        "fields": {
+            "pwm": {
+                "bit_start": 0,
+                "width": 16,
+                "default": "0x0000"
+            }
+        }
+    }
+]
