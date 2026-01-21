@@ -1,6 +1,11 @@
 import espnow
 import micropython
+import asyncio
+import network
+import time
+import binascii
 from common.logger import *
+from common.credentials import *
 
 class BMSnow:
     SEARCH_MSG   = 10
@@ -14,11 +19,21 @@ class BMSnow:
     SYNC_ACK_MSG = 90  # Ack from slave to master
     SYNC_REF_MSG = 100 # Reference from master to slave
     SYNC_FIN_MSG = 110 # Final ack from slave to master
-    def __init__(self, espnow: espnow.ESPnow = None):
-        self.e = espnow
+
+    STATUS_WLAN_CHANNEL_SCAN = 10
+    STATUS_DISCOVER_MASTER = 20
+    STATUS_DISCOVER_SLAVES = 30
+    STATUS_CONNECTED_TO_MASTER = 40
+
+    def __init__(self):
         self.log = create_logger("BMSnow", level=LogLevel.INFO)
-        self.wifi_channel = 1
-    def listener(self):
+        self.e = espnow.ESPNow()
+        self.e.active(True)
+    
+    async def start(self):
+        self.e.irq(self._listener)
+
+    def _listener(self):
         while True:
             mac, msg = self.e.irecv(0)  # non-blocking
             if mac is None or not msg:
@@ -44,13 +59,15 @@ class BMSnow:
                micropython.schedule( self._handle_sync_ack_msg, mac, msg)
             else:
                 pass
+            
     def _handle_search_msg(self, mac, msg):
-        pass
+        self.log.info(f"Received SEARCH_MSG from {self.log.mac_to_str(mac)}", ctx="search_handler")
 
 
-class master(BMSnow):
+
+class BMSnow_master(BMSnow):
     def __init__(self):
-
+        super().__init__(self)
         pass
     def discover(self):
         pass
@@ -61,9 +78,38 @@ class master(BMSnow):
 
 
 
-class slave(BMSnow):
-    def __init__(self, espnow: espnow.ESPnow = None):
-        super().__init__(self, espnow)
-        pass
+class BMSnow_slave(BMSnow):
+    WLAN_CHANNELS = range(1, 14)
+    def __init__(self):
+        super().__init__(self)
+        self.master_mac = b''
+
+    async def _set_esp_channel(self, ch):
+        try:
+            network.WLAN(network.STA_IF).config(channel=ch)
+            await asyncio.sleep(0.05)  # minimal settle time 30ms
+        except Exception as e:
+            self.log.warn(f"Channel set failed: {e}", ctx="BMSnow_slave")
+
+    async def _wlan_channel_monitor_task(self):
+        while self.status == self.STATUS_WLAN_CHANNEL_SCAN:
+            for ch in self.WLAN_CHANNELS:
+                self._set_esp_channel(ch)
+                await asyncio.sleep(15)
+            await asyncio.sleep(30)
+
     def _handle_search_msg(self, mac, msg):
         self.log.info(f"Received SEARCH from {self.log.mac_to_str(mac)}", ctx="slave_search_handler")
+        self.status = self.STATUS_DISCOVER_MASTER
+        if self.master_mac == b'':
+            self.master_mac = mac
+            self.e.add_peer(mac)
+        rsp = pack_hello_msg()
+        crc = binascii.crc32(rsp)
+        crc_bytes = crc.to_bytes(4, 'little')
+        self.e.send(mac, rsp)
+        self.log.info("Sent HELLO to master", ctx="slave connect")       
+
+    async def start(self):
+        super().start()
+        asyncio.create_task(self._wlan_channel_monitor_task)
