@@ -4,6 +4,7 @@ import asyncio
 import network
 import time
 import binascii
+import struct
 from common.logger import *
 from common.credentials import *
 
@@ -61,9 +62,39 @@ class BMSnow:
                 pass
             
     def _handle_search_msg(self, mac, msg):
-        self.log.info(f"Received SEARCH_MSG from {self.log.mac_to_str(mac)}", ctx="search_handler")
+        self.log.info(f"Received SEARCH_MSG from {self.log.mac_to_str(mac)}", ctx="listener")
+    
+    def _handle_hello_msg(self, mac, msg):
+        self.log.info(f"Received HELLO_MSG from {self.log.mac_to_str(mac)}", ctx="listener")
 
+    def __pack_hello_msg(self, addr, ncell, ntemp, fw_ver, hw_ver):
+        # Prepare fixed 32-byte null-padded versions (truncate at 31 chars to leave room for null if desired)
+        fw_bytes = fw_ver.encode('utf-8')[:31]
+        fw_bytes += b'\x00' * (32 - len(fw_bytes))          # pad to exactly 32 bytes
 
+        hw_bytes = hw_ver.encode('utf-8')[:31]
+        hw_bytes += b'\x00' * (32 - len(hw_bytes))
+
+        payload = struct.pack('<BBHH32s32s', self.HELLO_MSG, addr, ncell, ntemp, fw_bytes, hw_bytes)
+        crc = binascii.crc32(payload).to_bytes(4, 'little')
+        return payload + crc
+    
+    def __unpack_hello_msg(self, msg):
+        payload = msg[:-4]
+        crc_calc =  binascii.crc32(payload)
+        crc_rx = int.from_bytes(msg[-4:], 'little')
+        if crc_calc != crc_rx:
+            self.log.error(f"CRC Error!", ctx="slave discovery")
+            return
+
+        value = struct.unpack('<BBHH32s32s', payload)
+        addr = value[1]
+        ncell = value[2]
+        ntemp = value[3]
+        fw_ver = value[4].rstrip(b'\x00').decode('utf-8')
+        hw_ver = value[5].rstrip(b'\x00').decode('utf-8')
+
+        return addr, ncell, ntemp, fw_ver, hw_ver
 
 class BMSnow_master(BMSnow):
     def __init__(self):
@@ -75,6 +106,15 @@ class BMSnow_master(BMSnow):
         pass
     def sync(self):
         pass
+
+    def _handle_hello_msg(self, mac, msg):
+        self.log.info(f"Received HELLO_MSG from {self.log.mac_to_str(mac)}", ctx="listener")
+        if not self.is_known(mac):
+            e.add_peer(mac)
+            s = self.push(virt_slave(mac))
+            s.set_info(msg)
+            self.log.info(f"Discovered: {log_slave.mac_to_str(mac)}", ctx="slave handler")
+        self.e.send(mac, pack_welcome(time.ticks_us()))
 
 
 
@@ -104,9 +144,7 @@ class BMSnow_slave(BMSnow):
         if self.master_mac == b'':
             self.master_mac = mac
             self.e.add_peer(mac)
-        rsp = pack_hello_msg()
-        crc = binascii.crc32(rsp)
-        crc_bytes = crc.to_bytes(4, 'little')
+        rsp = self.__pack_hello_msg()
         self.e.send(mac, rsp)
         self.log.info("Sent HELLO to master", ctx="slave connect")       
 
