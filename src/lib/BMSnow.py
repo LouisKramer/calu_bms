@@ -67,34 +67,6 @@ class BMSnow:
     def _handle_hello_msg(self, mac, msg):
         self.log.info(f"Received HELLO_MSG from {self.log.mac_to_str(mac)}", ctx="listener")
 
-    def __pack_hello_msg(self, addr, ncell, ntemp, fw_ver, hw_ver):
-        # Prepare fixed 32-byte null-padded versions (truncate at 31 chars to leave room for null if desired)
-        fw_bytes = fw_ver.encode('utf-8')[:31]
-        fw_bytes += b'\x00' * (32 - len(fw_bytes))          # pad to exactly 32 bytes
-
-        hw_bytes = hw_ver.encode('utf-8')[:31]
-        hw_bytes += b'\x00' * (32 - len(hw_bytes))
-
-        payload = struct.pack('<BBHH32s32s', self.HELLO_MSG, addr, ncell, ntemp, fw_bytes, hw_bytes)
-        crc = binascii.crc32(payload).to_bytes(4, 'little')
-        return payload + crc
-    
-    def __unpack_hello_msg(self, msg):
-        payload = msg[:-4]
-        crc_calc =  binascii.crc32(payload)
-        crc_rx = int.from_bytes(msg[-4:], 'little')
-        if crc_calc != crc_rx:
-            self.log.error(f"CRC Error!", ctx="slave discovery")
-            return
-
-        value = struct.unpack('<BBHH32s32s', payload)
-        addr = value[1]
-        ncell = value[2]
-        ntemp = value[3]
-        fw_ver = value[4].rstrip(b'\x00').decode('utf-8')
-        hw_ver = value[5].rstrip(b'\x00').decode('utf-8')
-
-        return addr, ncell, ntemp, fw_ver, hw_ver
 
 class BMSnow_master(BMSnow):
     def __init__(self):
@@ -120,10 +92,10 @@ class BMSnow_master(BMSnow):
 
 class BMSnow_slave(BMSnow):
     WLAN_CHANNELS = range(1, 14)
-    def __init__(self):
+    def __init__(self, info):
         super().__init__(self)
         self.master_mac = b''
-
+        self.info = info
     async def _set_esp_channel(self, ch):
         try:
             network.WLAN(network.STA_IF).config(channel=ch)
@@ -144,10 +116,49 @@ class BMSnow_slave(BMSnow):
         if self.master_mac == b'':
             self.master_mac = mac
             self.e.add_peer(mac)
-        rsp = self.__pack_hello_msg()
+        rsp = self.info.pack(self.info)
         self.e.send(mac, rsp)
         self.log.info("Sent HELLO to master", ctx="slave connect")       
 
     async def start(self):
         super().start()
         asyncio.create_task(self._wlan_channel_monitor_task)
+
+
+class info_data:
+    def __init__(self, addr: int = 0, ncell: int = 0, ntemp: int = 0,
+                 fw_ver: str = "0.0.0.0", hw_ver: str = "0.0.0.0"):
+        self.addr    = addr
+        self.ncell   = ncell
+        self.ntemp   = ntemp
+        self.fw_ver  = fw_ver
+        self.hw_ver  = hw_ver
+
+    @staticmethod
+    def pack(info, type):
+        # Prepare fixed 32-byte null-padded versions (truncate at 31 chars to leave room for null if desired)
+        fw_bytes = info.fw_ver.encode('utf-8')[:31]
+        fw_bytes += b'\x00' * (32 - len(fw_bytes))          # pad to exactly 32 bytes
+
+        hw_bytes = info.hw_ver.encode('utf-8')[:31]
+        hw_bytes += b'\x00' * (32 - len(hw_bytes))
+
+        payload = struct.pack('<BBHH32s32s', type, info.addr, info.ncell, info.ntemp, fw_bytes, hw_bytes)
+        crc = binascii.crc32(payload).to_bytes(4, 'little')
+        return payload + crc
+    
+    @staticmethod
+    def unpack(msg):
+        info = info_data()
+        payload = msg[:-4]
+        crc_calc =  binascii.crc32(payload)
+        crc_rx = int.from_bytes(msg[-4:], 'little')
+        if crc_calc == crc_rx:
+            value = struct.unpack('<BBHH32s32s', payload)
+            info.addr = value[1]
+            info.ncell = value[2]
+            info.ntemp = value[3]
+            info.fw_ver = value[4].rstrip(b'\x00').decode('utf-8')
+            info.hw_ver = value[5].rstrip(b'\x00').decode('utf-8')
+
+        return info
