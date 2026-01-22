@@ -79,6 +79,15 @@ config_can = {
     'update_interval': 1.0
 }
 
+class info_data:
+    def __init__(self, addr: int = 0, ncell: int = 0, ntemp: int = 0,
+                 fw_ver: str = "0.0.0.0", hw_ver: str = "0.0.0.0"):
+        self.addr    = addr
+        self.ncell   = ncell
+        self.ntemp   = ntemp
+        self.fw_ver  = fw_ver
+        self.hw_ver  = hw_ver
+
 # -------------------------------------------------
 # Communication Packages
 # -------------------------------------------------
@@ -180,31 +189,6 @@ def unpack_conf_ack():
 # -------------------------------------------------
 # Discover/connect messages
 # -------------------------------------------------
-def pack_search_msg():
-    return struct.pack('<B', SEARCH_MSG)
-
-
-import struct
-
-def pack_hello_msg(addr, ncell, ntemp, fw_ver, hw_ver):
-    # Prepare fixed 32-byte null-padded versions (truncate at 31 chars to leave room for null if desired)
-    fw_bytes = fw_ver.encode('utf-8')[:31]
-    fw_bytes += b'\x00' * (32 - len(fw_bytes))          # pad to exactly 32 bytes
-
-    hw_bytes = hw_ver.encode('utf-8')[:31]
-    hw_bytes += b'\x00' * (32 - len(hw_bytes))
-
-    return struct.pack('<BBHH32s32s', HELLO_MSG, addr, ncell, ntemp, fw_bytes, hw_bytes)
-
-def unpack_hello_msg(msg):
-    value = struct.unpack('<BBHH32s32s', msg)
-    addr = value[1]
-    ncell = value[2]
-    ntemp = value[3]
-    fw_ver = value[4].rstrip(b'\x00').decode('utf-8')
-    hw_ver = value[5].rstrip(b'\x00').decode('utf-8')
-    return addr, ncell, ntemp, fw_ver, hw_ver
-
 def pack_welcome(now):
     return struct.pack('<BQ', WELCOME_MSG,now)
 
