@@ -49,12 +49,16 @@ class Slaves:
     # ------------------------------------------------------------------
     #  Core CRUD operations 
     # ------------------------------------------------------------------
-    def push(self, virt_slave=None):
+    def push(self, mac, info):
         """Add a new slave if there is room; return the stored instance."""
-        log_slave.info(f"Add slave {log_slave.mac_to_str(virt_slave.mac)} to list", ctx="slave handler")
-        self._ensure_capacity()
-        self._slaves.append(virt_slave)
-        return virt_slave
+        if len(self._slaves) >= self.MAX_NR_OF_SLAVES:
+            log_slave.warn(f"Cannot add more than {self.MAX_NR_OF_SLAVES} slaves", ctx="slave handler")
+        else:
+            log_slave.info(f"Add slave {log_slave.mac_to_str(mac)} to list", ctx="slave handler")
+            new = virt_slave(mac)
+            new.set_info(info)
+            self._ensure_capacity()
+            self._slaves.append(virt_slave)
 
     def pop(self, mac) -> bool:
         """Remove slave identified by MAC address."""
