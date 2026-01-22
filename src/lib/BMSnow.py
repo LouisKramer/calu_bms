@@ -53,7 +53,7 @@ class BMSnow:
             if msg_type == BMSnow.WELCOME_MSG:
                 micropython.schedule(self._handle_welcome_msg, mac, msg)
             if msg_type == BMSnow.DATA_MSG:
-                micropython.schedule(self._handle_data_ms, mac, msg)
+                micropython.schedule(self._handle_data_msg, mac, msg)
             if msg_type == BMSnow.DATA_REQ_MSG:
                 micropython.schedule(self._handle_data_req_msg, mac, msg)
             if msg_type == BMSnow.CONF_MSG:
@@ -118,7 +118,7 @@ class BMSnow:
 
 class BMSnow_master(BMSnow):
     def __init__(self, slaves: Slaves):
-        super().__init__(self)
+        super().__init__()
         self.slaves = slaves
 
     def discover(self):
@@ -140,13 +140,13 @@ class BMSnow_master(BMSnow):
             info = self.unpack_hello_msg(msg)
             self.slaves.push(mac, info)
             self.log.info(f"Discovered: {self.log.mac_to_str(mac)}", ctx="slave handler")
-        self.e.send(mac, pack_welcome(time.ticks_us()))
+        self.e.send(mac, self.pack_welcome(time.ticks_us()))
 
 
 class BMSnow_slave(BMSnow):
     WLAN_CHANNELS = range(1, 14)
     def __init__(self, info: info_data):
-        super().__init__(self)
+        super().__init__()
         self.master_mac = b''
         self.info = info
     async def _set_esp_channel(self, ch):
