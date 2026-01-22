@@ -5,6 +5,7 @@ import network
 import time
 import binascii
 import struct
+from machine import RTC
 from common.logger import *
 from common.credentials import *
 from common.common import info_data
@@ -72,6 +73,9 @@ class BMSnow:
     def _handle_hello_msg(self, mac, msg):
         self.log.info(f"Received HELLO_MSG from {self.log.mac_to_str(mac)}", ctx="listener")
 
+    def _handle_welcome_msg(self, mac, msg):
+        self.log.info(f"Received WELCOME MSG from {self.log.mac_to_str(mac)}", ctx="listener")
+
     @staticmethod
     def pack_search_msg():
         return struct.pack('<B', BMSnow.SEARCH_MSG)
@@ -103,7 +107,14 @@ class BMSnow:
             info.hw_ver = value[5].rstrip(b'\x00').decode('utf-8')
         return info
     
+    @staticmethod
+    def pack_welcome(now):
+        return struct.pack('<BQ', WELCOME_MSG,now)
 
+    @staticmethod
+    def unpack_welcome(msg):
+        time = struct.unpack('<BQ', msg)
+        return time[1]
 
 class BMSnow_master(BMSnow):
     def __init__(self, slaves: Slaves):
@@ -161,6 +172,19 @@ class BMSnow_slave(BMSnow):
         rsp = self.pack_hello_msg(self.info)
         self.e.send(mac, rsp)
         self.log.info("Sent HELLO to master", ctx="slave connect")       
+
+    def _handle_welcome_msg(self, mac, msg):
+        self.log.info(f"Received WELCOME MSG from {self.log.mac_to_str(mac)}", ctx="listener")
+        if self.master_mac == mac:
+            ntp_time = self.unpack_welcome(msg)
+            RTC().datetime(time.gmtime(ntp_time // 1_000_000))
+            self.log.info(f"RTC set to UTC: {RTC().datetime()}", ctx="slave connect")
+        else:
+            self.e.del_peer(self.master_mac)
+            self.master_mac = mac
+            self.e.add_peer(self.master_mac)
+        self.connected = True
+        self.log.info("Connected to master", ctx="slave connect")
 
     async def start(self):
         super().start()

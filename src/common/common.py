@@ -189,13 +189,7 @@ def unpack_conf_ack():
 # -------------------------------------------------
 # Discover/connect messages
 # -------------------------------------------------
-def pack_welcome(now):
-    return struct.pack('<BQ', WELCOME_MSG,now)
 
-
-def unpack_welcome(msg):
-    time = struct.unpack('<BQ', msg)
-    return time[1]
 
 def pack_reconnect():
     return struct.pack('<B', RECONECT_MSG)
