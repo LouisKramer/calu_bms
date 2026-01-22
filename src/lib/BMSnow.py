@@ -7,6 +7,9 @@ import binascii
 import struct
 from common.logger import *
 from common.credentials import *
+from common.common import info_data
+from lib.virt_slave import *
+
 
 class BMSnow:
     SEARCH_MSG   = 10
@@ -25,6 +28,8 @@ class BMSnow:
     STATUS_DISCOVER_MASTER = 20
     STATUS_DISCOVER_SLAVES = 30
     STATUS_CONNECTED_TO_MASTER = 40
+
+    BROADCAST = b'\xff\xff\xff\xff\xff\xff'
 
     def __init__(self):
         self.log = create_logger("BMSnow", level=LogLevel.INFO)
@@ -67,13 +72,51 @@ class BMSnow:
     def _handle_hello_msg(self, mac, msg):
         self.log.info(f"Received HELLO_MSG from {self.log.mac_to_str(mac)}", ctx="listener")
 
+    @staticmethod
+    def pack_search_msg():
+        return struct.pack('<B', BMSnow.SEARCH_MSG)
+
+    @staticmethod
+    def pack_hello_msg(info: info_data):
+        # Prepare fixed 32-byte null-padded versions (truncate at 31 chars to leave room for null if desired)
+        fw_bytes = info.fw_ver.encode('utf-8')[:31]
+        fw_bytes += b'\x00' * (32 - len(fw_bytes))          # pad to exactly 32 bytes
+
+        hw_bytes = info.hw_ver.encode('utf-8')[:31]
+        hw_bytes += b'\x00' * (32 - len(hw_bytes))
+        payload = struct.pack('<BBHH32s32s', BMSnow.HELLO_MSG, info.addr, info.ncell, info.ntemp, fw_bytes, hw_bytes)
+        crc = binascii.crc32(payload).to_bytes(4, 'little')
+        return payload + crc
+    
+    @staticmethod
+    def unpack_hello_msg(msg):
+        info = info_data()
+        payload = msg[:-4]
+        crc_calc =  binascii.crc32(payload)
+        crc_rx = int.from_bytes(msg[-4:], 'little')
+        if crc_calc == crc_rx:
+            value = struct.unpack('<BBHH32s32s', payload)
+            info.addr = value[1]
+            info.ncell = value[2]
+            info.ntemp = value[3]
+            info.fw_ver = value[4].rstrip(b'\x00').decode('utf-8')
+            info.hw_ver = value[5].rstrip(b'\x00').decode('utf-8')
+        return info
+    
+
 
 class BMSnow_master(BMSnow):
-    def __init__(self):
+    def __init__(self, slaves: Slaves):
         super().__init__(self)
-        pass
+        self.slaves = slaves
+
     def discover(self):
-        pass
+        try:
+            self.e.send(self.BROADCAST, self.pack_search_msg())
+            self.log.info("Discovering slaves:", ctx="slave discover")
+        except Exception as e:
+            self.log.warn(e, ctx="slave discover")
+
     def data(self):
         pass
     def sync(self):
@@ -81,18 +124,17 @@ class BMSnow_master(BMSnow):
 
     def _handle_hello_msg(self, mac, msg):
         self.log.info(f"Received HELLO_MSG from {self.log.mac_to_str(mac)}", ctx="listener")
-        if not self.is_known(mac):
-            e.add_peer(mac)
-            s = self.push(virt_slave(mac))
-            s.set_info(msg)
-            self.log.info(f"Discovered: {log_slave.mac_to_str(mac)}", ctx="slave handler")
+        if not self.slaves.is_known(mac):
+            self.e.add_peer(mac)
+            info = self.unpack_hello_msg(msg)
+            self.slaves.push(mac, info)
+            self.log.info(f"Discovered: {self.log.mac_to_str(mac)}", ctx="slave handler")
         self.e.send(mac, pack_welcome(time.ticks_us()))
-
 
 
 class BMSnow_slave(BMSnow):
     WLAN_CHANNELS = range(1, 14)
-    def __init__(self, info):
+    def __init__(self, info: info_data):
         super().__init__(self)
         self.master_mac = b''
         self.info = info
@@ -116,7 +158,7 @@ class BMSnow_slave(BMSnow):
         if self.master_mac == b'':
             self.master_mac = mac
             self.e.add_peer(mac)
-        rsp = self.info.pack(self.info)
+        rsp = self.pack_hello_msg(self.info)
         self.e.send(mac, rsp)
         self.log.info("Sent HELLO to master", ctx="slave connect")       
 
@@ -125,40 +167,5 @@ class BMSnow_slave(BMSnow):
         asyncio.create_task(self._wlan_channel_monitor_task)
 
 
-class info_data:
-    def __init__(self, addr: int = 0, ncell: int = 0, ntemp: int = 0,
-                 fw_ver: str = "0.0.0.0", hw_ver: str = "0.0.0.0"):
-        self.addr    = addr
-        self.ncell   = ncell
-        self.ntemp   = ntemp
-        self.fw_ver  = fw_ver
-        self.hw_ver  = hw_ver
 
-    @staticmethod
-    def pack(info, type):
-        # Prepare fixed 32-byte null-padded versions (truncate at 31 chars to leave room for null if desired)
-        fw_bytes = info.fw_ver.encode('utf-8')[:31]
-        fw_bytes += b'\x00' * (32 - len(fw_bytes))          # pad to exactly 32 bytes
-
-        hw_bytes = info.hw_ver.encode('utf-8')[:31]
-        hw_bytes += b'\x00' * (32 - len(hw_bytes))
-
-        payload = struct.pack('<BBHH32s32s', type, info.addr, info.ncell, info.ntemp, fw_bytes, hw_bytes)
-        crc = binascii.crc32(payload).to_bytes(4, 'little')
-        return payload + crc
     
-    @staticmethod
-    def unpack(msg):
-        info = info_data()
-        payload = msg[:-4]
-        crc_calc =  binascii.crc32(payload)
-        crc_rx = int.from_bytes(msg[-4:], 'little')
-        if crc_calc == crc_rx:
-            value = struct.unpack('<BBHH32s32s', payload)
-            info.addr = value[1]
-            info.ncell = value[2]
-            info.ntemp = value[3]
-            info.fw_ver = value[4].rstrip(b'\x00').decode('utf-8')
-            info.hw_ver = value[5].rstrip(b'\x00').decode('utf-8')
-
-        return info
