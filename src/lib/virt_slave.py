@@ -113,24 +113,6 @@ class Slaves:
         return self._sorted_by_address("temp")
 
     # ------------------------------------------------------------------
-    #  discover
-    # ------------------------------------------------------------------
-    def discover_slaves(self, e):
-        try:
-            e.send(BROADCAST, pack_search_msg())
-            log_slave.info("Discovering slaves:", ctx="slave discover")
-        except Exception as e:
-            log_slave.warn(e, ctx="slave discover")
-    # ------------------------------------------------------------------
-    #  discover
-    # ------------------------------------------------------------------
-    def request_data_from_slaves(self, e):
-        try:
-            e.send(None, pack_data_req_msg())
-            log_slave.info("Request data from slaves:", ctx="slave data request")
-        except Exception as e:
-            log_slave.warn(e, ctx="slave discover")
-    # ------------------------------------------------------------------
     #  Sync / GC helpers 
     # ------------------------------------------------------------------
     def sync_slaves(self, e):

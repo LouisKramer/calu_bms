@@ -8,7 +8,7 @@ import struct
 from machine import RTC
 from common.logger import *
 from common.credentials import *
-from common.common import info_data
+from common.common import info_data, meas_data
 from lib.virt_slave import *
 
 
@@ -52,10 +52,10 @@ class BMSnow:
                 micropython.schedule(self._handle_hello_msg, mac, msg)
             if msg_type == BMSnow.WELCOME_MSG:
                 micropython.schedule(self._handle_welcome_msg, mac, msg)
-            if msg_type == BMSnow.DATA_MSG:
-                micropython.schedule(self._handle_data_msg, mac, msg)
             if msg_type == BMSnow.DATA_REQ_MSG:
                 micropython.schedule(self._handle_data_req_msg, mac, msg)
+            if msg_type == BMSnow.DATA_MSG:
+                micropython.schedule(self._handle_data_msg, mac, msg)
             if msg_type == BMSnow.CONF_MSG:
                 micropython.schedule(self._handle_conf_msg, mac, msg)
             if msg_type == BMSnow.CONF_ACK_MSG:
@@ -75,6 +75,9 @@ class BMSnow:
 
     def _handle_welcome_msg(self, mac, msg):
         self.log.info(f"Received WELCOME MSG from {self.log.mac_to_str(mac)}", ctx="listener")
+
+    def _handle_data_req_msg(self, mac, msg):
+        self.log.info(f"Received DATA REQUEST MSG from {self.log.mac_to_str(mac)}", ctx="listener")
 
     @staticmethod
     def pack_search_msg():
@@ -109,12 +112,20 @@ class BMSnow:
     
     @staticmethod
     def pack_welcome(now):
-        return struct.pack('<BQ', WELCOME_MSG,now)
+        return struct.pack('<BQ', BMSnow.WELCOME_MSG,now)
 
     @staticmethod
     def unpack_welcome(msg):
         time = struct.unpack('<BQ', msg)
         return time[1]
+
+    @staticmethod
+    def pack_data_req_msg():
+        return struct.pack('<B', BMSnow.DATA_REQ_MSG)
+    
+    @staticmethod
+    def unpack_data_req_msg():
+        return 
 
 class BMSnow_master(BMSnow):
     def __init__(self, slaves: Slaves):
@@ -128,8 +139,13 @@ class BMSnow_master(BMSnow):
         except Exception as e:
             self.log.warn(e, ctx="slave discover")
 
-    def data(self):
-        pass
+    def get_data(self, mac):
+        try:
+            self.e.send(mac, self.pack_data_req_msg())
+            self.log.info("Request data from slaves:", ctx="slave data request")
+        except Exception as e:
+            self.log.warn(e, ctx="slave discover")
+
     def sync(self):
         pass
 
@@ -145,10 +161,11 @@ class BMSnow_master(BMSnow):
 
 class BMSnow_slave(BMSnow):
     WLAN_CHANNELS = range(1, 14)
-    def __init__(self, info: info_data):
+    def __init__(self, info: info_data, data: meas_data):
         super().__init__()
         self.master_mac = b''
         self.info = info
+        self.data = data
     async def _set_esp_channel(self, ch):
         try:
             network.WLAN(network.STA_IF).config(channel=ch)
@@ -185,6 +202,13 @@ class BMSnow_slave(BMSnow):
             self.e.add_peer(self.master_mac)
         self.connected = True
         self.log.info("Connected to master", ctx="slave connect")
+
+    def _handle_data_req_msg(self, mac, msg):
+        self.log.info(f"Received DATA REQUEST MSG from {self.log.mac_to_str(mac)}", ctx="listener")
+        if mac != self.master_mac:
+            self.log.warn("DATA_REQ_MSG from unknown master", ctx="slave config")
+        else: 
+            self.e.send(mac, pack_data_msg(self.data))
 
     async def start(self):
         super().start()

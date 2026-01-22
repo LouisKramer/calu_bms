@@ -88,6 +88,12 @@ class info_data:
         self.fw_ver  = fw_ver
         self.hw_ver  = hw_ver
 
+class meas_data:
+    def __init__(self, v_cell,):
+        self.vcell = v_cell
+        self.vstr = 0
+        self.temps = [0]*nr_temps
+
 # -------------------------------------------------
 # Communication Packages
 # -------------------------------------------------
