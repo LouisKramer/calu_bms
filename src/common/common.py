@@ -1,40 +1,6 @@
 # common.py
-from time import ticks_us, ticks_diff
-import json
+from machine import RTC
 import struct
-
-default_slave_cfg = {
-    'balancing_start_voltage': 3.4,
-    'balancing_threshold': 0.01,      # 10 mV
-    'balancing_en': True,
-    'balancing_ext_en': False,
-    'ttl': 3600,
-    'sync_interval': 10
-}
-
-def validate_slave_cfg(cfg):
-    """Validate slave configuration parameters."""
-    errors = []
-    
-    if not isinstance(cfg.get('balancing_start_voltage'), (int, float)) or not (3.0 <= cfg['balancing_start_voltage'] <= 4.0):
-        errors.append("balancing_start_voltage must be between 3.0 and 4.0")
-    
-    if not isinstance(cfg.get('balancing_threshold'), (int, float)) or not (0.0 <= cfg['balancing_threshold'] <= 1.0):
-        errors.append("balancing_threshold must be between 0.0 and 1.0")
-    
-    if not isinstance(cfg.get('balancing_en'), bool):
-        errors.append("balancing_en must be a boolean")
-    
-    if not isinstance(cfg.get('balancing_ext_en'), bool):
-        errors.append("balancing_ext_en must be a boolean")
-    
-    if not isinstance(cfg.get('ttl'), int) or cfg['ttl'] <= 0:
-        errors.append("ttl must be a positive integer")
-    
-    if not isinstance(cfg.get('sync_interval'), (int, float)) or cfg['sync_interval'] <= 0:
-        errors.append("sync_interval must be a positive number")
-    
-    return errors if errors else None
 
 
 default_soc_cfg = {
@@ -79,38 +45,65 @@ config_can = {
     'update_interval': 1.0
 }
 
+class battery:
+    def __init__(self):
+        self.info    = info_data()
+        self.conf    = conf_data()
+        self.meas    = None
+
+    def create_measurements(self):
+        """Call this after you know ncell & ntemp"""
+        self.meas = meas_data(self)       
 class info_data:
-    def __init__(self, addr: int = 0, ncell: int = 0, ntemp: int = 0,
-                 fw_ver: str = "0.0.0.0", hw_ver: str = "0.0.0.0"):
-        self.addr    = addr
-        self.ncell   = ncell
-        self.ntemp   = ntemp
-        self.fw_ver  = fw_ver
-        self.hw_ver  = hw_ver
-
+    def __init__(self):
+        self.mac        = b''
+        self.master_mac = b''
+        self.addr       = 0
+        self.ncell      = 0
+        self.ntemp      = 0
+        self.fw_ver     = "0.0.0.0"
+        self.hw_ver     = "0.0.0.0"
+        self.time        = RTC()
 class meas_data:
-    def __init__(self, v_cell,):
-        self.vcell = v_cell
+    def __init__(self, info: battery):
+        self.vcell = [0] * info.ncell
         self.vstr = 0
-        self.temps = [0]*nr_temps
+        self.temps = [0] * info.ntemp
 
+class conf_data:
+    def __init__(self):
+        self.bal_start_vol     = 3.4
+        self.bal_threshold     = 0.01      # 10 mV
+        self.bal_en            = True
+        self.bal_ext_en        = False
+    
+    def set(self, other: 'conf_data'):
+        if not isinstance(other, conf_data):
+            return
+
+        # Voltage: only accept reasonable values
+        if isinstance(other.bal_start_vol, (int, float)):
+            if 2.8 <= other.bal_start_vol <= 3.8:  
+                self.bal_start_vol = float(other.bal_start_vol)
+
+        # Threshold: usually 5–50 mV
+        if isinstance(other.bal_threshold, (int, float)):
+            if 0.005 <= other.bal_threshold <= 0.100:
+                self.bal_threshold = float(other.bal_threshold)
+
+        # Booleans: accept anything truthy/falsy
+        if other.bal_en is not None:
+            self.bal_en = bool(other.bal_en)
+
+        if other.bal_ext_en is not None:
+            self.bal_ext_en = bool(other.bal_ext_en)
 # -------------------------------------------------
 # Communication Packages
 # -------------------------------------------------
-RECONECT_MSG = 0
-SEARCH_MSG   = 1
-HELLO_MSG    = 2
-WELCOME_MSG  = 3
-DATA_MSG     = 4
-DATA_REQ_MSG = 5
-CONF_MSG     = 6
-CONF_ACK_MSG = 7
 SYNC_REQ_MSG = 8 # Request from master to slave
 SYNC_ACK_MSG = 9  # Ack from slave to master
 SYNC_REF_MSG = 10 # Reference from master to slave
 SYNC_FIN_MSG = 11 # Final ack from slave to master
-
-BROADCAST = b'\xff\xff\xff\xff\xff\xff'
 
 SYNC_DEADLINE = 200_000 # 200ms
 
@@ -153,49 +146,9 @@ def unpack_sync_fin(msg):
     T3 = value[3]
     T4 = value[4]
     return T1, T2, T3, T4
-# -------------------------------------------------
-# Data messages
-# -------------------------------------------------
-def pack_data_msg(vcell,vstr,temp):
-    return struct.pack('<B32f2f4f', DATA_MSG, *vcell, *vstr, *temp)
 
-def unpack_data_msg(msg):
-    values = struct.unpack('<B32f2f4f', msg)
-    vcell = values[1:32]
-    vstr  = values[32:34]
-    temp  = values[34:38]
-    return vcell, vstr, temp
-
-def pack_data_req_msg(vcell, vstr, temp):
-    return struct.pack('<B', DATA_REQ_MSG)
-
-
-def unpack_data_req_msg():
-    return 
-
-# -------------------------------------------------
-# Configuration messages
-# -------------------------------------------------
-def pack_config_msg(bal_start_voltage, bal_threshold, ext_bal_en, bal_en):
-    return struct.pack('<BB2f2?', CONF_MSG, bal_start_voltage, bal_threshold, bal_en, ext_bal_en)
-
-def unpack_config_msg(msg):
-    value = struct.unpack('<BB2f2?', msg)
-    bal_start_voltage = value[1]
-    bal_threshold = value[2]
-    bal_en = value[3]
-    ext_bal_en = value[4]
-    return bal_start_voltage, bal_threshold, ext_bal_en, bal_en
-
-def pack_conf_ack():
-    return struct.pack('<B', CONF_ACK_MSG)
-
-def unpack_conf_ack():
-    return
 # -------------------------------------------------
 # Discover/connect messages
 # -------------------------------------------------
-
-
 def pack_reconnect():
     return struct.pack('<B', RECONECT_MSG)

@@ -8,7 +8,7 @@ import struct
 from machine import RTC
 from common.logger import *
 from common.credentials import *
-from common.common import info_data, meas_data
+from common.common import battery
 from lib.virt_slave import *
 
 
@@ -78,6 +78,15 @@ class BMSnow:
 
     def _handle_data_req_msg(self, mac, msg):
         self.log.info(f"Received DATA REQUEST MSG from {self.log.mac_to_str(mac)}", ctx="listener")
+    
+    def _handle_data_msg(self, mac, msg):
+        self.log.info(f"Received DATA MSG from {self.log.mac_to_str(mac)}", ctx="listener")
+
+    def _handle_conf_msg(self, mac, msg):
+        self.log.info(f"Received CONFIG MSG from {self.log.mac_to_str(mac)}", ctx="listener")
+
+    def _handle_conf_ack_msg(self, mac, msg):
+        self.log.info(f"Received CONFIG ACK MSG from {self.log.mac_to_str(mac)}", ctx="listener")
 
     @staticmethod
     def pack_search_msg():
@@ -96,8 +105,7 @@ class BMSnow:
         return payload + crc
     
     @staticmethod
-    def unpack_hello_msg(msg):
-        info = info_data()
+    def unpack_hello_msg(msg: bytes, info: info_data):
         payload = msg[:-4]
         crc_calc =  binascii.crc32(payload)
         crc_rx = int.from_bytes(msg[-4:], 'little')
@@ -115,7 +123,7 @@ class BMSnow:
         return struct.pack('<BQ', BMSnow.WELCOME_MSG,now)
 
     @staticmethod
-    def unpack_welcome(msg):
+    def unpack_welcome(msg: bytes):
         time = struct.unpack('<BQ', msg)
         return time[1]
 
@@ -127,6 +135,43 @@ class BMSnow:
     def unpack_data_req_msg():
         return 
 
+    @staticmethod
+    def pack_data_msg(data: meas_data, info: info_data):
+        header = struct.pack('<BBB', BMSnow.DATA_MSG, info.ncell, info.ntemp)   # type + count
+        payload = struct.pack(f'<{info.ncell}ff{info.ntemp}f', *data.vcell, data.vstr, *data.temps)
+        return header + payload
+    
+    @staticmethod
+    def unpack_data_msg(msg: bytes, data: meas_data):
+        typ, nc, nt = struct.unpack_from('<BBB', msg)
+        payload_fmt = f'<{nc}f f {nt}f'
+        payload = struct.unpack_from(payload_fmt, msg, offset=3)
+        data.vcell = list(payload[:nc])
+        data.vstr = payload[nc]
+        data.temps = list(payload[nc+1:])
+        return data
+    
+    @staticmethod
+    def pack_config_msg(conf: conf_data):
+        return struct.pack('<Bff??', BMSnow.CONF_MSG, conf.bal_start_vol, conf.bal_threshold, conf.bal_en, conf.ext_bal_en)
+
+    @staticmethod
+    def unpack_config_msg(msg: bytes, conf: conf_data):
+        value = struct.unpack('<Bff??', msg)
+        conf.bal_start_vol = value[1]
+        conf.bal_threshold = value[2]
+        conf.bal_en = value[3]
+        conf.bal_ext_en = value[4]
+        return conf
+    
+    @staticmethod
+    def pack_conf_ack():
+        return struct.pack('<B', BMSnow.CONF_ACK_MSG)
+    
+    @staticmethod
+    def unpack_conf_ack():
+        return
+    
 class BMSnow_master(BMSnow):
     def __init__(self, slaves: Slaves):
         super().__init__()
@@ -139,10 +184,17 @@ class BMSnow_master(BMSnow):
         except Exception as e:
             self.log.warn(e, ctx="slave discover")
 
-    def get_data(self, mac):
+    def get_data(self, battery: battery):
         try:
-            self.e.send(mac, self.pack_data_req_msg())
-            self.log.info("Request data from slaves:", ctx="slave data request")
+            self.e.send(battery.info.mac, self.pack_data_req_msg())
+            self.log.info(f"Request data from slave {battery.info.addr}:", ctx="get_data")
+        except Exception as e:
+            self.log.warn(e, ctx="slave discover")
+
+    def configure(self, battery: battery):
+        try:
+            self.e.send(battery.info.mac, self.pack_config_msg(battery.conf))
+            self.log.info(f"Request data from slave {battery.info.addr}:", ctx="get_data")
         except Exception as e:
             self.log.warn(e, ctx="slave discover")
 
@@ -150,22 +202,41 @@ class BMSnow_master(BMSnow):
         pass
 
     def _handle_hello_msg(self, mac, msg):
-        self.log.info(f"Received HELLO_MSG from {self.log.mac_to_str(mac)}", ctx="listener")
-        if not self.slaves.is_known(mac):
+        self.log.info(f"Received HELLO_MSG from {self.log.mac_to_str(mac)}", ctx="handle hello msg")
+        info = info_data()
+        self.unpack_hello_msg(msg, info)
+        info.mac = mac
+        s = self.slaves.get_by_mac(mac)
+        if s == None:   # Create new virt slave
             self.e.add_peer(mac)
-            info = self.unpack_hello_msg(msg)
-            self.slaves.push(mac, info)
-            self.log.info(f"Discovered: {self.log.mac_to_str(mac)}", ctx="slave handler")
+            self.slaves.push(info)
+            self.log.info(f"Discovered: {self.log.mac_to_str(mac)}", ctx="handle hello msg")
+        else:
+            s.battery.info = info # just update
         self.e.send(mac, self.pack_welcome(time.ticks_us()))
 
+    def _handle_data_msg(self, mac, msg):
+        s = self.slaves.get_by_mac(mac)
+        if s == None:
+            self.log.warn(f"Received DATA MSG from UNKNOWN MAC: {self.log.mac_to_str(mac)}", ctx="handle msg data")
+        else:
+            self.log.warn(f"Received DATA MSG from: {self.log.mac_to_str(mac)}", ctx="handle msg data")
+            self.unpack_data_msg(msg, s.battery.meas)
+
+    def _handle_conf_ack_msg(self, mac, msg):
+        s = self.slaves.get_by_mac(mac)
+        if s == None:
+            self.log.warn(f"Received CONFIG ACK MSG from UNKNOWN MAC {self.log.mac_to_str(mac)}", ctx="handle config ack msg")
+        else:
+            self.log.info(f"Received CONFIG ACK MSG from {self.log.mac_to_str(mac)}", ctx="hanle config ack msg")
 
 class BMSnow_slave(BMSnow):
     WLAN_CHANNELS = range(1, 14)
-    def __init__(self, info: info_data, data: meas_data):
+    def __init__(self, battery: battery):
         super().__init__()
-        self.master_mac = b''
-        self.info = info
-        self.data = data
+        self.info = battery.info
+        self.data = battery.meas
+        self.conf = battery.conf
     async def _set_esp_channel(self, ch):
         try:
             network.WLAN(network.STA_IF).config(channel=ch)
@@ -183,32 +254,37 @@ class BMSnow_slave(BMSnow):
     def _handle_search_msg(self, mac, msg):
         self.log.info(f"Received SEARCH from {self.log.mac_to_str(mac)}", ctx="slave_search_handler")
         self.status = self.STATUS_DISCOVER_MASTER
-        if self.master_mac == b'':
-            self.master_mac = mac
+        if self.info.master_mac == b'':
+            self.info.master_mac = mac
             self.e.add_peer(mac)
         rsp = self.pack_hello_msg(self.info)
         self.e.send(mac, rsp)
         self.log.info("Sent HELLO to master", ctx="slave connect")       
 
     def _handle_welcome_msg(self, mac, msg):
-        self.log.info(f"Received WELCOME MSG from {self.log.mac_to_str(mac)}", ctx="listener")
-        if self.master_mac == mac:
+        self.log.info(f"Received WELCOME MSG from {self.log.mac_to_str(mac)}", ctx="handle welcome msg")
+        if self.info.master_mac == mac:
             ntp_time = self.unpack_welcome(msg)
-            RTC().datetime(time.gmtime(ntp_time // 1_000_000))
-            self.log.info(f"RTC set to UTC: {RTC().datetime()}", ctx="slave connect")
-        else:
-            self.e.del_peer(self.master_mac)
-            self.master_mac = mac
-            self.e.add_peer(self.master_mac)
-        self.connected = True
-        self.log.info("Connected to master", ctx="slave connect")
+            self.info.time.datetime(time.gmtime(ntp_time // 1_000_000))
+            self.log.info(f"RTC set to UTC: {self.info.time.datetime()}", ctx="handle welcome msg")
+            self.log.info("Connected to master", ctx="handle welcome msg")
 
     def _handle_data_req_msg(self, mac, msg):
-        self.log.info(f"Received DATA REQUEST MSG from {self.log.mac_to_str(mac)}", ctx="listener")
-        if mac != self.master_mac:
-            self.log.warn("DATA_REQ_MSG from unknown master", ctx="slave config")
+        self.log.info(f"Received DATA REQUEST MSG from {self.log.mac_to_str(mac)}", ctx="handle data request msg")
+        if mac != self.info.master_mac:
+            self.log.warn("DATA_REQ_MSG from unknown master", ctx="handle data request msg")
         else: 
-            self.e.send(mac, pack_data_msg(self.data))
+            self.e.send(mac, self.pack_data_msg(self.data, self.info))
+
+    def _handle_conf_msg(self, mac, msg):
+        self.log.info(f"Received CONFIG MSG from {self.log.mac_to_str(mac)}", ctx="handle config msg")
+        if mac != self.info.master_mac:
+            self.log.warn("CONFIG_MSG from unknown master", ctx="handle config msg")
+        else:
+            conf = conf_data()
+            self.unpack_config_msg(msg, conf)
+            self.conf.set(conf)
+            self.e.send(mac, self.pack_conf_ack())
 
     async def start(self):
         super().start()

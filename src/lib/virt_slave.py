@@ -14,10 +14,7 @@ class Slaves:
     def __init__(self, config):
         log_slave.info("Initializing slave handler...", ctx="slave_handler")
         self.cfg = config
-        self.bal_start_voltage = config.get('balancing_start_voltage', 3.4)
-        self.bal_threshold = config.get('balancing_threshold', 0.01)
-        self.bal_en = config.get('balancing_en', True)
-        self.ext_bal_en = config.get('balancing_ext_en', False)
+
         self.ttl = config.get('ttl', 3600)
         self.sync_interval = config.get('sync_interval', 10)
         self.T1 = 0
@@ -39,26 +36,16 @@ class Slaves:
         return len(self)
 
     # ------------------------------------------------------------------
-    #  Helper to enforce the hard limit
-    # ------------------------------------------------------------------
-    def _ensure_capacity(self):
-        """Raise if we would exceed the hard limit."""
-        if len(self._slaves) >= self.MAX_NR_OF_SLAVES:
-            log_slave.warn(f"Cannot add more than {self.MAX_NR_OF_SLAVES} slaves", ctx="slave handler")
-
-    # ------------------------------------------------------------------
     #  Core CRUD operations 
     # ------------------------------------------------------------------
-    def push(self, mac, info):
-        """Add a new slave if there is room; return the stored instance."""
+    def push(self, info: info_data):
+        """Add a new slave if there is room"""
         if len(self._slaves) >= self.MAX_NR_OF_SLAVES:
             log_slave.warn(f"Cannot add more than {self.MAX_NR_OF_SLAVES} slaves", ctx="slave handler")
         else:
-            log_slave.info(f"Add slave {log_slave.mac_to_str(mac)} to list", ctx="slave handler")
-            new = virt_slave(mac)
-            new.set_info(info)
-            self._ensure_capacity()
-            self._slaves.append(virt_slave)
+            log_slave.info(f"Add slave {log_slave.mac_to_str(info.mac)} to list", ctx="slave handler")
+            new = virt_slave(info)
+            self._slaves.append(new)
 
     def pop(self, mac) -> bool:
         """Remove slave identified by MAC address."""
@@ -71,18 +58,18 @@ class Slaves:
 
     def get_by_mac(self, mac):
         for s in self._slaves:
-            if s is not None and s.mac == mac:
+            if s is not None and s.battery.info.mac == mac:
                 return s
         return None
 
     def get_by_addr(self, addr):
         for s in self._slaves:
-            if s is not None and s.string_address == addr:
+            if s is not None and s.battery.info.addr == addr:
                 return s
         return None
 
     def is_known(self, mac) -> bool:
-        return any(s is not None and s.mac == mac for s in self._slaves)
+        return any(s is not None and s.battery.info.mac == mac for s in self._slaves)
 
     # ------------------------------------------------------------------
     #  Data aggregation 
@@ -162,17 +149,8 @@ class Slaves:
             log_slave.info(f"Received message from: {log_slave.mac_to_str(mac)}", ctx="slave handler")    
             msg_type = msg[0]
 
-            # ---------- HELLO ----------
-            if msg_type == HELLO_MSG:
-                if not self.is_known(mac):
-                    e.add_peer(mac)
-                    s = self.push(virt_slave(mac))
-                    s.set_info(msg)
-                    log_slave.info(f"Discovered: {log_slave.mac_to_str(mac)}", ctx="slave handler")
-                e.send(mac, pack_welcome(time.ticks_us()))
-
             # ---------- SYNC ACK ----------
-            elif msg_type == SYNC_ACK_MSG:
+            if msg_type == SYNC_ACK_MSG:
                 if not self.is_known(mac):
                     e.send(mac, pack_reconnect())
                 else:
@@ -186,26 +164,6 @@ class Slaves:
                     s = self.get_by_mac(mac)
                     s.last_seen = time.ticks_us()
                     s.synced = True
-                    s.configure(e)
-
-            # ---------- CONFIG ACK ----------
-            elif msg_type == CONF_ACK_MSG:
-                if not self.is_known(mac):
-                    e.send(mac, pack_reconnect())
-                else:
-                    s = self.get_by_mac(mac)
-                    s.last_seen = time.ticks_us()
-                    s.configured = True
-
-            # ---------- DATA ----------
-            elif msg_type == DATA_MSG:
-                if not self.is_known(mac):
-                    e.send(mac, pack_reconnect())
-                else:
-                    s = self.get_by_mac(mac)
-                    s.last_seen = time.ticks_us()
-                    s.data(msg)
-                    log_slave.info(f"Data form: {log_slave.mac_to_str(mac)} : {dict_}", ctx="slave handler")
 
             # ---------- UNKNOWN ----------
             else:
@@ -213,70 +171,12 @@ class Slaves:
                 log_slave.warn(f"Unknown message type from: {log_slave.mac_to_str(mac)}", ctx="slave handler")
     
 class virt_slave(Slaves):
-    def __init__(self, mac):
-        self.mac = mac
-        self.string_address = 0x0  # 0-15
-        self.nr_of_cells = 0  # 0-32
-        self.nr_of_temps = 0       # 0-4
-        self.fw_version = "0.0.0.0"
-        self.hw_version = "0.0.0.0"
+    def __init__(self, info: info_data):
+        self.battery = battery()
+        self.battery.info = info_data
+        self.battery.create_measurements()
+
         self.last_seen = time.ticks_us()
         self.synced = False
         self.configured = False
-        self.vcell = []
-        self.temp = []
-        self.vstr = 0.0
-
-    def configure(self, e):
-        e.send(self.mac, pack_config_msg(self.bal_start_voltage, self.bal_threshold, self.ext_bal_en, self.bal_en))
-
-    def data(self,msg):
-        vcell, vstr, temp = unpack_data_msg(msg)
-        if vcell is not None:
-            if isinstance(vcell, list) and len(vcell) == self.nr_of_cells:
-                if all(isinstance(v, (int, float)) and 0.0 <= v <= 5.0 for v in vcell):
-                    self.vcell = [float(v) for v in vcell]
-        if temp is not None:
-            if isinstance(temp, list) and len(temp) > 0 and len(temp) <= 4:
-                if all(isinstance(t, (int, float)) and -50.0 <= t <= 150.0 for t in temp):
-                    self.temp = [float(t) for t in temp]
-        if vstr is not None:
-            if isinstance(vstr, (int, float)) and (0.0 <= vstr <= 160.0):
-                self.vstr = vstr
-
-    def set_info(self, msg):
-        s_addr, ncell, ntemp, fw_ver, hw_ver= unpack_hello_msg(msg)
-        if  isinstance(s_addr, int) or (0 <= s_addr <= 15):
-            self.string_address = s_addr
-       
-        if isinstance(ncell, int) or (0 <= ncell <= 16):
-            self.nr_of_cells = ncell
-
-        if isinstance(ncell, int) or (0 <= ntemp <= 16):
-            self.nr_of_temps = ntemp
-
-        if isinstance(fw_ver, str):
-            parts = fw_ver.split('.')
-            if len(parts) == 4 and all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
-                self.fw_version = fw_ver
-
-        if isinstance(hw_ver, str):
-            parts = hw_ver.split('.')
-            if len(parts) == 4 and all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
-                self.hw_version = hw_ver
     
-    def get_cell_voltage(self, cell):
-        if 0 <= cell < self.nr_of_cells:
-            return self.vcell[cell]
-        else:
-            return None
-        
-    def get_all_cell_voltages(self):
-        return self.vcell
-    
-    def get_string_voltage(self):
-        return self.vstr
-    
-    def get_all_temperatures(self):
-        return self.temp
-
