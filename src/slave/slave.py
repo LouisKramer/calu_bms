@@ -1,5 +1,5 @@
 # slave.py
-import network, espnow, time
+import network, espnow, time, machine
 from machine import Pin, SoftSPI, SoftI2C, RTC
 from lib.SN74HC154 import SN74HC154
 from lib.ADS1118 import *
@@ -7,6 +7,7 @@ from lib.PCA9685 import *
 from lib.DS18B20 import *
 from listener import *
 import asyncio
+from lib.BMSnow import BMSnowSlave
 # ========================================
 # CONFIG
 # ========================================
@@ -59,8 +60,6 @@ wlan.config(channel=1)
 wlan.config(pm=network.WIFI_PS_NONE)
 wlan.disconnect()
 print(f"Wlan channel: {wlan.config('channel')}")
-e = espnow.ESPNow()
-e.active(True)
 
 #str_sel0 = Pin(STR_SEL0_PIN, Pin.IN, pull = Pin.PULL_DOWN) 
 #str_sel1 = Pin(STR_SEL1_PIN, Pin.IN, pull = Pin.PULL_DOWN)
@@ -71,10 +70,17 @@ e.active(True)
 # ========================================
 async def main():
     log.info("Starting main application...", ctx="main")
-    rtc = RTC()
-    #str_addr = read_string_address()
-    #log.info(f"String address set to {str_addr}", ctx="boot")
+    bat = battery()
+    bat.info.mac = machine.unique_id()
+    bat.info.addr = read_string_address()
+    log.info(f"String address set to {bat.info.addr}", ctx="boot")
     tmp = DS18B20(data_pin=OWM_TEMP_PIN, pullup=False)
+    bat.info.ntemp = tmp.number_of_sensors()
+    bat.info.ncell = 32 # Place Holder
+    bat.info.fw_ver = FW_VERSION
+    bat.info.fw_ver = HW_VERSION
+    bat.create_measurements()
+
     #i2c = SoftI2C(scl=Pin(I2C_SCL_PIN), sda=Pin(I2C_SDA_PIN), freq=400000)
     #spi = SoftSPI(baudrate=1000000, polarity=0, phase=0, sck=Pin(SPI_SCLK_PIN), mosi=Pin(SPI_MOSI_PIN), miso=Pin(SPI_MISO_PIN))
     #demux = SN74HC154(enable_pin=CS_EN_PIN, a0_pin=SPI_CS0_PIN, a1_pin=SPI_CS1_PIN, a2_pin=SPI_CS2_PIN, a3_pin=SPI_CS3_PIN)
@@ -114,25 +120,8 @@ async def main():
     #        await asyncio.sleep(10)
             
     # We are ready to show ourselves to the master
-    slave = Slave(default_slave_cfg,
-                  string_address=1,#str_addr, 
-                  fw_version=FW_VERSION, 
-                  hw_version=HW_VERSION, 
-                  nr_cells=NR_OF_CELLS, 
-                  nr_temps=tmp.number_of_sensors(),espnow=e)#tmp.number_of_sensors())
-    e.irq(slave.esp_handler.irq_callback)
-
-    while slave.esp_handler.connected == False:
-        log.info("Waiting for master to connect...", ctx="main")
-        await asyncio.sleep(2)
-    log.info("Slave connected to master.", ctx="main")
-    
-    asyncio.create_task(slave.esp_handler.sync_superviser_task())
-
-    while slave.esp_handler.config_received == False:
-        log.info("Waiting for master to send config...", ctx="main")
-        await asyncio.sleep(2)
-    log.info("Slave configured form master.", ctx="main")
+    con = BMSnowSlave(bat)
+    asyncio.run(con.start())
 
     even_odd_flag = False
     while True:

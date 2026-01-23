@@ -1,6 +1,7 @@
 # common.py
 from machine import RTC
 import struct
+import time
 
 
 default_soc_cfg = {
@@ -50,10 +51,15 @@ class battery:
         self.info    = info_data()
         self.conf    = conf_data()
         self.meas    = None
-
+        self.state   = status_data()
     def create_measurements(self):
         """Call this after you know ncell & ntemp"""
-        self.meas = meas_data(self)       
+        self.meas = meas_data(self) 
+class status_data:
+    def __init__(self):
+        self.channel_found = False
+        self.com_active = False
+        self.synced = False
 class info_data:
     def __init__(self):
         self.mac        = b''
@@ -63,7 +69,20 @@ class info_data:
         self.ntemp      = 0
         self.fw_ver     = "0.0.0.0"
         self.hw_ver     = "0.0.0.0"
-        self.time        = RTC()
+        
+    def set(self, other: 'info_data'):
+        if isinstance(other, info_data):
+            self.mac        =    other.mac        
+            self.master_mac =    other.master_mac 
+            self.addr       =    other.addr       
+            self.ncell      =    other.ncell      
+            self.ntemp      =    other.ntemp      
+            self.fw_ver     =    other.fw_ver     
+            self.hw_ver     =    other.hw_ver     
+            self.time       =    other.time       
+
+
+
 class meas_data:
     def __init__(self, info: battery):
         self.vcell = [0] * info.ncell
@@ -76,7 +95,7 @@ class conf_data:
         self.bal_threshold     = 0.01      # 10 mV
         self.bal_en            = True
         self.bal_ext_en        = False
-    
+        self.ttl               = 10     # 10*30s
     def set(self, other: 'conf_data'):
         if not isinstance(other, conf_data):
             return

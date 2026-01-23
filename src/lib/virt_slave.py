@@ -10,13 +10,9 @@ log_slave=create_logger("slave_handler", level=LogLevel.INFO)
 # ----------------------------------------------------------------------
 class Slaves:
     MAX_NR_OF_SLAVES = 16    
-
-    def __init__(self, config):
+    def __init__(self):
         log_slave.info("Initializing slave handler...", ctx="slave_handler")
-        self.cfg = config
 
-        self.ttl = config.get('ttl', 3600)
-        self.sync_interval = config.get('sync_interval', 10)
         self.T1 = 0
         # start with an *empty* list – we grow only when push() is called
         self._slaves: list["virt_slave | None"] = []
@@ -70,34 +66,6 @@ class Slaves:
 
     def is_known(self, mac) -> bool:
         return any(s is not None and s.battery.info.mac == mac for s in self._slaves)
-
-    # ------------------------------------------------------------------
-    #  Data aggregation 
-    # ------------------------------------------------------------------
-    def get_nr_of_total_cells(self) -> int:
-        total = 0
-        for slave in self._slaves:
-            if slave and hasattr(slave, "nr_of_cells") and slave.vstr:
-                total += slave.nr_of_cells
-        return total
-
-    def _sorted_by_address(self, attr):
-        """Helper used by the three “get_all_*” methods."""
-        items = []
-        for slave in self._slaves:
-            if slave and hasattr(slave, attr) and getattr(slave, attr):
-                items.append((slave.string_address, getattr(slave, attr)))
-        items.sort(key=lambda x: x[0])
-        return [val for _, val in items]
-
-    def get_all_cell_voltages(self):
-        return self._sorted_by_address("vcell")
-
-    def get_all_str_voltages(self):
-        return self._sorted_by_address("vstr")
-
-    def get_all_temperatures(self):
-        return self._sorted_by_address("temp")
 
     # ------------------------------------------------------------------
     #  Sync / GC helpers 
@@ -173,10 +141,6 @@ class Slaves:
 class virt_slave(Slaves):
     def __init__(self, info: info_data):
         self.battery = battery()
-        self.battery.info = info_data
+        self.battery.info.set (info_data)
         self.battery.create_measurements()
-
-        self.last_seen = time.ticks_us()
-        self.synced = False
-        self.configured = False
     

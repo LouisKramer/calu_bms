@@ -5,291 +5,339 @@ import network
 import time
 import binascii
 import struct
+import machine
 from machine import RTC
 from common.logger import *
 from common.credentials import *
-from common.common import battery
+from common.common import *
 from lib.virt_slave import *
 
 
-class BMSnow:
-    SEARCH_MSG   = 10
-    HELLO_MSG    = 20
-    WELCOME_MSG  = 30
-    DATA_MSG     = 40
-    DATA_REQ_MSG = 50
-    CONF_MSG     = 60
-    CONF_ACK_MSG = 70
-    SYNC_REQ_MSG = 80 # Request from master to slave
-    SYNC_ACK_MSG = 90  # Ack from slave to master
-    SYNC_REF_MSG = 100 # Reference from master to slave
-    SYNC_FIN_MSG = 110 # Final ack from slave to master
-
-    STATUS_WLAN_CHANNEL_SCAN = 10
-    STATUS_DISCOVER_MASTER = 20
-    STATUS_DISCOVER_SLAVES = 30
-    STATUS_CONNECTED_TO_MASTER = 40
+class BMSnowProtocol:
+    # Message types
+    SEARCH_MSG    = 10
+    HELLO_MSG     = 20
+    WELCOME_MSG   = 30
+    DATA_MSG      = 40
+    DATA_REQ_MSG  = 50
+    CONF_MSG      = 60
+    CONF_ACK_MSG  = 70
+    SYNC_REQ_MSG  = 80
+    SYNC_ACK_MSG  = 90
+    SYNC_REF_MSG  = 100
+    SYNC_FIN_MSG  = 110
 
     BROADCAST = b'\xff\xff\xff\xff\xff\xff'
 
-    def __init__(self):
-        self.log = create_logger("BMSnow", level=LogLevel.INFO)
-        self.e = espnow.ESPNow()
-        self.e.active(True)
-    
-    async def start(self):
-        self.e.irq(self._listener)
-
-    def _listener(self):
-        while True:
-            mac, msg = self.e.irecv(0)  # non-blocking
-            if mac is None or not msg:
-                return
-            msg_type = msg[0]
-            if msg_type == BMSnow.SEARCH_MSG:
-                micropython.schedule(self._handle_search_msg,mac,msg)
-            if msg_type == BMSnow.HELLO_MSG:
-                micropython.schedule(self._handle_hello_msg, mac, msg)
-            if msg_type == BMSnow.WELCOME_MSG:
-                micropython.schedule(self._handle_welcome_msg, mac, msg)
-            if msg_type == BMSnow.DATA_REQ_MSG:
-                micropython.schedule(self._handle_data_req_msg, mac, msg)
-            if msg_type == BMSnow.DATA_MSG:
-                micropython.schedule(self._handle_data_msg, mac, msg)
-            if msg_type == BMSnow.CONF_MSG:
-                micropython.schedule(self._handle_conf_msg, mac, msg)
-            if msg_type == BMSnow.CONF_ACK_MSG:
-                micropython.schedule(self._handle_conf_ack_msg, mac, msg)
-            if msg_type == BMSnow.SYNC_REQ_MSG:
-                micropython.schedule(self._handle_sync_req_msg, mac, msg)
-            if msg_type == BMSnow.SYNC_ACK_MSG:
-               micropython.schedule( self._handle_sync_ack_msg, mac, msg)
-            else:
-                pass
-            
-    def _handle_search_msg(self, mac, msg):
-        self.log.info(f"Received SEARCH_MSG from {self.log.mac_to_str(mac)}", ctx="listener")
-    
-    def _handle_hello_msg(self, mac, msg):
-        self.log.info(f"Received HELLO_MSG from {self.log.mac_to_str(mac)}", ctx="listener")
-
-    def _handle_welcome_msg(self, mac, msg):
-        self.log.info(f"Received WELCOME MSG from {self.log.mac_to_str(mac)}", ctx="listener")
-
-    def _handle_data_req_msg(self, mac, msg):
-        self.log.info(f"Received DATA REQUEST MSG from {self.log.mac_to_str(mac)}", ctx="listener")
-    
-    def _handle_data_msg(self, mac, msg):
-        self.log.info(f"Received DATA MSG from {self.log.mac_to_str(mac)}", ctx="listener")
-
-    def _handle_conf_msg(self, mac, msg):
-        self.log.info(f"Received CONFIG MSG from {self.log.mac_to_str(mac)}", ctx="listener")
-
-    def _handle_conf_ack_msg(self, mac, msg):
-        self.log.info(f"Received CONFIG ACK MSG from {self.log.mac_to_str(mac)}", ctx="listener")
-
     @staticmethod
     def pack_search_msg():
-        return struct.pack('<B', BMSnow.SEARCH_MSG)
+        return struct.pack('<B', BMSnowProtocol.SEARCH_MSG)
 
     @staticmethod
-    def pack_hello_msg(info: info_data):
-        # Prepare fixed 32-byte null-padded versions (truncate at 31 chars to leave room for null if desired)
-        fw_bytes = info.fw_ver.encode('utf-8')[:31]
-        fw_bytes += b'\x00' * (32 - len(fw_bytes))          # pad to exactly 32 bytes
-
-        hw_bytes = info.hw_ver.encode('utf-8')[:31]
-        hw_bytes += b'\x00' * (32 - len(hw_bytes))
-        payload = struct.pack('<BBHH32s32s', BMSnow.HELLO_MSG, info.addr, info.ncell, info.ntemp, fw_bytes, hw_bytes)
+    def pack_hello_msg(info):
+        fw_bytes = info.fw_ver.encode('utf-8')[:31] + b'\x00' * (32 - len(info.fw_ver.encode('utf-8')[:31]))
+        hw_bytes = info.hw_ver.encode('utf-8')[:31] + b'\x00' * (32 - len(info.hw_ver.encode('utf-8')[:31]))
+        payload = struct.pack('<BBHH32s32s',
+                              BMSnowProtocol.HELLO_MSG,
+                              info.addr,
+                              info.ncell,
+                              info.ntemp,
+                              fw_bytes,
+                              hw_bytes)
         crc = binascii.crc32(payload).to_bytes(4, 'little')
         return payload + crc
-    
+
     @staticmethod
-    def unpack_hello_msg(msg: bytes, info: info_data):
+    def unpack_hello_msg(msg: bytes, info):
         payload = msg[:-4]
-        crc_calc =  binascii.crc32(payload)
+        crc_calc = binascii.crc32(payload)
         crc_rx = int.from_bytes(msg[-4:], 'little')
         if crc_calc == crc_rx:
-            value = struct.unpack('<BBHH32s32s', payload)
-            info.addr = value[1]
-            info.ncell = value[2]
-            info.ntemp = value[3]
-            info.fw_ver = value[4].rstrip(b'\x00').decode('utf-8')
-            info.hw_ver = value[5].rstrip(b'\x00').decode('utf-8')
+            values = struct.unpack('<BBHH32s32s', payload)
+            info.addr   = values[1]
+            info.ncell  = values[2]
+            info.ntemp  = values[3]
+            info.fw_ver = values[4].rstrip(b'\x00').decode('utf-8', errors='ignore')
+            info.hw_ver = values[5].rstrip(b'\x00').decode('utf-8', errors='ignore')
         return info
-    
+
     @staticmethod
-    def pack_welcome(now):
-        return struct.pack('<BQ', BMSnow.WELCOME_MSG,now)
+    def pack_welcome():
+        return struct.pack('<BQ', BMSnowProtocol.WELCOME_MSG, time.time())
 
     @staticmethod
     def unpack_welcome(msg: bytes):
-        time = struct.unpack('<BQ', msg)
-        return time[1]
+        return struct.unpack('<BQ', msg)[1]
 
     @staticmethod
     def pack_data_req_msg():
-        return struct.pack('<B', BMSnow.DATA_REQ_MSG)
-    
-    @staticmethod
-    def unpack_data_req_msg():
-        return 
+        return struct.pack('<B', BMSnowProtocol.DATA_REQ_MSG)
 
     @staticmethod
-    def pack_data_msg(data: meas_data, info: info_data):
-        header = struct.pack('<BBB', BMSnow.DATA_MSG, info.ncell, info.ntemp)   # type + count
-        payload = struct.pack(f'<{info.ncell}ff{info.ntemp}f', *data.vcell, data.vstr, *data.temps)
+    def pack_data_msg(data, info):
+        header = struct.pack('<BBB', BMSnowProtocol.DATA_MSG, info.ncell, info.ntemp)
+        payload = struct.pack(f'<{info.ncell}f f {info.ntemp}f',
+                              *data.vcell, data.vstr, *data.temps)
         return header + payload
-    
+
     @staticmethod
-    def unpack_data_msg(msg: bytes, data: meas_data):
+    def unpack_data_msg(msg: bytes, data):
         typ, nc, nt = struct.unpack_from('<BBB', msg)
         payload_fmt = f'<{nc}f f {nt}f'
         payload = struct.unpack_from(payload_fmt, msg, offset=3)
         data.vcell = list(payload[:nc])
-        data.vstr = payload[nc]
+        data.vstr  = payload[nc]
         data.temps = list(payload[nc+1:])
         return data
-    
-    @staticmethod
-    def pack_config_msg(conf: conf_data):
-        return struct.pack('<Bff??', BMSnow.CONF_MSG, conf.bal_start_vol, conf.bal_threshold, conf.bal_en, conf.ext_bal_en)
 
     @staticmethod
-    def unpack_config_msg(msg: bytes, conf: conf_data):
-        value = struct.unpack('<Bff??', msg)
-        conf.bal_start_vol = value[1]
-        conf.bal_threshold = value[2]
-        conf.bal_en = value[3]
-        conf.bal_ext_en = value[4]
+    def pack_config_msg(conf):
+        return struct.pack('<Bff??',
+                           BMSnowProtocol.CONF_MSG,
+                           conf.bal_start_vol,
+                           conf.bal_threshold,
+                           conf.bal_en,
+                           conf.bal_ext_en)
+
+    @staticmethod
+    def unpack_config_msg(msg: bytes, conf):
+        values = struct.unpack('<Bff??', msg)
+        conf.bal_start_vol   = values[1]
+        conf.bal_threshold   = values[2]
+        conf.bal_en          = values[3]
+        conf.bal_ext_en      = values[4]
         return conf
-    
+
     @staticmethod
     def pack_conf_ack():
-        return struct.pack('<B', BMSnow.CONF_ACK_MSG)
-    
-    @staticmethod
-    def unpack_conf_ack():
-        return
-    
-class BMSnow_master(BMSnow):
+        return struct.pack('<B', BMSnowProtocol.CONF_ACK_MSG)
+
+class BMSnowComm:
+    def __init__(self, role: str):
+        self.role = role.lower()
+        self.log = create_logger(f"BMSnow-{role.capitalize()}", level=LogLevel.INFO)
+        self.e = espnow.ESPNow()
+        self.e.active(True)
+        self.protocol = BMSnowProtocol()
+
+    async def start(self):
+        self.e.irq(self._on_recv_irq)
+        self.log.info(f"{self.role.capitalize()} communication layer started")
+
+    def _on_recv_irq(self):
+        """Fast IRQ handler - schedule processing"""
+        try:
+            while True:
+                mac, msg = self.e.irecv(timeout_ms=0)
+                if mac is None:
+                    break
+                if msg:
+                    micropython.schedule(self._process_message, mac, msg)
+        except Exception as e:
+            self.log.error(f"IRQ receive error: {e}")
+
+    def _process_message(self, mac, msg):
+        """Scheduled from IRQ - can take more time"""
+        if not msg or len(msg) == 0:
+            return
+
+        msg_type = msg[0]
+        # Here you would normally set self.state.com_active = True
+        # but state belongs to the concrete role instance
+
+        handler_map = self.get_message_handlers()
+        handler = handler_map.get(msg_type)
+
+        if handler:
+            try:
+                handler(mac, msg)
+            except Exception as e:
+                self.log.error(f"Handler failed for type {msg_type}: {e}")
+        else:
+            self.log.info(f"Ignored unknown message type {msg_type}")
+
+    def get_message_handlers(self):
+        """To be overridden by subclasses"""
+        return {}
+
+    def send(self, mac, data):
+        try:
+            self.e.send(mac, data)
+        except Exception as e:
+            self.log.warn(f"Send failed to {self.log.mac_to_str(mac)}: {e}")
+
+class BMSnowMaster(BMSnowComm):
     def __init__(self, slaves: Slaves):
-        super().__init__()
+        super().__init__("master")
         self.slaves = slaves
 
+    def get_message_handlers(self):
+        return {
+            BMSnowProtocol.HELLO_MSG:    self._handle_hello,
+            BMSnowProtocol.DATA_MSG:     self._handle_data,
+            BMSnowProtocol.CONF_ACK_MSG: self._handle_conf_ack,
+            # Add others as needed
+        }
+
+    async def start(self):
+        await super().start()
+        asyncio.create_task(self._discovery_task())
+
+    async def _discovery_task(self):
+        while True:
+            try:
+                self.send(BMSnowProtocol.BROADCAST, BMSnowProtocol.pack_search_msg())
+                self.log.info("Broadcasting SEARCH message")
+            except Exception as e:
+                self.log.warn(f"Discovery broadcast failed: {e}")
+            await asyncio.sleep(5)
+
     def discover(self):
-        try:
-            self.e.send(self.BROADCAST, self.pack_search_msg())
-            self.log.info("Discovering slaves:", ctx="slave discover")
-        except Exception as e:
-            self.log.warn(e, ctx="slave discover")
+        self.send(BMSnowProtocol.BROADCAST, BMSnowProtocol.pack_search_msg())
 
-    def get_data(self, battery: battery):
-        try:
-            self.e.send(battery.info.mac, self.pack_data_req_msg())
-            self.log.info(f"Request data from slave {battery.info.addr}:", ctx="get_data")
-        except Exception as e:
-            self.log.warn(e, ctx="slave discover")
+    def request_data(self, battery):
+        if battery.info.mac:
+            self.send(battery.info.mac, BMSnowProtocol.pack_data_req_msg())
+            self.log.info(f"Requested data from slave {battery.info.addr}")
 
-    def configure(self, battery: battery):
-        try:
-            self.e.send(battery.info.mac, self.pack_config_msg(battery.conf))
-            self.log.info(f"Request data from slave {battery.info.addr}:", ctx="get_data")
-        except Exception as e:
-            self.log.warn(e, ctx="slave discover")
+    def request_all_data(self):
+        for s in self.slaves:
+            self.request_data(s.battery)
 
-    def sync(self):
-        pass
+    def configure(self, battery):
+        if battery.info.mac:
+            self.send(battery.info.mac, BMSnowProtocol.pack_config_msg(battery.conf))
+            self.log.info(f"Sent configuration to {battery.info.addr}")
 
-    def _handle_hello_msg(self, mac, msg):
-        self.log.info(f"Received HELLO_MSG from {self.log.mac_to_str(mac)}", ctx="handle hello msg")
+    def configure_all(self):
+        for s in self.slaves:
+            self.configure(s.battery)
+
+    # Handlers
+    def _handle_hello(self, mac, msg):
         info = info_data()
-        self.unpack_hello_msg(msg, info)
+        self.protocol.unpack_hello_msg(msg, info)
         info.mac = mac
+
         s = self.slaves.get_by_mac(mac)
-        if s == None:   # Create new virt slave
+        if s is None:
             self.e.add_peer(mac)
             self.slaves.push(info)
-            self.log.info(f"Discovered: {self.log.mac_to_str(mac)}", ctx="handle hello msg")
+            self.log.info(f"New slave discovered: {self.log.mac_to_str(mac)}")
         else:
-            s.battery.info = info # just update
-        self.e.send(mac, self.pack_welcome(time.ticks_us()))
+            s.battery.info.set(info)
 
-    def _handle_data_msg(self, mac, msg):
+        self.send(mac, self.protocol.pack_welcome())
+
+    def _handle_data(self, mac, msg):
         s = self.slaves.get_by_mac(mac)
-        if s == None:
-            self.log.warn(f"Received DATA MSG from UNKNOWN MAC: {self.log.mac_to_str(mac)}", ctx="handle msg data")
+        if s:
+            self.protocol.unpack_data_msg(msg, s.battery.meas)
+            self.log.info(f"Received data from {self.log.mac_to_str(mac)}")
         else:
-            self.log.warn(f"Received DATA MSG from: {self.log.mac_to_str(mac)}", ctx="handle msg data")
-            self.unpack_data_msg(msg, s.battery.meas)
+            self.log.warn(f"Data from unknown slave: {self.log.mac_to_str(mac)}")
 
-    def _handle_conf_ack_msg(self, mac, msg):
+    def _handle_conf_ack(self, mac, msg):
         s = self.slaves.get_by_mac(mac)
-        if s == None:
-            self.log.warn(f"Received CONFIG ACK MSG from UNKNOWN MAC {self.log.mac_to_str(mac)}", ctx="handle config ack msg")
+        if s:
+            self.log.info(f"Config ACK received from {self.log.mac_to_str(mac)}")
         else:
-            self.log.info(f"Received CONFIG ACK MSG from {self.log.mac_to_str(mac)}", ctx="hanle config ack msg")
+            self.log.warn(f"Config ACK from unknown: {self.log.mac_to_str(mac)}")
 
-class BMSnow_slave(BMSnow):
+class BMSnowSlave(BMSnowComm):
     WLAN_CHANNELS = range(1, 14)
-    def __init__(self, battery: battery):
-        super().__init__()
+
+    def __init__(self, battery):
+        super().__init__("slave")
+        self.battery = battery
         self.info = battery.info
         self.data = battery.meas
         self.conf = battery.conf
-    async def _set_esp_channel(self, ch):
-        try:
-            network.WLAN(network.STA_IF).config(channel=ch)
-            await asyncio.sleep(0.05)  # minimal settle time 30ms
-        except Exception as e:
-            self.log.warn(f"Channel set failed: {e}", ctx="BMSnow_slave")
+        self.state = battery.state
 
-    async def _wlan_channel_monitor_task(self):
-        while self.status == self.STATUS_WLAN_CHANNEL_SCAN:
-            for ch in self.WLAN_CHANNELS:
-                self._set_esp_channel(ch)
-                await asyncio.sleep(15)
+    def get_message_handlers(self):
+        return {
+            BMSnowProtocol.SEARCH_MSG:   self._handle_search,
+            BMSnowProtocol.WELCOME_MSG:  self._handle_welcome,
+            BMSnowProtocol.DATA_REQ_MSG: self._handle_data_request,
+            BMSnowProtocol.CONF_MSG:     self._handle_config,
+        }
+
+    async def start(self):
+        await super().start()
+        asyncio.create_task(self._channel_monitor_task())
+
+    async def _set_channel(self, ch):
+        try:
+            sta = network.WLAN(network.STA_IF)
+            sta.active(True)
+            sta.config(channel=ch)
+            await asyncio.sleep_ms(50)
+        except Exception as e:
+            self.log.warn(f"Failed to set channel {ch}: {e}")
+
+    async def _channel_monitor_task(self):
+        while True:
+            if not self.state.channel_found:
+                self.log.info("Channel not found - starting scan")
+                for ch in self.WLAN_CHANNELS:
+                    await self._set_channel(ch)
+                    await asyncio.sleep(15)
+            else:
+                if self.state.ttl <= 0:
+                    self.log.warning("Communication timeout - restarting scan")
+                    self.state.channel_found = False
+                    self.state.ttl = self.conf.ttl
+                elif self.state.com_active:
+                    self.state.ttl = self.conf.ttl
+                    self.state.com_active = False
+                else:
+                    self.state.ttl -= 1
+
             await asyncio.sleep(30)
 
-    def _handle_search_msg(self, mac, msg):
-        self.log.info(f"Received SEARCH from {self.log.mac_to_str(mac)}", ctx="slave_search_handler")
-        self.status = self.STATUS_DISCOVER_MASTER
+    def _handle_search(self, mac, msg):
+        self.state.channel_found = True
+        
         if self.info.master_mac == b'':
             self.info.master_mac = mac
             self.e.add_peer(mac)
-        rsp = self.pack_hello_msg(self.info)
-        self.e.send(mac, rsp)
-        self.log.info("Sent HELLO to master", ctx="slave connect")       
 
-    def _handle_welcome_msg(self, mac, msg):
-        self.log.info(f"Received WELCOME MSG from {self.log.mac_to_str(mac)}", ctx="handle welcome msg")
-        if self.info.master_mac == mac:
-            ntp_time = self.unpack_welcome(msg)
-            self.info.time.datetime(time.gmtime(ntp_time // 1_000_000))
-            self.log.info(f"RTC set to UTC: {self.info.time.datetime()}", ctx="handle welcome msg")
-            self.log.info("Connected to master", ctx="handle welcome msg")
+        response = self.protocol.pack_hello_msg(self.info)
+        self.send(mac, response)
+        self.log.info(f"Responded to SEARCH from {self.log.mac_to_str(mac)}")
 
-    def _handle_data_req_msg(self, mac, msg):
-        self.log.info(f"Received DATA REQUEST MSG from {self.log.mac_to_str(mac)}", ctx="handle data request msg")
-        if mac != self.info.master_mac:
-            self.log.warn("DATA_REQ_MSG from unknown master", ctx="handle data request msg")
-        else: 
-            self.e.send(mac, self.pack_data_msg(self.data, self.info))
+    def _handle_welcome(self, mac, msg):
+        if mac == self.info.master_mac:
+            try:
+                unix_seconds = self.protocol.unpack_welcome(msg)  # now real Unix timestamp
+                rtc = machine.RTC()
+                # Convert Unix seconds → RTC tuple (UTC)
+                tm = time.gmtime(unix_seconds)
+                # RTC tuple: (year, month, day, weekday, hour, minute, second, subseconds)
+                # MicroPython RTC weekday: 0=Mon ... 6=Sun (gmtime gives 0=Mon ... 6=Sun → compatible)
+                rtc_tuple = (tm[0], tm[1], tm[2], tm[6], tm[3], tm[4], tm[5], 0)
+                rtc.datetime(rtc_tuple)
 
-    def _handle_conf_msg(self, mac, msg):
-        self.log.info(f"Received CONFIG MSG from {self.log.mac_to_str(mac)}", ctx="handle config msg")
-        if mac != self.info.master_mac:
-            self.log.warn("CONFIG_MSG from unknown master", ctx="handle config msg")
+                self.log.info(f"RTC set to UTC from master: {rtc.datetime()}")
+                self.log.info("Connected & time synchronized")
+            except Exception as e:
+                self.log.error(f"Failed to set RTC from WELCOME: {e}")
+
+    def _handle_data_request(self, mac, msg):
+        if mac == self.info.master_mac:
+            data_msg = self.protocol.pack_data_msg(self.data, self.info)
+            self.send(mac, data_msg)
+            self.log.info("Sent measurement data")
         else:
+            self.log.warn("Data request from unknown master")
+
+    def _handle_config(self, mac, msg):
+        if mac == self.info.master_mac:
             conf = conf_data()
-            self.unpack_config_msg(msg, conf)
+            self.protocol.unpack_config_msg(msg, conf)
             self.conf.set(conf)
-            self.e.send(mac, self.pack_conf_ack())
-
-    async def start(self):
-        super().start()
-        asyncio.create_task(self._wlan_channel_monitor_task)
-
-
-
-    
+            self.send(mac, self.protocol.pack_conf_ack())
+            self.log.info("Configuration updated")
+        else:
+            self.log.warn("Config from unknown master")
