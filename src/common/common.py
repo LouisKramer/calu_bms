@@ -81,8 +81,6 @@ class info_data:
             self.hw_ver     =    other.hw_ver     
             self.time       =    other.time       
 
-
-
 class meas_data:
     def __init__(self, info: battery):
         self.vcell = [0] * info.ncell

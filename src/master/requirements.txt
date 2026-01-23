@@ -10,5 +10,7 @@
 ../lib/RELAY.py             ./lib/RELAY.py
 ../lib/virt_slave.py        ./lib/virt_slave.py
 ../lib/SOC.py               ./lib/SOC.py
+../lib/BMSnow.py            ./lib/BMSnow.py
+../lib/WLAN.py              ./lib/WLAN.py
 ../master/main.py           ./main.py
 ../master/master.py         ./master.py

@@ -14,6 +14,9 @@ from lib.SOC import BatterySOC, autosave_task
 #from lib.battery_protection import BatteryProtection
 from lib.NTP import *
 from lib.virt_slave import *
+import machine
+from lib.BMSnow import BMSnowMaster
+from lib.WLAN import WifiManager
 # ========================================
 # CONFIG
 # ========================================
@@ -26,6 +29,7 @@ SLAVE_SYNC_INTERVAL = 10
 SLAVE_TTL = 3600
 
 # Pins
+LED_USER = 18
 ADC_CURRENT_BAT_PIN = 4
 CURRENT_FAULT_PIN = 5
 BAT_FAULT_PIN = 10 #drives SiCs
@@ -40,36 +44,45 @@ INT_REL1_PIN = 21
 # ========================================
 # INIT
 # ========================================
-wlan = network.WLAN(network.STA_IF)
-wlan.active(True)
-# Connect to Wi-Fi
-print("Connecting to Wi-Fi...")
-wlan.connect(WIFI_SSID, WIFI_PASS)
-while not wlan.isconnected():
-    time.sleep(0.5)
-print("Wi-Fi connected. IP:", wlan.ifconfig()[0])
-log.info(f"Wlan channel: {wlan.config('channel')}", ctx="boot")
+wifi = WifiManager(
+        ssid=WIFI_SSID,
+        password=WIFI_PASS,
+        hostname="bmsnow-master-01",
+        led_pin=LED_USER)
+
+time.sleep(5)
+#wlan = network.WLAN(network.STA_IF)
+#wlan.active(True)
+## Connect to Wi-Fi
+#print("Connecting to Wi-Fi...")
+#led_user = machine.Pin(LED_USER, machine.Pin.OUT)
+#wlan.connect(WIFI_SSID, WIFI_PASS)
+#while not wlan.isconnected():
+#    led_user.toggle()
+#    print(".")
+#    time.sleep(0.5)
+#print("Wi-Fi connected. IP:", wlan.ifconfig()[0])
+#log.info(f"Wlan channel: {wlan.config('channel')}", ctx="boot")
 log = create_logger("system", level=LogLevel.INFO)
 log.info("Startup system", ctx="boot")
 # ========================================
 # MAIN
 # ========================================
 async def main():
+    wifi.start()
     log.info("Starting main application...", ctx="main")
-    # ESP-NOW
-    e = espnow.ESPNow()
-    e.active(True)
-    e.add_peer(BROADCAST)
-
     # TODO:add watchdog
     rtc = RTC()
 
-    slaves = Slaves(config = default_slave_cfg)
-    e.irq(slaves.slave_listener)
+    slaves = Slaves()
+    master = BMSnowMaster(slaves=slaves)
+    while True:
+        await asyncio.sleep(2)
+
     int_rel0 = Relay(pin=INT_REL0_PIN, active_high=False)
     int_rel1 = Relay(pin=INT_REL1_PIN, active_high=True)
-    #int_rel0.test(cycles=3, on_time=0.2, off_time=0.2)
-    #int_rel1.test(cycles=3, on_time=0.2, off_time=0.2)
+    int_rel0.test(cycles=3, on_time=0.2, off_time=0.2)
+    int_rel1.test(cycles=3, on_time=0.2, off_time=0.2)
     cur = ACS71240(viout_pin=ADC_CURRENT_BAT_PIN, fault_pin=CURRENT_FAULT_PIN)
     cur.calibrate_zero()
     spi = SoftSPI(baudrate=1000000, polarity=0, phase=0, sck=Pin(SPI_SCLK_PIN), mosi=Pin(SPI_MOSI_PIN), miso=Pin(SPI_MISO_PIN))
