@@ -23,8 +23,8 @@ class DS18B20:
         self.bus = onewire.OneWire(self.data_pin)
         self.sensors = ds18x20.DS18X20(self.bus)
         self.roms = self.sensors.scan()  # Scan for connected sensors
-        if not self.roms:
-            raise ValueError("No DS18B20 sensors found on the bus")
+        #if not self.roms:
+        #    raise ValueError("No DS18B20 sensors found on the bus")
 
     def get_temperatures(self):
         """

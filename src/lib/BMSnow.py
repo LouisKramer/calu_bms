@@ -115,14 +115,14 @@ class BMSnowProtocol:
 class BMSnowComm:
     def __init__(self, role: str):
         self.role = role.lower()
-        self.log = create_logger(f"BMSnow-{role.capitalize()}", level=LogLevel.INFO)
+        self.log = create_logger(f"BMSnow-{role}", level=LogLevel.INFO)
         self.e = espnow.ESPNow()
         self.e.active(True)
         self.protocol = BMSnowProtocol()
 
     async def start(self):
         self.e.irq(self._on_recv_irq)
-        self.log.info(f"{self.role.capitalize()} communication layer started")
+        self.log.info(f"{self.role} communication layer started")
 
     def _on_recv_irq(self):
         """Fast IRQ handler - schedule processing"""
@@ -298,7 +298,7 @@ class BMSnowSlave(BMSnowComm):
 
     def _handle_search(self, mac, msg):
         self.state.channel_found = True
-        
+
         if self.info.master_mac == b'':
             self.info.master_mac = mac
             self.e.add_peer(mac)

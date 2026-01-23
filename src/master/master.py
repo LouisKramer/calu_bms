@@ -76,8 +76,7 @@ async def main():
 
     slaves = Slaves()
     master = BMSnowMaster(slaves=slaves)
-    while True:
-        await asyncio.sleep(2)
+
 
     int_rel0 = Relay(pin=INT_REL0_PIN, active_high=False)
     int_rel1 = Relay(pin=INT_REL1_PIN, active_high=True)
@@ -95,7 +94,8 @@ async def main():
     # Start tasks
     ntp = ntp_sync(NTP_HOST, NTP_PORT, NTP_TIMEOUT, NTP_SYNC_INTERVAL)
     ntp_sync_task = asyncio.create_task(ntp.ntp_task())
-    
+    while True:
+        await asyncio.sleep(2)
     while slaves.nr_of_slaves == 0:
         slaves.discover_slaves(e)
         await asyncio.sleep(5)
