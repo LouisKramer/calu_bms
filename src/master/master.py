@@ -29,17 +29,26 @@ SLAVE_SYNC_INTERVAL = 10
 SLAVE_TTL = 3600
 
 # Pins
-LED_USER = 18
+
+
 ADC_CURRENT_BAT_PIN = 4
-CURRENT_FAULT_PIN = 5
-BAT_FAULT_PIN = 10 #drives SiCs
-OWM_TEMP_PIN = 9
+CURRENT_FAULT_PIN = 5 #input for overcurrent 
+BAT_FAULT_PIN = 10 #Output for driving sic and safe relay
 SPI_SCLK_PIN = 6
 SPI_MOSI_PIN = 7
 SPI_MISO_PIN = 15
 SPI_CS_PIN = 16
+BUZZER_PIN = 17
+OWM_TEMP_PIN = 9
+LED_USER_PIN = 18
+LED_ERR_PIN = 8
+
 INT_REL0_PIN = 14
 INT_REL1_PIN = 21
+EXT_REL0_PIN = 11
+
+CAN_TX_PIN = 40
+CAN_RX_PIN = 39
 
 # ========================================
 # INIT
@@ -48,7 +57,7 @@ wifi = WifiManager(
         ssid=WIFI_SSID,
         password=WIFI_PASS,
         hostname="bmsnow-master-01",
-        led_pin=LED_USER)
+        led_pin=LED_USER_PIN)
 
 time.sleep(5)
 #wlan = network.WLAN(network.STA_IF)
