@@ -16,7 +16,7 @@ from lib.NTP import *
 from lib.virt_slave import *
 import machine
 from lib.BMSnow import BMSnowMaster
-from lib.WLAN import WifiManager
+from lib.WLAN import WlanManager
 # ========================================
 # CONFIG
 # ========================================
@@ -29,17 +29,17 @@ SLAVE_SYNC_INTERVAL = 10
 SLAVE_TTL = 3600
 
 # Pins
-
-
 ADC_CURRENT_BAT_PIN = 4
 CURRENT_FAULT_PIN = 5 #input for overcurrent 
 BAT_FAULT_PIN = 10 #Output for driving sic and safe relay
+
 SPI_SCLK_PIN = 6
 SPI_MOSI_PIN = 7
 SPI_MISO_PIN = 15
 SPI_CS_PIN = 16
-BUZZER_PIN = 17
 OWM_TEMP_PIN = 9
+
+BUZZER_PIN = 17
 LED_USER_PIN = 18
 LED_ERR_PIN = 8
 
@@ -53,74 +53,60 @@ CAN_RX_PIN = 39
 # ========================================
 # INIT
 # ========================================
-wifi = WifiManager(
-        ssid=WIFI_SSID,
-        password=WIFI_PASS,
-        hostname="bmsnow-master-01",
-        led_pin=LED_USER_PIN)
-
-time.sleep(5)
-#wlan = network.WLAN(network.STA_IF)
-#wlan.active(True)
-## Connect to Wi-Fi
-#print("Connecting to Wi-Fi...")
-#led_user = machine.Pin(LED_USER, machine.Pin.OUT)
-#wlan.connect(WIFI_SSID, WIFI_PASS)
-#while not wlan.isconnected():
-#    led_user.toggle()
-#    print(".")
-#    time.sleep(0.5)
-#print("Wi-Fi connected. IP:", wlan.ifconfig()[0])
-#log.info(f"Wlan channel: {wlan.config('channel')}", ctx="boot")
+wifi = WlanManager(ssid=WIFI_SSID, password=WIFI_PASS, hostname=WIFI_HOST, led_pin=LED_USER_PIN)
 log = create_logger("system", level=LogLevel.INFO)
 log.info("Startup system", ctx="boot")
 # ========================================
 # MAIN
 # ========================================
 async def main():
-    wifi.start()
-    log.info("Starting main application...", ctx="main")
+    log.info("Starting main application", ctx="main")
+    log.info("Starting wifi manager", ctx="main")
+    await wifi.start()
+    await asyncio.sleep(5)
+    
     # TODO:add watchdog
     rtc = RTC()
 
     slaves = Slaves()
     master = BMSnowMaster(slaves=slaves)
+    await master.start()
 
-
-    int_rel0 = Relay(pin=INT_REL0_PIN, active_high=False)
+    int_rel0 = Relay(pin=INT_REL0_PIN, active_high=True)
     int_rel1 = Relay(pin=INT_REL1_PIN, active_high=True)
-    int_rel0.test(cycles=3, on_time=0.2, off_time=0.2)
-    int_rel1.test(cycles=3, on_time=0.2, off_time=0.2)
+    ext_rel0 = Relay(pin=EXT_REL0_PIN, active_high=True)
+    int_rel0.test(cycles=3, on_time=0.1, off_time=0.1)
+    int_rel1.test(cycles=3, on_time=0.1, off_time=0.1)
+    ext_rel0.test(cycles=3, on_time=0.1, off_time=0.1)
     cur = ACS71240(viout_pin=ADC_CURRENT_BAT_PIN, fault_pin=CURRENT_FAULT_PIN)
     cur.calibrate_zero()
     spi = SoftSPI(baudrate=1000000, polarity=0, phase=0, sck=Pin(SPI_SCLK_PIN), mosi=Pin(SPI_MOSI_PIN), miso=Pin(SPI_MISO_PIN))
     vol = ADS1118(spi=spi, cs_pin = SPI_CS_PIN, channel_mux={0: 0b000, 1: 0b011}, gain=[1.0, 1.0]) #channel 0 = Bat, channel 1 = inv
     tmp = DS18B20(data_pin=OWM_TEMP_PIN, pullup=False)
-    #can= BMSCan(config_can)
     soc_estimator = BatterySOC(default_soc_cfg)
+    soc_auto_safe_task = asyncio.create_task(autosave_task(soc_estimator, 60))
+    #can= BMSCan(config_can)
     #protector = BatteryProtection(config_prot, inverter_en_pin = BAT_FAULT_PIN ,current_sensor=cur, slaves=slaves)
     
     # Start tasks
     ntp = ntp_sync(NTP_HOST, NTP_PORT, NTP_TIMEOUT, NTP_SYNC_INTERVAL)
     ntp_sync_task = asyncio.create_task(ntp.ntp_task())
-    while True:
-        await asyncio.sleep(2)
-    while slaves.nr_of_slaves == 0:
-        slaves.discover_slaves(e)
-        await asyncio.sleep(5)
-    await asyncio.sleep(60) #wait for slaves to connect
+
+    for i in range(1,10):
+        log.info(f"Initial waiting for slaves to connect", ctx="main")
+        await asyncio.sleep(1)
+
     if slaves.nr_of_slaves() == 0:
         log.warn("No slaves connected after 60s, check connections!", ctx="main")
-        #return  # Stop initialization if no slaves are connected
     else:
         log.info(f"{slaves.nr_of_slaves()} slaves connected.", ctx="main")
 
     #slave_sync_task = asyncio.create_task(slaves.sync_slaves_task(e))
     #slave_gc_task = asyncio.create_task(slaves.slave_gc())
-    soc_auto_safe_task = asyncio.create_task(autosave_task(soc_estimator, 60))
+    
     log.info("Initialization complete, entering main loop.", ctx="main")
     while True:
-        slaves.request_data_from_slaves()
+        master.request_all_data()
         current = cur.read_current(samples=10)
         log.info(f"Current: {current} A", ctx="main")
         bat_vol = await vol.read_voltage(channel=0)
@@ -129,9 +115,7 @@ async def main():
         log.info(f"Battery Voltage: {bat_vol}, Inverter Voltage: {inv_vol}, ADC Temp: {vol_temp}", ctx="main")
         temp = tmp.get_temperatures()
         log.info(f"Temperatures: {temp}", ctx="main")
-        v_cells = slaves.get_all_cell_voltages()
-        #v_strings = slaves.get_all_str_voltages()
-        #t_strings = slaves.get_all_str_temperatures()
+
         avg_temp = sum(temp)/len(temp) if len(temp)>0 else 25.0 #change to sting temp
         soc = max(0, int(round(await soc_estimator.update(current, bat_vol, avg_temp))))
         log.info(f"Estimated SOC: {soc} %", ctx="main")
@@ -139,7 +123,6 @@ async def main():
         #FIXME: protector should consider  and string temperatures.
         #prot_status = await protector.update(v_cells, bat_vol, current, temp, soc)
         #can_bus.send_status(prot_status)
-        slaves.discover_slaves(e)# TODO: maybe pack into task
         await asyncio.sleep(default_soc_cfg['sampling_interval'])
 
 # ----------------------------------------------------------------------

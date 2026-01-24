@@ -31,13 +31,19 @@ class DS18B20:
         Read temperature from all detected sensors.
         :return: Dict of ROM addresses to temperatures in °C
         """
-        self.sensors.convert_temp()
         temps = {}
+        if not self.roms:
+            return temps
+        self.sensors.convert_temp()
         for i, rom in enumerate(self.roms):
             temp = self.sensors.read_temp(rom)
             if temp != -999.0:  # Invalid reading
                 temps[i] = round(temp, 2)
         return temps
+
+    def get_avg_temperature(self):
+        temps = self.get_temperatures()
+        return sum(temps)/len(temps)
 
     def get_temperature(self, rom=None):
         """

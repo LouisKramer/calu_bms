@@ -56,6 +56,7 @@ log = create_logger("system", level=LogLevel.INFO, syslog=False)
 log.info("Init System", ctx="boot")
 wlan = network.WLAN(network.STA_IF)
 wlan.active(True)
+#TODO: check for updates
 wlan.config(channel=1)
 wlan.config(pm=network.WIFI_PS_NONE)
 wlan.disconnect()

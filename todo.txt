@@ -11,11 +11,6 @@ TODO:
 - HW Teststand 1.x.x.x
     - develop concept
 
-- SW Slave 1.0.0.0:
-    - Remove magic numbers.
-    - Develop "FSM" --> DONE
-    - Error handling HAL
-    - HAL shall support read all commands --> DONE
-    - ADES1830.py add func to read all voltages --> DONE
-    - ADES1830.py add Discharge functionalities
-    - FTP server for OTA updates
+- Future improvements
+    - rework logger to use one shared worker with queue
+    - Add CAN support

@@ -1,8 +1,8 @@
 # logger.py
 import time
-import ujson as json
+import json as json
 import os
-import usocket as socket
+import socket as socket
 from micropython import const
 from machine import RTC, reset
 

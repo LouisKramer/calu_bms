@@ -69,12 +69,9 @@ class Relay:
         log.info(f"Pin: GPIO{self._pin}, Active {'HIGH' if self._active_high else 'LOW'}" , ctx="relay-test")
         log.info(f"Performing {cycles} cycles (ON {on_time}s / OFF {off_time}s)\n", ctx="relay-test")
         for i in range(cycles):
-                log.info(f"Cycle {i+1}/{cycles}", ctx="relay-test")
                 self.on()
                 time.sleep(on_time)
                 self.off()
                 time.sleep(off_time)
-
-        log.info("Relay test completed successfully!", ctx="relay-test")
         self.off()  # Ensure relay is off when test ends
-        log.info("Relay forced OFF for safety.", ctx="relay-test")
+        log.info("Relay test completed successfully!", ctx="relay-test")

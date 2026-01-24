@@ -1,138 +1,123 @@
-# wifi_manager.py
 import network
-import asyncio
-import machine
+import uasyncio as asyncio
 import time
-from common.logger import *
+from machine import Pin
 
-
-class WifiManager:
+class WlanManager:
     """
-    Simple async Wi-Fi connection manager for master device with LED feedback.
+    Async WiFi manager with:
+    - Auto-reconnect
+    - Custom hostname
+    - LED status (active-LOW / inverted logic on many ESP32 boards):
+      - ON     = connected          → led.off()
+      - BLINK  = connecting         → toggle led.off() / led.on()
+      - OFF    = disconnected       → led.on()
+    """
     
-    LED states (active-low = inverted):
-    - ON (led.value(0))     → connected
-    - slow blink            → connecting
-    - 3 quick blinks        → failed / retrying
-    - OFF (led.value(1))    → stopped / inactive
-    """
-
     def __init__(
         self,
         ssid: str,
         password: str,
-        hostname: str = "bmsnow-master",
-        led_pin: int = 2,                  # onboard LED on many ESP32 boards
-        connect_timeout_s: float = 15.0,
-        retry_delay_s: float = 8.0,
+        hostname: str = "esp32-device",
+        led_pin: int = 2,
+        check_interval_sec: float = 8.0,
+        blink_interval_ms: int = 400
     ):
         self.ssid = ssid
         self.password = password
-        self.hostname = hostname
-        self.connect_timeout_s = connect_timeout_s
-        self.retry_delay_s = retry_delay_s
-
-        self.log = create_logger("WifiMgr", level=LogLevel.INFO)
-
-        # Wi-Fi
+        self.check_interval = check_interval_sec
+        self.blink_interval = blink_interval_ms
+        
+        network.hostname(hostname)
+        
         self.wlan = network.WLAN(network.STA_IF)
-
-        # LED (active-low: 0 = lit, 1 = off)
-        self.led = machine.Pin(led_pin, machine.Pin.OUT)
-        self.led.value(1)  # off at start
-
-        # State
-        self._running = False
+        self.wlan.active(True)
+        
+        # LED: active-low (common on ESP32 dev boards)
+        self.led = Pin(led_pin, Pin.OUT)
+        self.led.on()                            # start OFF (active-low)
+        
         self._task = None
-        self._last_status = "unknown"
-
-    def _led_on(self):
-        self.led.value(0)   # lit
-
-    def _led_off(self):
-        self.led.value(1)   # dark
-
-    def _led_toggle(self):
-        self.led.value(not self.led.value())
-
-    async def _blink_pattern(self, on_ms: int, off_ms: int, count: int):
-        """Blink LED count times (active-low aware)"""
-        for _ in range(count):
-            self._led_on()
-            await asyncio.sleep_ms(on_ms)
-            self._led_off()
-            await asyncio.sleep_ms(off_ms)
-
-    def _set_status(self, state: str):
-        """Update LED according to Wi-Fi state"""
-        if state == "connected":
-            self._led_on()
-            pattern = "solid ON"
-        elif state == "connecting":
-            self._led_toggle()           # called repeatedly → slow blink
-            pattern = "slow blink"
-        elif state == "failed":
-            asyncio.create_task(self._blink_pattern(120, 120, 3))  # 3 quick blinks
-            pattern = "3 quick blinks"
-        else:
-            self._led_off()
-            pattern = "OFF"
-
-        if state != self._last_status:
-            self.log.info(f"WiFi status → {state} (LED: {pattern})")
-            self._last_status = state
-
-    async def _connection_task(self):
-        self._running = True
-
-        while self._running:
-            if self.wlan.isconnected():
-                self._set_status("connected")
-                await asyncio.sleep(8)  # relaxed check when connected
-                continue
-
-            self._set_status("connecting")
-            self.log.info(f"Connecting to {self.ssid} ...")
-
-            try:
-                self.wlan.active(True)
-                self.wlan.config(dhcp_hostname=self.hostname)
-                self.wlan.connect(self.ssid, self.password)
-
-                start = time.ticks_ms()
-                while not self.wlan.isconnected():
-                    if time.ticks_diff(time.ticks_ms(), start) > int(self.connect_timeout_s * 1000):
-                        raise RuntimeError("Connection timeout")
-                    self._led_toggle()              # visual feedback while waiting
-                    await asyncio.sleep_ms(300)
-
-                ip = self.wlan.ifconfig()[0]
-                self.log.info(f"Connected → IP: {ip}")
-                self._set_status("connected")
-
-            except Exception as e:
-                self.log.warn(f"WiFi failed: {e}")
-                self._set_status("failed")
-                await asyncio.sleep(self.retry_delay_s)
-
-    def start(self):
-        if self._task is None or self._task.done():
-            self._task = asyncio.create_task(self._connection_task())
-            self.log.info("WiFi manager started")
-
-    def stop(self):
         self._running = False
-        if self._task and not self._task.done():
-            self._task.cancel()
-        self.wlan.disconnect()
-        self.wlan.active(False)
-        self._led_off()
-        self.log.info("WiFi manager stopped")
+        self._connecting = False
 
-    @property
+    async def connect_once(self, timeout_sec: float = 12.0) -> bool:
+        if self.wlan.isconnected():
+            print("Already connected")
+            self._connecting = False
+            self.led.off()                       # ON (active-low)
+            return True
+            
+        print(f"Connecting to {self.ssid} ...")
+        self.wlan.connect(self.ssid, self.password)
+        self._connecting = True
+        
+        start = time.ticks_ms()
+        timeout_ms = timeout_sec * 1000
+        
+        while not self.wlan.isconnected():
+            if time.ticks_diff(time.ticks_ms(), start) > timeout_ms:
+                print("Connection timeout")
+                self._connecting = False
+                self.led.on()                    # OFF
+                return False
+                            # Blink: toggle between ON (off) and OFF (on)
+            self.led.value(not self.led.value())
+            await asyncio.sleep_ms(self.blink_interval)
+            
+        print("Connected! IP:", self.wlan.ifconfig()[0])
+        self._connecting = False
+        self.led.off()                           # ON (active-low)
+        return True
+
+    async def _monitor_and_reconnect(self):
+        while self._running:
+            if self._connecting:
+                # Blink: toggle between ON (off) and OFF (on)
+                self.led.value(not self.led.value())
+                await asyncio.sleep_ms(self.blink_interval)
+                continue
+                
+            if not self.wlan.isconnected():
+                print("WiFi disconnected → attempting reconnect...")
+                self._connecting = True
+                await self.connect_once(timeout_sec=10.0)
+                self._connecting = False
+                
+            # Connected → LED ON
+            # Disconnected & idle → LED OFF
+            if self.wlan.isconnected():
+                self.led.off()                   # ON
+            else:
+                self.led.on()                    # OFF
+                
+            await asyncio.sleep(self.check_interval)
+
+    async def start(self):
+        if self._running:
+            return
+            
+        self._running = True
+        await self.connect_once()
+        self._task = asyncio.create_task(self._monitor_and_reconnect())
+        print(f"WiFi reconnector started (hostname: {network.hostname()})")
+
+    async def stop(self):
+        self._running = False
+        self._connecting = False
+        self.led.on()                            # OFF on stop
+        if self._task is not None:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+        print("WiFi reconnector stopped")
+
     def is_connected(self) -> bool:
         return self.wlan.isconnected()
 
-    @property
-    def ip_address(self) -> str:
-        return self.wlan.ifconfig()[0] if self.is_connected else "0.0.0.0"
+    def ip_address(self):
+        if self.is_connected():
+            return self.wlan.ifconfig()[0]
+        return None

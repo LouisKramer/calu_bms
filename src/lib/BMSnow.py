@@ -116,13 +116,15 @@ class BMSnowComm:
     def __init__(self, role: str):
         self.role = role.lower()
         self.log = create_logger(f"BMSnow-{role}", level=LogLevel.INFO)
+        self.log.info(f"Init BMSnow")
         self.e = espnow.ESPNow()
         self.e.active(True)
+        self.e.add_peer(BMSnowProtocol.BROADCAST)
         self.protocol = BMSnowProtocol()
 
-    async def start(self):
-        self.e.irq(self._on_recv_irq)
+    def start(self):
         self.log.info(f"{self.role} communication layer started")
+        self.e.irq(self._on_recv_irq)
 
     def _on_recv_irq(self):
         """Fast IRQ handler - schedule processing"""
@@ -180,13 +182,14 @@ class BMSnowMaster(BMSnowComm):
         }
 
     async def start(self):
-        await super().start()
+        self.log.info("Start BMSnowMaster")
+        super().start()
         asyncio.create_task(self._discovery_task())
 
     async def _discovery_task(self):
         while True:
             try:
-                self.send(BMSnowProtocol.BROADCAST, BMSnowProtocol.pack_search_msg())
+                self.discover()
                 self.log.info("Broadcasting SEARCH message")
             except Exception as e:
                 self.log.warn(f"Discovery broadcast failed: {e}")
@@ -194,6 +197,14 @@ class BMSnowMaster(BMSnowComm):
 
     def discover(self):
         self.send(BMSnowProtocol.BROADCAST, BMSnowProtocol.pack_search_msg())
+
+    async def request_data_task(self):
+        while True:
+            try:
+                self.request_all_data()
+            except Exception as e:
+                self.log.warn(f"Request data failed: {e}")
+            await asyncio.sleep(2)
 
     def request_data(self, battery):
         if battery.info.mac:
@@ -264,7 +275,7 @@ class BMSnowSlave(BMSnowComm):
         }
 
     async def start(self):
-        await super().start()
+        super().start()
         asyncio.create_task(self._channel_monitor_task())
 
     async def _set_channel(self, ch):
