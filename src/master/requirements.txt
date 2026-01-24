@@ -12,5 +12,7 @@
 ../lib/SOC.py               ./lib/SOC.py
 ../lib/BMSnow.py            ./lib/BMSnow.py
 ../lib/WLAN.py              ./lib/WLAN.py
+#../lib/ota/httpclient.py    ./lib/ota/httpclient.py
+#../lib/ota/ota_updater.py   ./lib/ota/ota_updater.py
 ../master/main.py           ./main.py
 ../master/master.py         ./master.py

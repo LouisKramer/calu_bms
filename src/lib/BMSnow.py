@@ -44,21 +44,20 @@ class BMSnowProtocol:
                               info.ntemp,
                               fw_bytes,
                               hw_bytes)
-        crc = binascii.crc32(payload).to_bytes(4, 'little')
-        return payload + crc
+        #crc = binascii.crc32(payload).to_bytes(4, 'little')
+        return payload# + crc
 
     @staticmethod
     def unpack_hello_msg(msg: bytes, info):
         payload = msg[:-4]
-        crc_calc = binascii.crc32(payload)
-        crc_rx = int.from_bytes(msg[-4:], 'little')
-        if crc_calc == crc_rx:
-            values = struct.unpack('<BBHH32s32s', payload)
-            info.addr   = values[1]
-            info.ncell  = values[2]
-            info.ntemp  = values[3]
-            info.fw_ver = values[4].rstrip(b'\x00').decode('utf-8', errors='ignore')
-            info.hw_ver = values[5].rstrip(b'\x00').decode('utf-8', errors='ignore')
+        #crc_calc = binascii.crc32(payload)
+        #crc_rx = int.from_bytes(msg[-4:], 'little')
+        values = struct.unpack('<BBHH32s32s', msg)
+        info.addr   = values[1]
+        info.ncell  = values[2]
+        info.ntemp  = values[3]
+        info.fw_ver = values[4].rstrip(b'\x00').decode('utf-8', errors='ignore')
+        info.hw_ver = values[5].rstrip(b'\x00').decode('utf-8', errors='ignore')
         return info
 
     @staticmethod
