@@ -1,9 +1,3 @@
-# common.py
-from machine import RTC
-import struct
-import time
-
-
 default_soc_cfg = {
     'capacity_ah': 100.0,
     'num_cells': 16,

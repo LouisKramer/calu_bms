@@ -1,10 +1,7 @@
-import time, binascii, os, json
 from common.common import *
 from common.logger import *
-import asyncio
 
 log_slave=Logger()
-
 # ----------------------------------------------------------------------
 #  Slaves – dynamic container with a hard upper limit (MAX_NR_OF_SLAVES)
 # ----------------------------------------------------------------------
@@ -73,66 +70,6 @@ class Slaves:
 
     def is_known(self, mac) -> bool:
         return any(s is not None and s.battery.info.mac == mac for s in self._slaves)
-
-    # ------------------------------------------------------------------
-    #  Sync / GC helpers 
-    # ------------------------------------------------------------------
-    def sync_slaves(self, e):
-        self.T1 = time.ticks_us()
-        e.send(None, pack_sync_req(self.T1)) # send sync to all peers
-
-    def check_sync_ack(self, msg, mac, e):
-        T1,T2 = unpack_sync_ack(msg)
-        s = self.get_by_mac(mac)
-        deadline = time.ticks_add(self.T1, SYNC_DEADLINE)
-        if time.ticks_diff(deadline, time.ticks_us()) > 0:
-            log_slave.info(f"ACK from {log_slave.mac_to_str(mac)} T2={T2}")
-            s.last_seen = time.ticks_us()
-            T3 = time.ticks_us()
-            e.send(mac, pack_sync_ref(self.T1, T2, T3))
-        else:
-            log_slave.warn("Late ACK from", log_slave.mac_to_str(mac), "ignored")
-
-    async def sync_slaves_task(self, e):
-        while True:
-            try: 
-                self.sync_slaves(e)
-                log_slave.info("Syncing slaves:")
-            except Exception as e:
-                log_slave.warn(e)
-            await asyncio.sleep(self.sync_interval)
-
-    # ------------------------------------------------------------------
-    #  Message listener 
-    # ------------------------------------------------------------------
-    def slave_listener(self, e):
-        while True:
-            mac, msg = e.irecv(0)
-            if mac is None or not msg:
-                return
-            log_slave.info(f"Received message from: {log_slave.mac_to_str(mac)}")    
-            msg_type = msg[0]
-
-            # ---------- SYNC ACK ----------
-            if msg_type == SYNC_ACK_MSG:
-                if not self.is_known(mac):
-                    e.send(mac, pack_reconnect())
-                else:
-                    self.check_sync_ack(msg, mac, e)
-
-            # ---------- SYNC FIN ----------
-            elif msg_type == SYNC_FIN_MSG:
-                if not self.is_known(mac):
-                    e.send(mac, pack_reconnect())
-                else:
-                    s = self.get_by_mac(mac)
-                    s.last_seen = time.ticks_us()
-                    s.synced = True
-
-            # ---------- UNKNOWN ----------
-            else:
-                #e.send(mac, pack_reconnect())
-                log_slave.warn(f"Unknown message type from: {log_slave.mac_to_str(mac)}")
     
 class virt_slave(Slaves):
     def __init__(self, info: info_data):
