@@ -141,6 +141,6 @@ class Slaves:
 class virt_slave(Slaves):
     def __init__(self, info: info_data):
         self.battery = battery()
-        self.battery.info.set (info_data)
+        self.battery.info.set(info_data)
         self.battery.create_measurements()
     

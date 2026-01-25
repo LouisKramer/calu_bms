@@ -139,3 +139,7 @@ class Logger:
 
     def error(self, msg):
         asyncio.create_task(self._log('error', msg))
+    
+    #helpers
+    def mac_to_str(self,mac):
+        return ':'.join('{:02x}'.format(b) for b in mac)

@@ -56,8 +56,8 @@ class BMSnowProtocol:
         info.addr   = values[1]
         info.ncell  = values[2]
         info.ntemp  = values[3]
-        info.fw_ver = values[4].rstrip(b'\x00').decode('utf-8', errors='ignore')
-        info.hw_ver = values[5].rstrip(b'\x00').decode('utf-8', errors='ignore')
+        info.fw_ver = values[4].rstrip(b'\x00').decode('utf-8')
+        info.hw_ver = values[5].rstrip(b'\x00').decode('utf-8')
         return info
 
     @staticmethod
@@ -125,30 +125,34 @@ class BMSnowComm:
         self.log.info(f"{self.role} communication layer started")
         self.e.irq(self._on_recv_irq)
 
-    def _on_recv_irq(self):
+    def _on_recv_irq(self,es):
         """Fast IRQ handler - schedule processing"""
+        self.log.info(f"Received data on esp")
         try:
             while True:
-                mac, msg = self.e.irecv(timeout_ms=0)
+                mac, msg = self.e.irecv(0)
+                data = [mac,msg]
                 if mac is None:
                     break
                 if msg:
-                    micropython.schedule(self._process_message, mac, msg)
+                    micropython.schedule(self._process_message, data)
         except Exception as e:
             self.log.error(f"IRQ receive error: {e}")
 
-    def _process_message(self, mac, msg):
+    def _process_message(self, data):
         """Scheduled from IRQ - can take more time"""
+        mac = data[0]
+        msg = data[1]
+
         if not msg or len(msg) == 0:
             return
-
         msg_type = msg[0]
         # Here you would normally set self.state.com_active = True
         # but state belongs to the concrete role instance
 
         handler_map = self.get_message_handlers()
         handler = handler_map.get(msg_type)
-
+#
         if handler:
             try:
                 handler(mac, msg)
@@ -180,7 +184,7 @@ class BMSnowMaster(BMSnowComm):
             # Add others as needed
         }
 
-    async def start(self):
+    def start(self):
         self.log.info("Start BMSnowMaster")
         super().start()
         asyncio.create_task(self._discovery_task())
@@ -228,13 +232,21 @@ class BMSnowMaster(BMSnowComm):
         info = info_data()
         self.protocol.unpack_hello_msg(msg, info)
         info.mac = mac
-
         s = self.slaves.get_by_mac(mac)
-        if s is None:
+        if s != None:
+            test_mac=s.battery.info.mac
+        else:
+            test_mac=BMSnowProtocol.BROADCAST
+        self.log.info(f"Hello from: {self.log.mac_to_str(mac)}, {self.slaves.nr_of_slaves()}, {self.log.mac_to_str(test_mac)}")
+        
+        #self.slaves.is_known(mac)
+        if not self.slaves.is_known(mac):
             self.e.add_peer(mac)
             self.slaves.push(info)
             self.log.info(f"New slave discovered: {self.log.mac_to_str(mac)}")
         else:
+            self.log.info(f"Update info from: {self.log.mac_to_str(mac)}")
+            s = self.slaves.get_by_mac(mac)
             s.battery.info.set(info)
 
         self.send(mac, self.protocol.pack_welcome())
@@ -255,7 +267,7 @@ class BMSnowMaster(BMSnowComm):
             self.log.warn(f"Config ACK from unknown: {self.log.mac_to_str(mac)}")
 
 class BMSnowSlave(BMSnowComm):
-    WLAN_CHANNELS = range(1, 14)
+    WLAN_CHANNELS = [1,6,11]
 
     def __init__(self, battery):
         super().__init__("slave")
@@ -275,7 +287,7 @@ class BMSnowSlave(BMSnowComm):
 
     async def start(self):
         super().start()
-        asyncio.create_task(self._channel_monitor_task())
+        #asyncio.create_task(self._channel_monitor_task())
 
     async def _set_channel(self, ch):
         try:
@@ -291,6 +303,7 @@ class BMSnowSlave(BMSnowComm):
             if not self.state.channel_found:
                 self.log.info("Channel not found - starting scan")
                 for ch in self.WLAN_CHANNELS:
+                    self.log.info(f"Scanning channel {ch}")
                     await self._set_channel(ch)
                     await asyncio.sleep(15)
             else:

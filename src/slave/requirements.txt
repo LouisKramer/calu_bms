@@ -1,11 +1,13 @@
 # local path     destination path
 ../common/common.py         ./common/common.py
 ../common/logger.py         ./common/logger.py
+../common/credentials.py    ./common/credentials.py
 ../common/boot.py           ./boot.py
 ../lib/ADS1118.py           ./lib/ADS1118.py
 ../lib/DS18B20.py           ./lib/DS18B20.py
 ../lib/PCA9685.py           ./lib/PCA9685.py
 ../lib/SN74HC154.py         ./lib/SN74HC154.py
-../slave/listener.py        ./listener.py
+../lib/BMSnow.py            ./lib/BMSnow.py
+../lib/virt_slave.py        ./lib/virt_slave.py
 ../slave/main.py            ./main.py
 ../slave/slave.py           ./slave.py

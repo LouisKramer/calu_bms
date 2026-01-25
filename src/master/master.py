@@ -10,22 +10,16 @@ from lib.ACS71240 import *
 from lib.ADS1118 import *
 from lib.DS18B20 import *
 from lib.RELAY import *
-#from lib.CAN import * Wait for support in micropython-esp32
 from lib.SOC import BatterySOC, autosave_task
-#from lib.battery_protection import BatteryProtection
 from lib.NTP import *
 from lib.virt_slave import *
-import machine
 from lib.BMSnow import BMSnowMaster
 from lib.WLAN import WlanManager
+#from lib.CAN import * Wait for support in micropython-esp32
+#from lib.battery_protection import BatteryProtection
 # ========================================
 # CONFIG
 # ========================================
-NTP_HOST = "pool.ntp.org"
-NTP_PORT = 123
-NTP_TIMEOUT = 5  # seconds
-NTP_SYNC_INTERVAL = 3600
-
 SLAVE_SYNC_INTERVAL = 10
 SLAVE_TTL = 3600
 
@@ -54,29 +48,29 @@ CAN_RX_PIN = 39
 # ========================================
 # INIT
 # ========================================
+log = Logger()
+log.info("Starting wifi manager")
 wifi = WlanManager(ssid=WIFI_SSID, password=WIFI_PASS, hostname=WIFI_HOST, led_pin=LED_USER_PIN)
+wifi.start()
 rtc = RTC()
-log_rel = Logger()
-log_rel.info("Startup system")
+log.info("Startup system")
 # ========================================
 # MAIN
 # ========================================
 async def main():
-    log_rel.info("Starting main application")
-    log_rel.info("Starting wifi manager")
-    await wifi.start()
-    await asyncio.sleep(5)
+    log.info("Starting main application")
+
     # TODO:add watchdog
     slaves = Slaves()
     master = BMSnowMaster(slaves=slaves)
-    await master.start()
+    master.start()
 
     int_rel0 = Relay(pin=INT_REL0_PIN, active_high=True)
     int_rel1 = Relay(pin=INT_REL1_PIN, active_high=True)
     ext_rel0 = Relay(pin=EXT_REL0_PIN, active_high=True)
-    int_rel0.test(cycles=3, on_time=0.1, off_time=0.1)
-    int_rel1.test(cycles=3, on_time=0.1, off_time=0.1)
-    ext_rel0.test(cycles=3, on_time=0.1, off_time=0.1)
+    #int_rel0.test(cycles=3, on_time=0.05, off_time=0.05)
+    #int_rel1.test(cycles=3, on_time=0.05, off_time=0.05)
+    #ext_rel0.test(cycles=3, on_time=0.05, off_time=0.05)
     cur = ACS71240(viout_pin=ADC_CURRENT_BAT_PIN, fault_pin=CURRENT_FAULT_PIN)
     cur.calibrate_zero()
     spi = SoftSPI(baudrate=1000000, polarity=0, phase=0, sck=Pin(SPI_SCLK_PIN), mosi=Pin(SPI_MOSI_PIN), miso=Pin(SPI_MISO_PIN))
@@ -92,32 +86,32 @@ async def main():
     ntp_sync_task = asyncio.create_task(ntp.ntp_task())
 
     for i in range(1,10):
-        log_rel.info(f"Initial waiting for slaves to connect")
+        log.info(f"Initial waiting for slaves to connect")
         await asyncio.sleep(1)
 
     if slaves.nr_of_slaves() == 0:
-        log_rel.warn("No slaves connected after 60s, check connections!")
+        log.warn("No slaves connected after 60s, check connections!")
     else:
-        log_rel.info(f"{slaves.nr_of_slaves()} slaves connected.")
+        log.info(f"{slaves.nr_of_slaves()} slaves connected.")
 
     #slave_sync_task = asyncio.create_task(slaves.sync_slaves_task(e))
     #slave_gc_task = asyncio.create_task(slaves.slave_gc())
     
-    log_rel.info("Initialization complete, entering main loop.")
+    log.info("Initialization complete, entering main loop.")
     while True:
         master.request_all_data()
         current = cur.read_current(samples=10)
-        log_rel.info(f"Current: {current} A")
+        log.info(f"Current: {current} A")
         bat_vol = await vol.read_voltage(channel=0)
         inv_vol = await vol.read_voltage(channel=1)
         vol_temp = await vol.read_temperature()
-        log_rel.info(f"Battery Voltage: {bat_vol}, Inverter Voltage: {inv_vol}, ADC Temp: {vol_temp}")
+        log.info(f"Battery Voltage: {bat_vol}, Inverter Voltage: {inv_vol}, ADC Temp: {vol_temp}")
         temp = tmp.get_temperatures()
-        log_rel.info(f"Temperatures: {temp}")
+        log.info(f"Temperatures: {temp}")
 
         avg_temp = sum(temp)/len(temp) if len(temp)>0 else 25.0 #change to sting temp
         soc = max(0, int(round(await soc_estimator.update(current, bat_vol, avg_temp))))
-        log_rel.info(f"Estimated SOC: {soc} %")
+        log.info(f"Estimated SOC: {soc} %")
 
         #FIXME: protector should consider  and string temperatures.
         #prot_status = await protector.update(v_cells, bat_vol, current, temp, soc)

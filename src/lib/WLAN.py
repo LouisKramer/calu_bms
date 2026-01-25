@@ -65,12 +65,13 @@ class WlanManager:
             self.led.value(not self.led.value())
             await asyncio.sleep_ms(self.blink_interval)
             
-        print("Connected! IP:", self.wlan.ifconfig()[0])
+        print(f"Connected! IP: {self.wlan.ifconfig()[0]} channel: {self.wlan.config('channel')}")
         self._connecting = False
         self.led.off()                           # ON (active-low)
         return True
 
     async def _monitor_and_reconnect(self):
+        await self.connect_once()
         while self._running:
             if self._connecting:
                 # Blink: toggle between ON (off) and OFF (on)
@@ -93,12 +94,10 @@ class WlanManager:
                 
             await asyncio.sleep(self.check_interval)
 
-    async def start(self):
+    def start(self):
         if self._running:
             return
-            
         self._running = True
-        await self.connect_once()
         self._task = asyncio.create_task(self._monitor_and_reconnect())
         print(f"WiFi reconnector started (hostname: {network.hostname()})")
 

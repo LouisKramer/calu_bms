@@ -3,23 +3,24 @@ import asyncio
 from common.logger import *
 from machine import RTC
 
-ntp_log = Logger()
+log_ntp = Logger()
 class ntp_sync:
     def __init__(self, host, port, timeout, interval):
         self.host = host
         self.port = port
         self.timeout = timeout
-        self.interval = interval
+        self.interval = 5 #inital interval
+        self.normal_interval = interval
         self.rtc = RTC()
     async def sync_with_ntp(self):
-        ntp_log.info("Syncing with NTP server...")
+        log_ntp.info("Syncing with NTP server...")
         ntp_packet = bytearray(48)
         ntp_packet[0] = 0x1B  # LI=0, VN=3, Mode=3 (client)
-
-        addr = socket.getaddrinfo(self.host, self.port)[0][-1]
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.settimeout(self.timeout)
+        s = None
         try:
+            addr = socket.getaddrinfo(self.host, self.port)[0][-1]
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.settimeout(self.timeout)
             s.sendto(ntp_packet, addr)
             # Use asyncio.sleep to allow other tasks to run while waiting
             await asyncio.sleep(0.1)
@@ -32,16 +33,17 @@ class ntp_sync:
             tm = time.gmtime(epoch)
             # MicroPython RTC expects weekday in range 1-7 (Monday=1), utime.gmtime gives 0-6 (Monday=0)
             self.rtc .datetime((tm[0], tm[1], tm[2], tm[6] + 1, tm[3], tm[4], tm[5], 0))
-            ntp_log.info(f"RTC set to UTC:{self.rtc.datetime()}")
+            log_ntp.info(f"RTC set to UTC:{self.rtc.datetime()}")
+            self.interval = self.normal_interval
         except Exception as ex:
-            ntp_log.warn(f"NTP sync failed: using default fallback (2024-01-01) {ex}")
-            fallback_epoch = 1704067200
+            log_ntp.warn(f"NTP sync failed: using default fallback (2024-01-01) {ex}")
+            fallback_epoch = 0
             tm = time.gmtime(fallback_epoch)
             self.rtc.datetime((tm[0], tm[1], tm[2], tm[6] + 1, tm[3], tm[4], tm[5], 0))
-            ntp_log.info(f"RTC set to fallback UTC:{self.rtc .datetime()}")
-            return False
+            log_ntp.info(f"RTC set to fallback UTC:{self.rtc .datetime()}")
         finally:
-            s.close()
+            if s:
+                s.close()
 
     async def ntp_task(self):
         while True:

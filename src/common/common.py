@@ -55,11 +55,13 @@ class battery:
     def create_measurements(self):
         """Call this after you know ncell & ntemp"""
         self.meas = meas_data(self) 
+        
 class status_data:
     def __init__(self):
         self.channel_found = False
         self.com_active = False
         self.synced = False
+
 class info_data:
     def __init__(self):
         self.mac        = b''
@@ -82,10 +84,10 @@ class info_data:
             self.time       =    other.time       
 
 class meas_data:
-    def __init__(self, info: battery):
-        self.vcell = [0] * info.ncell
+    def __init__(self, bat: battery):
+        self.vcell = [0] * bat.info.ncell
         self.vstr = 0
-        self.temps = [0] * info.ntemp
+        self.temps = [0] * bat.info.ntemp
 
 class conf_data:
     def __init__(self):

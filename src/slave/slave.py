@@ -1,12 +1,15 @@
 # slave.py
 import network, espnow, time, machine
 from machine import Pin, SoftSPI, SoftI2C, RTC
+import asyncio
+from common.logger import Logger
+from common.common import *
+from common.credentials import *
+Logger.init(syslog_host=SYSLOG_HOST)
 from lib.SN74HC154 import SN74HC154
 from lib.ADS1118 import *
 from lib.PCA9685 import *
 from lib.DS18B20 import *
-from listener import *
-import asyncio
 from lib.BMSnow import BMSnowSlave
 # ========================================
 # CONFIG
@@ -52,13 +55,12 @@ else:
 # INIT
 # ========================================
 time.sleep(2)
-log = create_logger("system", level=LogLevel.INFO, syslog=False)
-log.info("Init System", ctx="boot")
+log = Logger()
+log.info("Init System")
 wlan = network.WLAN(network.STA_IF)
 wlan.active(True)
 #TODO: check for updates
-wlan.config(channel=1)
-wlan.config(pm=network.WIFI_PS_NONE)
+wlan.config(channel=11)
 wlan.disconnect()
 print(f"Wlan channel: {wlan.config('channel')}")
 
@@ -70,11 +72,11 @@ print(f"Wlan channel: {wlan.config('channel')}")
 # MAIN
 # ========================================
 async def main():
-    log.info("Starting main application...", ctx="main")
+    log.info("Starting main application...")
     bat = battery()
     bat.info.mac = machine.unique_id()
-    bat.info.addr = read_string_address()
-    log.info(f"String address set to {bat.info.addr}", ctx="boot")
+    bat.info.addr = 2#read_string_address()
+    log.info(f"String address set to {bat.info.addr}")
     tmp = DS18B20(data_pin=OWM_TEMP_PIN, pullup=False)
     bat.info.ntemp = tmp.number_of_sensors()
     bat.info.ncell = 32 # Place Holder
@@ -121,11 +123,12 @@ async def main():
     #        await asyncio.sleep(10)
             
     # We are ready to show ourselves to the master
-    con = BMSnowSlave(bat)
-    asyncio.run(con.start())
+    slave = BMSnowSlave(bat)
+    await slave.start()
 
     even_odd_flag = False
     while True:
+        log.info("main loop")
         # Read voltages
         #voltages = await read_all_adc()
         #log.info(f"Cell Voltages: {voltages}", ctx="main")
@@ -156,7 +159,7 @@ async def main():
         #                pcas[1].off(i)
         #    for pca in pcas:
         #        pca.all_off()
-        await asyncio.sleep(1)
+        await asyncio.sleep(10)
 
 async def read_all_adc(adcs):
     """
