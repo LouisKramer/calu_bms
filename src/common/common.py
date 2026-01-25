@@ -10,6 +10,19 @@ default_soc_cfg = {
     'relaxed_hold_time': 30.0,
     'sampling_interval': 2.0
 }
+class soc_config:
+    def __init__(self):
+        self.capacity_ah                = 100.0
+        self.num_cells                  = 0
+        self.initial_soc                = 80.0
+        self.cell_ir                    = 0.004           # 4 mΩ at 25°C
+        self.ir_ref_temp                = 25.0
+        self.ir_temp_coeff              = 0.004       # 0.4%/°C
+        self.current_threshold          = 1.0
+        self.voltage_stable_threshold   = 0.01
+        self.relaxed_hold_time          = 30.0
+        self.sampling_interval          = 2.0
+
 
 default_prot_cfg = {
     'inverter_en_pin': 15,
