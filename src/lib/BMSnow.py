@@ -114,7 +114,7 @@ class BMSnowProtocol:
 class BMSnowComm:
     def __init__(self, role: str):
         self.role = role.lower()
-        self.log = create_logger(f"BMSnow-{role}", level=LogLevel.INFO)
+        self.log = Logger()
         self.log.info(f"Init BMSnow")
         self.e = espnow.ESPNow()
         self.e.active(True)

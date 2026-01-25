@@ -7,7 +7,7 @@ from machine import Pin
 import time
 from common.logger import *
 
-log = create_logger("relay", level=LogLevel.INFO)
+log_rel = Logger()
 
 class Relay:
     """
@@ -32,7 +32,7 @@ class Relay:
 
     def on(self):
         """Turn the relay on"""
-        log.info("Turning relay ON", ctx="relay")
+        log_rel.info("Turning relay ON")
         if self._active_high:
             self._pin.value(1)
         else:
@@ -40,7 +40,7 @@ class Relay:
 
     def off(self):
         """Turn the relay off"""
-        log.info("Turning relay OFF", ctx="relay")
+        log_rel.info("Turning relay OFF")
         if self._active_high:
             self._pin.value(0)
         else:
@@ -48,7 +48,7 @@ class Relay:
 
     def toggle(self):
         """Toggle the current relay state."""
-        log.info("Toggling relay state", ctx="relay")
+        log_rel.info("Toggling relay state")
         self._pin.value(not self._pin.value())
 
     def state(self) -> bool:
@@ -65,13 +65,13 @@ class Relay:
             on_time (float): Time in seconds the relay stays ON
             off_time (float): Time in seconds the relay stays OFF
         """
-        log.info("Starting relay test routine...", ctx="relay-test")
-        log.info(f"Pin: GPIO{self._pin}, Active {'HIGH' if self._active_high else 'LOW'}" , ctx="relay-test")
-        log.info(f"Performing {cycles} cycles (ON {on_time}s / OFF {off_time}s)\n", ctx="relay-test")
+        log_rel.info("Starting relay test routine...")
+        log_rel.info(f"Pin: GPIO{self._pin}, Active {'HIGH' if self._active_high else 'LOW'}")
+        log_rel.info(f"Performing {cycles} cycles (ON {on_time}s / OFF {off_time}s)\n")
         for i in range(cycles):
                 self.on()
                 time.sleep(on_time)
                 self.off()
                 time.sleep(off_time)
         self.off()  # Ensure relay is off when test ends
-        log.info("Relay test completed successfully!", ctx="relay-test")
+        log_rel.info("Relay test completed successfully!")

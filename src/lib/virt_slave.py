@@ -3,7 +3,7 @@ from common.common import *
 from common.logger import *
 import asyncio
 
-log_slave=create_logger("slave_handler", level=LogLevel.INFO)
+log_slave=Logger()
 
 # ----------------------------------------------------------------------
 #  Slaves – dynamic container with a hard upper limit (MAX_NR_OF_SLAVES)
@@ -11,7 +11,7 @@ log_slave=create_logger("slave_handler", level=LogLevel.INFO)
 class Slaves:
     MAX_NR_OF_SLAVES = 16    
     def __init__(self):
-        log_slave.info("Initializing slave handler...", ctx="slave_handler")
+        log_slave.info("Initializing slave handler...")
 
         self.T1 = 0
         # start with an *empty* list – we grow only when push() is called
@@ -37,9 +37,9 @@ class Slaves:
     def push(self, info: info_data):
         """Add a new slave if there is room"""
         if len(self._slaves) >= self.MAX_NR_OF_SLAVES:
-            log_slave.warn(f"Cannot add more than {self.MAX_NR_OF_SLAVES} slaves", ctx="slave handler")
+            log_slave.warn(f"Cannot add more than {self.MAX_NR_OF_SLAVES} slaves")
         else:
-            log_slave.info(f"Add slave {log_slave.mac_to_str(info.mac)} to list", ctx="slave handler")
+            log_slave.info(f"Add slave {log_slave.mac_to_str(info.mac)} to list")
             new = virt_slave(info)
             self._slaves.append(new)
 
@@ -49,7 +49,7 @@ class Slaves:
             if s is not None and s.mac == mac:
                 self._slaves[i] = None          # keep a hole – list stays compact
                 return True
-        log_slave.warn(f"Unable to remove slave {log_slave.mac_to_str(mac)} from list", ctx="slave handler")
+        log_slave.warn(f"Unable to remove slave {log_slave.mac_to_str(mac)} from list")
         return False
 
     def get_by_mac(self, mac):
@@ -79,29 +79,29 @@ class Slaves:
         s = self.get_by_mac(mac)
         deadline = time.ticks_add(self.T1, SYNC_DEADLINE)
         if time.ticks_diff(deadline, time.ticks_us()) > 0:
-            log_slave.info(f"ACK from {log_slave.mac_to_str(mac)} T2={T2}", ctx="slave sync")
+            log_slave.info(f"ACK from {log_slave.mac_to_str(mac)} T2={T2}")
             s.last_seen = time.ticks_us()
             T3 = time.ticks_us()
             e.send(mac, pack_sync_ref(self.T1, T2, T3))
         else:
-            log_slave.warn("Late ACK from", log_slave.mac_to_str(mac), "ignored", ctx="slave handler")
+            log_slave.warn("Late ACK from", log_slave.mac_to_str(mac), "ignored")
 
     async def sync_slaves_task(self, e):
         while True:
             try: 
                 self.sync_slaves(e)
-                log_slave.info("Syncing slaves:", ctx="slave sync")
+                log_slave.info("Syncing slaves:")
             except Exception as e:
-                log_slave.warn(e, ctx="slave sync")
+                log_slave.warn(e)
             await asyncio.sleep(self.sync_interval)
 
     async def slave_gc(self):
         while True:
-            log_slave.info(f"Run slave GC", ctx="slave handler")
+            log_slave.info(f"Run slave GC")
             now = time.ticks_us()
             for slave in self._slaves:
                 if slave and time.ticks_diff(now, slave.last_seen) > self.ttl * 1_000_000:
-                    log_slave.info("Removing inactive slave:", log_slave.mac_to_str(slave.mac), ctx="slave sync")
+                    log_slave.info("Removing inactive slave:", log_slave.mac_to_str(slave.mac))
                     # replace with None – keeps the list length stable
                     self._slaves[self._slaves.index(slave)] = None
             await asyncio.sleep(self.ttl)
@@ -114,7 +114,7 @@ class Slaves:
             mac, msg = e.irecv(0)
             if mac is None or not msg:
                 return
-            log_slave.info(f"Received message from: {log_slave.mac_to_str(mac)}", ctx="slave handler")    
+            log_slave.info(f"Received message from: {log_slave.mac_to_str(mac)}")    
             msg_type = msg[0]
 
             # ---------- SYNC ACK ----------
@@ -136,7 +136,7 @@ class Slaves:
             # ---------- UNKNOWN ----------
             else:
                 #e.send(mac, pack_reconnect())
-                log_slave.warn(f"Unknown message type from: {log_slave.mac_to_str(mac)}", ctx="slave handler")
+                log_slave.warn(f"Unknown message type from: {log_slave.mac_to_str(mac)}")
     
 class virt_slave(Slaves):
     def __init__(self, info: info_data):

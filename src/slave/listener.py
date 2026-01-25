@@ -48,7 +48,7 @@ class ESPNowSlave():
     ):
         self.slave = slave # reference to parent class
         self.master_mac = b''
-        self.log = create_logger("slave", level=LogLevel.INFO, syslog=False)
+        self.log = create_logger("slave", level=LogLevel.INFO)
 
         self.offset_us = 0
         self.last_sync_us = time.ticks_us()

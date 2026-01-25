@@ -13,4 +13,5 @@ TODO:
 
 - Future improvements
     - rework logger to use one shared worker with queue
+    - add crc check to BMSnowProtocol's
     - Add CAN support
