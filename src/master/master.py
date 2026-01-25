@@ -68,9 +68,9 @@ async def main():
     int_rel0 = Relay(pin=INT_REL0_PIN, active_high=True)
     int_rel1 = Relay(pin=INT_REL1_PIN, active_high=True)
     ext_rel0 = Relay(pin=EXT_REL0_PIN, active_high=True)
-    #int_rel0.test(cycles=3, on_time=0.05, off_time=0.05)
-    #int_rel1.test(cycles=3, on_time=0.05, off_time=0.05)
-    #ext_rel0.test(cycles=3, on_time=0.05, off_time=0.05)
+    int_rel0.test(cycles=3, on_time=0.05, off_time=0.05)
+    int_rel1.test(cycles=3, on_time=0.05, off_time=0.05)
+    ext_rel0.test(cycles=3, on_time=0.05, off_time=0.05)
     cur = ACS71240(viout_pin=ADC_CURRENT_BAT_PIN, fault_pin=CURRENT_FAULT_PIN)
     cur.calibrate_zero()
     spi = SoftSPI(baudrate=1000000, polarity=0, phase=0, sck=Pin(SPI_SCLK_PIN), mosi=Pin(SPI_MOSI_PIN), miso=Pin(SPI_MISO_PIN))
@@ -85,19 +85,11 @@ async def main():
     ntp = ntp_sync(NTP_HOST, NTP_PORT, NTP_TIMEOUT, NTP_SYNC_INTERVAL)
     ntp_sync_task = asyncio.create_task(ntp.ntp_task())
 
-    for i in range(1,10):
-        log.info(f"Initial waiting for slaves to connect")
-        await asyncio.sleep(1)
-
-    if slaves.nr_of_slaves() == 0:
-        log.warn("No slaves connected after 60s, check connections!")
-    else:
-        log.info(f"{slaves.nr_of_slaves()} slaves connected.")
-
     #slave_sync_task = asyncio.create_task(slaves.sync_slaves_task(e))
     #slave_gc_task = asyncio.create_task(slaves.slave_gc())
     
     log.info("Initialization complete, entering main loop.")
+
     while True:
         master.request_all_data()
         current = cur.read_current(samples=10)
@@ -116,6 +108,8 @@ async def main():
         #FIXME: protector should consider  and string temperatures.
         #prot_status = await protector.update(v_cells, bat_vol, current, temp, soc)
         #can_bus.send_status(prot_status)
+        for s in slaves:
+            log.info(f"Voltages: {s.battery.meas.vcell}")
         await asyncio.sleep(default_soc_cfg['sampling_interval'])
 
 # ----------------------------------------------------------------------

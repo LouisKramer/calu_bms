@@ -1,5 +1,5 @@
 # slave.py
-import network, espnow, time, machine
+import network, espnow, time, machine, random
 from machine import Pin, SoftSPI, SoftI2C, RTC
 import asyncio
 from common.logger import Logger
@@ -60,7 +60,7 @@ log.info("Init System")
 wlan = network.WLAN(network.STA_IF)
 wlan.active(True)
 #TODO: check for updates
-wlan.config(channel=11)
+wlan.config(channel=1)
 wlan.disconnect()
 print(f"Wlan channel: {wlan.config('channel')}")
 
@@ -75,7 +75,7 @@ async def main():
     log.info("Starting main application...")
     bat = battery()
     bat.info.mac = machine.unique_id()
-    bat.info.addr = 2#read_string_address()
+    bat.info.addr = 1#read_string_address()
     log.info(f"String address set to {bat.info.addr}")
     tmp = DS18B20(data_pin=OWM_TEMP_PIN, pullup=False)
     bat.info.ntemp = tmp.number_of_sensors()
@@ -129,6 +129,8 @@ async def main():
     even_odd_flag = False
     while True:
         log.info("main loop")
+        bat.meas.vcell = [round(random.uniform(3.0, 4.2), 3) for _ in range(bat.info.ncell)]
+        bat.meas.vstr = 48.5
         # Read voltages
         #voltages = await read_all_adc()
         #log.info(f"Cell Voltages: {voltages}", ctx="main")
@@ -137,8 +139,9 @@ async def main():
         #if SLAVE_MAX :
         #    cell_voltages_2 = voltages[17:32]
         #    string_voltage_2 = voltages[33]
-        #temps = tmp.get_temperatures()
-        #log.info(f"Temperatures: {temps}", ctx="main")
+        temps = tmp.get_temperatures()
+        bat.meas.temps = [temps[0]]
+        log.info(f"Temperatures: {temps}")
 
         ## Balancing
         ## TODO: odd and even Balancing must be synced over all slaves!!!!!!
@@ -159,7 +162,7 @@ async def main():
         #                pcas[1].off(i)
         #    for pca in pcas:
         #        pca.all_off()
-        await asyncio.sleep(10)
+        await asyncio.sleep(1)
 
 async def read_all_adc(adcs):
     """

@@ -12,7 +12,7 @@ class Logger:
     _event = asyncio.Event()
     _file = '/logs/app.log'
     _max_size = 10240  # 10 KB default
-    _max_files = 5
+    _max_files = 3
     _syslog_host = None
     _syslog_port = 514
     _task = None

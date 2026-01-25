@@ -14,7 +14,7 @@ default_soc_cfg = {
     'current_threshold': 1.0,
     'voltage_stable_threshold': 0.01,
     'relaxed_hold_time': 30.0,
-    'sampling_interval': 5.0
+    'sampling_interval': 2.0
 }
 
 default_prot_cfg = {
@@ -61,6 +61,7 @@ class status_data:
         self.channel_found = False
         self.com_active = False
         self.synced = False
+        self.ttl = 0
 
 class info_data:
     def __init__(self):
@@ -80,8 +81,7 @@ class info_data:
             self.ncell      =    other.ncell      
             self.ntemp      =    other.ntemp      
             self.fw_ver     =    other.fw_ver     
-            self.hw_ver     =    other.hw_ver     
-            self.time       =    other.time       
+            self.hw_ver     =    other.hw_ver          
 
 class meas_data:
     def __init__(self, bat: battery):

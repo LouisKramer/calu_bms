@@ -73,17 +73,17 @@ class BMSnowProtocol:
         return struct.pack('<B', BMSnowProtocol.DATA_REQ_MSG)
 
     @staticmethod
-    def pack_data_msg(data, info):
+    def pack_data_msg(data: meas_data, info: info_data):
         header = struct.pack('<BBB', BMSnowProtocol.DATA_MSG, info.ncell, info.ntemp)
-        payload = struct.pack(f'<{info.ncell}f f {info.ntemp}f',
+        payload = struct.pack(f'<{info.ncell}ff{info.ntemp}f',
                               *data.vcell, data.vstr, *data.temps)
         return header + payload
 
     @staticmethod
-    def unpack_data_msg(msg: bytes, data):
+    def unpack_data_msg(msg: bytes, data: meas_data):
         typ, nc, nt = struct.unpack_from('<BBB', msg)
-        payload_fmt = f'<{nc}f f {nt}f'
-        payload = struct.unpack_from(payload_fmt, msg, offset=3)
+        payload_fmt = f'<{nc}ff{nt}f'
+        payload = struct.unpack_from(payload_fmt, msg, 3)
         data.vcell = list(payload[:nc])
         data.vstr  = payload[nc]
         data.temps = list(payload[nc+1:])
@@ -127,7 +127,6 @@ class BMSnowComm:
 
     def _on_recv_irq(self,es):
         """Fast IRQ handler - schedule processing"""
-        self.log.info(f"Received data on esp")
         try:
             while True:
                 mac, msg = self.e.irecv(0)
@@ -188,6 +187,20 @@ class BMSnowMaster(BMSnowComm):
         self.log.info("Start BMSnowMaster")
         super().start()
         asyncio.create_task(self._discovery_task())
+        asyncio.create_task(self._connection_supervisor_task())
+
+    async def _connection_supervisor_task(self):
+        while True:
+            for s in self.slaves:
+                if s.battery.state.ttl <= 0:
+                    self.slaves.pop(s.battery.info)
+                    self.e.del_peer(s.battery.info.mac)
+                    #TODO: Trigger protection!!!
+                    self.log.warn(f"Communication timeout on slave {s.battery.info.addr}")
+                else:
+                    s.battery.state.ttl -= 1
+            await asyncio.sleep(2)
+
 
     async def _discovery_task(self):
         while True:
@@ -196,7 +209,7 @@ class BMSnowMaster(BMSnowComm):
                 self.log.info("Broadcasting SEARCH message")
             except Exception as e:
                 self.log.warn(f"Discovery broadcast failed: {e}")
-            await asyncio.sleep(5)
+            await asyncio.sleep(20) #TODO config
 
     def discover(self):
         self.send(BMSnowProtocol.BROADCAST, BMSnowProtocol.pack_search_msg())
@@ -207,9 +220,9 @@ class BMSnowMaster(BMSnowComm):
                 self.request_all_data()
             except Exception as e:
                 self.log.warn(f"Request data failed: {e}")
-            await asyncio.sleep(2)
+            await asyncio.sleep(2) #TODO: config
 
-    def request_data(self, battery):
+    def request_data(self, battery: battery):
         if battery.info.mac:
             self.send(battery.info.mac, BMSnowProtocol.pack_data_req_msg())
             self.log.info(f"Requested data from slave {battery.info.addr}")
@@ -233,35 +246,32 @@ class BMSnowMaster(BMSnowComm):
         self.protocol.unpack_hello_msg(msg, info)
         info.mac = mac
         s = self.slaves.get_by_mac(mac)
-        if s != None:
-            test_mac=s.battery.info.mac
-        else:
-            test_mac=BMSnowProtocol.BROADCAST
-        self.log.info(f"Hello from: {self.log.mac_to_str(mac)}, {self.slaves.nr_of_slaves()}, {self.log.mac_to_str(test_mac)}")
-        
-        #self.slaves.is_known(mac)
-        if not self.slaves.is_known(mac):
+        self.log.info(f"Hello from: {self.log.mac_to_str(mac)}")
+        if s is None:
             self.e.add_peer(mac)
-            self.slaves.push(info)
+            s = self.slaves.push(info)
+            s.battery.state.ttl = s.battery.conf.ttl
             self.log.info(f"New slave discovered: {self.log.mac_to_str(mac)}")
         else:
             self.log.info(f"Update info from: {self.log.mac_to_str(mac)}")
             s = self.slaves.get_by_mac(mac)
             s.battery.info.set(info)
-
+            
+        
         self.send(mac, self.protocol.pack_welcome())
 
     def _handle_data(self, mac, msg):
         s = self.slaves.get_by_mac(mac)
-        if s:
+        if s is not None:
             self.protocol.unpack_data_msg(msg, s.battery.meas)
+            s.battery.state.ttl = s.battery.conf.ttl
             self.log.info(f"Received data from {self.log.mac_to_str(mac)}")
         else:
             self.log.warn(f"Data from unknown slave: {self.log.mac_to_str(mac)}")
 
     def _handle_conf_ack(self, mac, msg):
         s = self.slaves.get_by_mac(mac)
-        if s:
+        if s is not None:
             self.log.info(f"Config ACK received from {self.log.mac_to_str(mac)}")
         else:
             self.log.warn(f"Config ACK from unknown: {self.log.mac_to_str(mac)}")
@@ -287,7 +297,7 @@ class BMSnowSlave(BMSnowComm):
 
     async def start(self):
         super().start()
-        #asyncio.create_task(self._channel_monitor_task())
+        asyncio.create_task(self._channel_monitor_task())
 
     async def _set_channel(self, ch):
         try:
@@ -305,10 +315,10 @@ class BMSnowSlave(BMSnowComm):
                 for ch in self.WLAN_CHANNELS:
                     self.log.info(f"Scanning channel {ch}")
                     await self._set_channel(ch)
-                    await asyncio.sleep(15)
+                    await asyncio.sleep(3)
             else:
                 if self.state.ttl <= 0:
-                    self.log.warning("Communication timeout - restarting scan")
+                    self.log.warn("Communication timeout - restarting scan")
                     self.state.channel_found = False
                     self.state.ttl = self.conf.ttl
                 elif self.state.com_active:
@@ -343,7 +353,7 @@ class BMSnowSlave(BMSnowComm):
                 rtc.datetime(rtc_tuple)
 
                 self.log.info(f"RTC set to UTC from master: {rtc.datetime()}")
-                self.log.info("Connected & time synchronized")
+                self.log.info(f"Responded to WELCOME from {self.log.mac_to_str(mac)} Connected & time synchronized")
             except Exception as e:
                 self.log.error(f"Failed to set RTC from WELCOME: {e}")
 

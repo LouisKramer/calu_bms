@@ -29,7 +29,7 @@ class Slaves:
         return (s for s in self._slaves if s is not None)
 
     def nr_of_slaves(self) -> int:
-        return len(self)
+        return len(self._slaves)
 
     # ------------------------------------------------------------------
     #  Core CRUD operations 
@@ -38,18 +38,25 @@ class Slaves:
         """Add a new slave if there is room"""
         if len(self._slaves) >= self.MAX_NR_OF_SLAVES:
             log_slave.warn(f"Cannot add more than {self.MAX_NR_OF_SLAVES} slaves")
+            return None
         else:
             log_slave.info(f"Add slave {log_slave.mac_to_str(info.mac)} to list")
             new = virt_slave(info)
+            for i, s in enumerate(self._slaves):
+                if s is None:
+                    self._slaves[i] = new
+                    return new
             self._slaves.append(new)
+            return new
 
-    def pop(self, mac) -> bool:
+    def pop(self, info: info_data) -> bool:
         """Remove slave identified by MAC address."""
         for i, s in enumerate(self._slaves):
-            if s is not None and s.mac == mac:
-                self._slaves[i] = None          # keep a hole – list stays compact
+            if s is not None and s.battery.info.mac == info.mac:
+                log_slave.info(f"Remove slave {log_slave.mac_to_str(info.mac)} from list")
+                del self._slaves[i]        # keep a hole – list stays compact
                 return True
-        log_slave.warn(f"Unable to remove slave {log_slave.mac_to_str(mac)} from list")
+        log_slave.warn(f"Unable to remove slave {log_slave.mac_to_str(info.mac)} from list")
         return False
 
     def get_by_mac(self, mac):
@@ -95,17 +102,6 @@ class Slaves:
                 log_slave.warn(e)
             await asyncio.sleep(self.sync_interval)
 
-    async def slave_gc(self):
-        while True:
-            log_slave.info(f"Run slave GC")
-            now = time.ticks_us()
-            for slave in self._slaves:
-                if slave and time.ticks_diff(now, slave.last_seen) > self.ttl * 1_000_000:
-                    log_slave.info("Removing inactive slave:", log_slave.mac_to_str(slave.mac))
-                    # replace with None – keeps the list length stable
-                    self._slaves[self._slaves.index(slave)] = None
-            await asyncio.sleep(self.ttl)
-
     # ------------------------------------------------------------------
     #  Message listener 
     # ------------------------------------------------------------------
@@ -141,6 +137,6 @@ class Slaves:
 class virt_slave(Slaves):
     def __init__(self, info: info_data):
         self.battery = battery()
-        self.battery.info.set(info_data)
+        self.battery.info.set(info)
         self.battery.create_measurements()
     

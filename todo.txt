@@ -12,5 +12,8 @@ TODO:
     - develop concept
 
 - Future improvements
+    - add ota at startup
     - add crc check to BMSnowProtocol's
     - Add CAN support
+    - Protection:
+        - Trigger if slave is lost. (see BMSnow::_connection_supervisor_task)
