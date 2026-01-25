@@ -90,7 +90,7 @@ class BMSnowProtocol:
         return data
 
     @staticmethod
-    def pack_config_msg(conf):
+    def pack_config_msg(conf: conf_data):
         return struct.pack('<Bff??',
                            BMSnowProtocol.CONF_MSG,
                            conf.bal_start_vol,
@@ -99,7 +99,7 @@ class BMSnowProtocol:
                            conf.bal_ext_en)
 
     @staticmethod
-    def unpack_config_msg(msg: bytes, conf):
+    def unpack_config_msg(msg: bytes, conf: conf_data):
         values = struct.unpack('<Bff??', msg)
         conf.bal_start_vol   = values[1]
         conf.bal_threshold   = values[2]
@@ -201,7 +201,6 @@ class BMSnowMaster(BMSnowComm):
                     s.battery.state.ttl -= 1
             await asyncio.sleep(2)
 
-
     async def _discovery_task(self):
         while True:
             try:
@@ -209,7 +208,7 @@ class BMSnowMaster(BMSnowComm):
                 self.log.info("Broadcasting SEARCH message")
             except Exception as e:
                 self.log.warn(f"Discovery broadcast failed: {e}")
-            await asyncio.sleep(20) #TODO config
+            await asyncio.sleep(20) #TODO config update rate
 
     def discover(self):
         self.send(BMSnowProtocol.BROADCAST, BMSnowProtocol.pack_search_msg())
@@ -220,7 +219,7 @@ class BMSnowMaster(BMSnowComm):
                 self.request_all_data()
             except Exception as e:
                 self.log.warn(f"Request data failed: {e}")
-            await asyncio.sleep(2) #TODO: config
+            await asyncio.sleep(2) #TODO: config update rate
 
     def request_data(self, battery: battery):
         if battery.info.mac:
@@ -231,7 +230,7 @@ class BMSnowMaster(BMSnowComm):
         for s in self.slaves:
             self.request_data(s.battery)
 
-    def configure(self, battery):
+    def configure(self, battery: battery):
         if battery.info.mac:
             self.send(battery.info.mac, BMSnowProtocol.pack_config_msg(battery.conf))
             self.log.info(f"Sent configuration to {battery.info.addr}")
@@ -256,8 +255,6 @@ class BMSnowMaster(BMSnowComm):
             self.log.info(f"Update info from: {self.log.mac_to_str(mac)}")
             s = self.slaves.get_by_mac(mac)
             s.battery.info.set(info)
-            
-        
         self.send(mac, self.protocol.pack_welcome())
 
     def _handle_data(self, mac, msg):
@@ -279,7 +276,7 @@ class BMSnowMaster(BMSnowComm):
 class BMSnowSlave(BMSnowComm):
     WLAN_CHANNELS = [1,6,11]
 
-    def __init__(self, battery):
+    def __init__(self, battery: battery):
         super().__init__("slave")
         self.battery = battery
         self.info = battery.info
