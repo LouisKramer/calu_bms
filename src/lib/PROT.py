@@ -6,26 +6,45 @@ from common.HAL import master_hal as HAL
 from lib.virt_slave import *
 
 class Protector:
-    PROT_STAGE_0 = 0 # no protection activated
-    PROT_STAGE_1 = 1 # SiC procection active
-    PROT_STAGE_2 = 2 # Stage 1 and external relay acivated.
-    def __init__(self, config: protection_config, slaves: Slaves = None, data: master_data = None):
+    PROT_STAGE_OFF      = 0 # not started
+    PROT_STAGE_STABLE   = 1 # inital state for achieving measurement stability
+    PROT_STAGE_0        = 2 # no protection activated
+    PROT_STAGE_1        = 3 # SiC procection active
+    PROT_STAGE_2        = 4 # Stage 1 and external relay acivated.
+    def __init__(self, slaves: Slaves = None, data: master_data = None):
         self.log            = Logger()
         self.wdt            = None
-        self.cfg            = config
+        self.cfg            = protection_config()
         self.slaves         = slaves
         self.data           = data
-        self.stage          = self.PROT_STAGE_0
-        self.stage_2_delay  = config.prot_rel_trigger_delay
+        self.stage          = self.PROT_STAGE_OFF
+        self.stage_stable_delay = 20 #TODO: find proper number
+        self.stage_2_delay  = self.cfg.prot_rel_trigger_delay
         self.sic_driver     = Pin(HAL.BAT_FAULT_PIN, Pin.OUT)
         self.rel_main       = Pin(HAL.INT_REL1_PIN, Pin.OUT)
         self.rel_pre_charge = Pin(HAL.INT_REL0_PIN, Pin.OUT)
         self.oc_in          = Pin(HAL.CURRENT_FAULT_PIN, Pin.IN)
         self._last_logged_msg = ""   # prevent log spam
+    
+    def set_config(self, config: protection_config):
+        self.cfg.set(config)
         
-    async def start(self, slaves: Slaves, data: master_data):
+    def start(self, slaves: Slaves, data: master_data):
+        if self.stage != self.PROT_STAGE_OFF:
+            self.log.warn("Protection already started")
+            return
+        self.log.info("Start protection")
         self.slaves = slaves
         self.data = data
+        self.oc_in.irq(handler = self._oc_trigger, trigger = Pin.IRQ_FALLING)
+        self.wdt = WDT(timeout = 8000)
+        self.stage = self.PROT_STAGE_STABLE
+        asyncio.create_task(self._worker())
+
+    async def connect_to_inv(self):
+        if self.stage != self.PROT_STAGE_0:
+            self.log.warn("Protection NOT ready to connect!")
+            return
         delta = abs(self.data.vinv - self.data.vpack)
         if self.data.vinv < 50 : #TODO: find proper value
             #DC-Link precharge from battery
@@ -40,9 +59,6 @@ class Protector:
         await asyncio.sleep(1)
         self.sic_driver.on()
         await asyncio.sleep(1)
-        self.oc_in.irq(handler = self._oc_trigger, trigger = Pin.IRQ_FALLING)
-        self.wdt = WDT(timeout = 8000)
-        asyncio.create_task(self._worker())
     
     async def _precharge(self):
             self.rel_pre_charge.on()
@@ -53,7 +69,13 @@ class Protector:
     def protect(self):
         self.wdt.feed()
         msg = self._check()
-        if self.stage == self.PROT_STAGE_0:
+        #inital settling state
+        if self.stage == self.PROT_STAGE_STABLE:
+            self.stage_stable_delay -= 1
+            if self.stage_stable_delay <= 0:
+                self.stage = self.PROT_STAGE_0
+
+        elif self.stage == self.PROT_STAGE_0:
             if msg is not None:
                 self.trigger_stage_1()
                 self.log.warn(msg)

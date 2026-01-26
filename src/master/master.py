@@ -17,12 +17,7 @@ from lib.virt_slave import *
 from lib.BMSnow import BMSnowMaster
 from lib.WLAN import WlanManager
 #from lib.CAN import * Wait for support in micropython-esp32
-#from lib.battery_protection import BatteryProtection
-# ========================================
-# CONFIG
-# ========================================
-SLAVE_SYNC_INTERVAL = 10
-SLAVE_TTL = 3600
+from lib.PROT import Protector
 
 # ========================================
 # INIT
@@ -38,11 +33,11 @@ log.info("Startup system")
 # ========================================
 async def main():
     log.info("Starting main application")
-
+    protector = Protector()
+    meas = master_data()
     # TODO:add watchdog
-    slaves = Slaves()
-    master = BMSnowMaster(slaves=slaves)
-    master.start()
+    slave_handler = BMSnowMaster()
+    slave_handler.start()
 
     int_rel0 = Relay(pin=HAL.INT_REL0_PIN, active_high=True)
     int_rel1 = Relay(pin=HAL.INT_REL1_PIN, active_high=True)
@@ -70,24 +65,26 @@ async def main():
     log.info("Initialization complete, entering main loop.")
 
     while True:
-        master.request_all_data()
-        current = cur.read_current(samples=10)
-        log.info(f"Current: {current} A")
-        vpack = await vol.read_voltage(channel=0)
-        vinv = await vol.read_voltage(channel=1)
-        tadc = await vol.read_temperature()
-        log.info(f"Battery Voltage: {vpack}, Inverter Voltage: {vinv}, ADC Temp: {tadc}")
-        tpack = tmp.get_temperatures()
-        log.info(f"Temperatures: {tpack}")
-
-        avg_temp = sum(tpack)/len(tpack) if len(tpack)>0 else 25.0 #change to sting temp
-        soc = max(0, int(round(await soc_estimator.update(current, vpack, avg_temp))))
+        #TODO: this chan be put in a method/class e.g. master measurements handler
+        slave_handler.request_all_data()
+        meas.current = cur.read_current(samples=10)
+        log.info(f"Current: {meas.current} A")
+        meas.vpack = await vol.read_voltage(channel=0)
+        meas.vinv = await vol.read_voltage(channel=1)
+        meas.tadc = await vol.read_temperature()
+        log.info(f"Battery Voltage: {meas.vpack}, Inverter Voltage: {meas.vinv}, ADC Temp: {meas.tadc}")
+        meas.tpack = tmp.get_temperatures()[1]
+        log.info(f"Temperatures: {meas.tpack}")
+        soc = max(0, int(round(await soc_estimator.update(meas.current, meas.vpack, meas.tpack))))
         log.info(f"Estimated SOC: {soc} %")
 
-        #FIXME: protector should consider  and string temperatures.
-        #prot_status = await protector.update(v_cells, bat_vol, current, temp, soc)
+        #TODO: implement FSM!!!!!!!
+        #protector starts checks
+        protector.start(slaves=slave_handler.slaves, data = meas)
+        
+        protector.connect_to_inv() #this only triggers if protection ready.
         #can_bus.send_status(prot_status)
-        for s in slaves:
+        for s in slave_handler.slaves:
             log.info(f"Voltages: {s.battery.meas.vcell}")
         await asyncio.sleep(5)
 

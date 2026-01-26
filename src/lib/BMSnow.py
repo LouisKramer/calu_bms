@@ -171,9 +171,9 @@ class BMSnowComm:
             self.log.warn(f"Send failed to {self.log.mac_to_str(mac)}: {e}")
 
 class BMSnowMaster(BMSnowComm):
-    def __init__(self, slaves: Slaves):
+    def __init__(self):
         super().__init__("master")
-        self.slaves = slaves
+        self.slaves = Slaves()
 
     def get_message_handlers(self):
         return {

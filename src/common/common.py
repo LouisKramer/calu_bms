@@ -22,6 +22,23 @@ class protection_config:
         self.prot_max_cell_vol = 3.8
         self.prot_min_cell_vol = 2.5
 
+    def set(self, other: 'protection_config'):
+        if not isinstance(other, protection_config):
+            raise TypeError("Expected protection_config instance")
+        else:
+            self.prot_rel_trigger_delay = other.prot_rel_trigger_delay
+            self.prot_max_inv_vol       = other.prot_max_inv_vol 
+            self.prot_min_inv_vol       = other.prot_min_inv_vol
+            self.prot_max_current       = other.prot_max_current
+            self.prot_min_current       = other.prot_min_current
+            self.prot_max_temp          = other.prot_max_temp
+            self.prot_max_pack_vol      = other.prot_max_pack_vol
+            self.prot_min_pack_vol      = other.prot_min_pack_vol
+            self.prot_max_str_vol       = other.prot_max_str_vol
+            self.prot_min_str_vol       = other.prot_min_str_vol
+            self.prot_max_cell_vol      = other.prot_max_cell_vol
+            self.prot_min_cell_vol      = other.prot_min_cell_vol
+
 class power_config:
     def __init__(self):
         self.max_charge_current = 25.0      #do not go over this at charge and discharge
@@ -84,6 +101,7 @@ class master_data:
         self.current = 0.0
         self.vpack = 0.0
         self.tpack = 0.0
+        self.tadc = 0.0
         self.vinv = 0.0
 
 class battery:
