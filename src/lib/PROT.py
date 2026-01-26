@@ -17,19 +17,25 @@ class Protector:
         self.stage          = self.PROT_STAGE_0
         self.stage_2_delay  = config.prot_rel_trigger_delay
         self.sic_driver     = Pin(BAT_FAULT_PIN, Pin.OUT)
-        self.rel_driver     = Pin(INT_REL0_PIN, Pin.OUT)
+        self.rel_main       = Pin(INT_REL1_PIN, Pin.OUT)
+        self.rel_pre_charge = Pin(INT_REL0_PIN, Pin.OUT)
         self.oc_in          = Pin(CURRENT_FAULT_PIN, Pin.IN)
         self._last_logged_msg = ""   # prevent log spam
         
     async def start(self, slaves: Slaves, data: master_data):
         self.slaves = slaves
         self.data = data
-        #TODO: Check what is the output voltage of the inverter if battery is not connected yet!
-        #TODO: Check if bat voltag has to be at a certain level to connect
-        if not(self.cfg.prot_min_inv_vol <= self.data.vinv <= self.cfg.prot_max_inv_vol):
-            self.log(f"Inverter over/under Voltage {self.data.vinv}V can not start!")
-            return
-        self.rel_driver.on()
+        delta = abs(self.data.vinv - self.data.vpack)
+        if self.data.vinv < 50 : #TODO: find proper value
+            #DC-Link precharge from battery
+            await self._precharge()
+        elif delta > 80:        #TODO: find proper value
+            self.log.warn(f"Large voltage delta detected: vinv={self.data.vinv:.1f} V > vpack={self.data.vpack:.1f} V")
+            if delta > 150:     #TODO: find proper value
+                self.log.error("Voltage difference too large - risk of high inrush to battery. Waiting or aborting.")
+                # Option: wait for sun to drop / load to consume, or refuse connection
+                return
+        self.rel_main.on()
         await asyncio.sleep(1)
         self.sic_driver.on()
         await asyncio.sleep(1)
@@ -37,6 +43,12 @@ class Protector:
         self.wdt = WDT(timeout = 8000)
         asyncio.create_task(self._worker())
     
+    async def _precharge(self):
+            self.rel_pre_charge.on()
+            await asyncio.sleep(2)
+            self.rel_main.on()
+            self.rel_pre_charge.off()
+
     def protect(self):
         self.wdt.feed()
         msg = self._check()
@@ -100,7 +112,7 @@ class Protector:
         self.stage = self.PROT_STAGE_1
     
     def trigger_stage_2(self):
-        self.rel_driver.off()
+        self.rel_main.off()
         self.stage = self.PROT_STAGE_2
 
     # External IRQ trigger

@@ -1,7 +1,12 @@
 TODO:
 - HW Active Balancer 1.0.0.0:
     - Routing PCB
-- Future improvements
+
+- HW master changes for v1.5.0.0:
+    - safe Bat fault only on save relay
+    - sic dirver seperately for top/bot
+
+- SW Future improvements
     - add ota at startup
     - add mqtt support
     - add crc check to BMSnowProtocol's
