@@ -1,19 +1,14 @@
 TODO:
-- update folder struct
-- script for data deploymetent to target over USB 
-- HW Slave 1.3.0.0:
-    - Add dip-switch (4bit --> max. 16 strings) to set string position.
-    - 
-- HW Master 1.x.x.x:
-    - 
 - HW Active Balancer 1.0.0.0:
     - Routing PCB
-- HW Teststand 1.x.x.x
-    - develop concept
-
 - Future improvements
     - add ota at startup
+    - add mqtt support
     - add crc check to BMSnowProtocol's
     - Add CAN support
+    - Add sic driver (maybe relay driver?)
     - Protection:
-        - Trigger if slave is lost. (see BMSnow::_connection_supervisor_task)
+        - Trigger save relay if slave is lost. (see BMSnow::_connection_supervisor_task)
+        - Trigger save relay if current over 25A + 2A
+        - Trigger save relay if temperatures over 40 C°
+
