@@ -5,6 +5,7 @@ TODO:
 - HW master changes for v1.5.0.0:
     - safe Bat fault only on save relay
     - sic dirver seperately for top/bot
+    - precharge relay with 100Ohm 100W resistor in parallel to main switch
 
 - SW Future improvements
     - add ota at startup

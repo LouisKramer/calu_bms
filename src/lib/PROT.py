@@ -2,6 +2,7 @@ import asyncio
 from machine import WDT, Pin
 from common.logger import Logger
 from common.common import protection_config, master_data
+from common.HAL import master_hal as HAL
 from lib.virt_slave import *
 
 class Protector:
@@ -16,10 +17,10 @@ class Protector:
         self.data           = data
         self.stage          = self.PROT_STAGE_0
         self.stage_2_delay  = config.prot_rel_trigger_delay
-        self.sic_driver     = Pin(BAT_FAULT_PIN, Pin.OUT)
-        self.rel_main       = Pin(INT_REL1_PIN, Pin.OUT)
-        self.rel_pre_charge = Pin(INT_REL0_PIN, Pin.OUT)
-        self.oc_in          = Pin(CURRENT_FAULT_PIN, Pin.IN)
+        self.sic_driver     = Pin(HAL.BAT_FAULT_PIN, Pin.OUT)
+        self.rel_main       = Pin(HAL.INT_REL1_PIN, Pin.OUT)
+        self.rel_pre_charge = Pin(HAL.INT_REL0_PIN, Pin.OUT)
+        self.oc_in          = Pin(HAL.CURRENT_FAULT_PIN, Pin.IN)
         self._last_logged_msg = ""   # prevent log spam
         
     async def start(self, slaves: Slaves, data: master_data):

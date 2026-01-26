@@ -1,6 +1,7 @@
 # master.py
 import network, espnow, time
 import asyncio
+from common.HAL import master_hal as HAL
 from machine import RTC, SoftSPI
 from common.credentials import *
 from common.common import *
@@ -23,28 +24,6 @@ from lib.WLAN import WlanManager
 SLAVE_SYNC_INTERVAL = 10
 SLAVE_TTL = 3600
 
-# Pins
-ADC_CURRENT_BAT_PIN = 4
-CURRENT_FAULT_PIN = 5 #input for overcurrent 
-BAT_FAULT_PIN = 10 #Output for driving sic and safe relay
-
-SPI_SCLK_PIN = 6
-SPI_MOSI_PIN = 7
-SPI_MISO_PIN = 15
-SPI_CS_PIN = 16
-OWM_TEMP_PIN = 9
-
-BUZZER_PIN = 17
-LED_USER_PIN = 18
-LED_ERR_PIN = 8
-
-INT_REL0_PIN = 14
-INT_REL1_PIN = 21
-EXT_REL0_PIN = 11
-
-CAN_TX_PIN = 40
-CAN_RX_PIN = 39
-
 # ========================================
 # INIT
 # ========================================
@@ -65,18 +44,18 @@ async def main():
     master = BMSnowMaster(slaves=slaves)
     master.start()
 
-    int_rel0 = Relay(pin=INT_REL0_PIN, active_high=True)
-    int_rel1 = Relay(pin=INT_REL1_PIN, active_high=True)
-    ext_rel0 = Relay(pin=EXT_REL0_PIN, active_high=True)
+    int_rel0 = Relay(pin=HAL.INT_REL0_PIN, active_high=True)
+    int_rel1 = Relay(pin=HAL.INT_REL1_PIN, active_high=True)
+    ext_rel0 = Relay(pin=HAL.EXT_REL0_PIN, active_high=True)
     int_rel0.test(cycles=3, on_time=0.05, off_time=0.05)
     int_rel1.test(cycles=3, on_time=0.05, off_time=0.05)
     ext_rel0.test(cycles=3, on_time=0.05, off_time=0.05)
-    cur = ACS71240(viout_pin=ADC_CURRENT_BAT_PIN, fault_pin=CURRENT_FAULT_PIN)
+    cur = ACS71240(viout_pin=HAL.ADC_CURRENT_BAT_PIN, fault_pin=HAL.CURRENT_FAULT_PIN)
     cur.calibrate_zero()
-    spi = SoftSPI(baudrate=1000000, polarity=0, phase=0, sck=Pin(SPI_SCLK_PIN), mosi=Pin(SPI_MOSI_PIN), miso=Pin(SPI_MISO_PIN))
-    vol = ADS1118(spi=spi, cs_pin = SPI_CS_PIN, channel_mux={0: 0b000, 1: 0b011}, gain=[1.0, 1.0]) #channel 0 = Bat, channel 1 = inv
-    tmp = DS18B20(data_pin=OWM_TEMP_PIN, pullup=False)
-    soc_estimator = BatterySOC(default_soc_cfg)
+    spi = SoftSPI(baudrate=1000000, polarity=0, phase=0, sck=Pin(HAL.SPI_SCLK_PIN), mosi=Pin(HAL.SPI_MOSI_PIN), miso=Pin(HAL.SPI_MISO_PIN))
+    vol = ADS1118(spi=spi, cs_pin = HAL.SPI_CS_PIN, channel_mux={0: 0b000, 1: 0b011}, gain=[1.0, 1.0]) #channel 0 = Bat, channel 1 = inv
+    tmp = DS18B20(data_pin=HAL.OWM_TEMP_PIN, pullup=False)
+    soc_estimator = BatterySOC(soc_config)
     soc_auto_safe_task = asyncio.create_task(autosave_task(soc_estimator, 60))
     #can= BMSCan(config_can)
     #protector = BatteryProtection(config_prot, inverter_en_pin = BAT_FAULT_PIN ,current_sensor=cur, slaves=slaves)

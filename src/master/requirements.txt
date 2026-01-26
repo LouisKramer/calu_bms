@@ -2,6 +2,7 @@
 ../common/common.py         ./common/common.py
 ../common/logger.py         ./common/logger.py
 ../common/boot.py           ./boot.py
+../common/HAL.py            ./common/HAL.py
 ../common/credentials.py    ./common/credentials.py
 ../lib/ACS71240.py          ./lib/ACS71240.py
 ../lib/ADS1118.py           ./lib/ADS1118.py

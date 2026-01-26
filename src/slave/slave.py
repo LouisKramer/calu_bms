@@ -1,6 +1,7 @@
 # slave.py
 import network, espnow, time, machine, random
 from machine import Pin, SoftSPI, SoftI2C, RTC
+from common.HAL import slave_hal as HAL
 import asyncio
 from common.logger import Logger
 from common.common import *
@@ -14,28 +15,6 @@ from lib.BMSnow import BMSnowSlave
 # ========================================
 # CONFIG
 # ========================================
-SPI_CS_STR0_PIN = 4
-SPI_CS_STR1_PIN = 5
-SPI_SCLK_PIN = 6
-SPI_MOSI_PIN = 7
-SPI_MISO_PIN = 15
-SPI_CS0_PIN = 16
-SPI_CS1_PIN = 17
-SPI_CS2_PIN = 18
-SPI_CS3_PIN = 8
-I2C_SCL_PIN = 46
-I2C_SDA_PIN = 3
-OWM_TEMP_PIN = 9
-CS_EN_PIN = 10
-ACT_BAL_PIN = 47
-ACT_BAL_PWM_PIN = 48
-LED_USER_PIN = 40
-LED_ERR_PIN = 39
-STR_SEL0_PIN = 41
-STR_SEL1_PIN = 42
-STR_SEL2_PIN = 2
-STR_SEL3_PIN = 38
-
 BAL_PWM_FREQ = 100  # Hz
 
 FW_VERSION = "0.0.0.1"
@@ -77,16 +56,16 @@ async def main():
     bat.info.mac = machine.unique_id()
     bat.info.addr = 1#read_string_address()
     log.info(f"String address set to {bat.info.addr}")
-    tmp = DS18B20(data_pin=OWM_TEMP_PIN, pullup=False)
+    tmp = DS18B20(data_pin=HAL.OWM_TEMP_PIN, pullup=False)
     bat.info.ntemp = tmp.number_of_sensors()
     bat.info.ncell = 32 # Place Holder
     bat.info.fw_ver = FW_VERSION
     bat.info.fw_ver = HW_VERSION
     bat.create_measurements()
 
-    #i2c = SoftI2C(scl=Pin(I2C_SCL_PIN), sda=Pin(I2C_SDA_PIN), freq=400000)
-    #spi = SoftSPI(baudrate=1000000, polarity=0, phase=0, sck=Pin(SPI_SCLK_PIN), mosi=Pin(SPI_MOSI_PIN), miso=Pin(SPI_MISO_PIN))
-    #demux = SN74HC154(enable_pin=CS_EN_PIN, a0_pin=SPI_CS0_PIN, a1_pin=SPI_CS1_PIN, a2_pin=SPI_CS2_PIN, a3_pin=SPI_CS3_PIN)
+    #i2c = SoftI2C(scl=Pin(HAL.I2C_SCL_PIN), sda=Pin(HAL.I2C_SDA_PIN), freq=400000)
+    #spi = SoftSPI(baudrate=1000000, polarity=0, phase=0, sck=Pin(HAL.SPI_SCLK_PIN), mosi=Pin(HAL.SPI_MOSI_PIN), miso=Pin(HAL.SPI_MISO_PIN))
+    #demux = SN74HC154(enable_pin=HAL.CS_EN_PIN, a0_pin=HAL.SPI_CS0_PIN, a1_pin=HAL.SPI_CS1_PIN, a2_pin=HAL.SPI_CS2_PIN, a3_pin=HAL.SPI_CS3_PIN)
     # Initialize PCA9685
     #pcas = [PCA9685(i2c, address=0x40 + i) for i in range(NR_OF_PCA)]
     #for pca in pcas:
