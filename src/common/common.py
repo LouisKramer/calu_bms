@@ -12,16 +12,44 @@ default_soc_cfg = {
 }
 class soc_config:
     def __init__(self):
-        self.capacity_ah                = 100.0
-        self.num_cells                  = 0
-        self.initial_soc                = 80.0
-        self.cell_ir                    = 0.004           # 4 mΩ at 25°C
-        self.ir_ref_temp                = 25.0
-        self.ir_temp_coeff              = 0.004       # 0.4%/°C
-        self.current_threshold          = 1.0
-        self.voltage_stable_threshold   = 0.01
-        self.relaxed_hold_time          = 30.0
-        self.sampling_interval          = 2.0
+        self.capacity_ah                = 100.0     # 10-1000Ah
+        self.num_cells                  = 0         # 16-512
+        self.initial_soc                = 80.0      # 0-100%
+        self.cell_ir                    = 0.004     # 2-8 mΩ at 25°C
+        self.ir_ref_temp                = 25.0      # 15-20 °C
+        self.ir_temp_coeff              = 0.004     # 0.4%/°C
+        self.current_threshold          = 1.0       # 0-2A
+        self.voltage_stable_threshold   = 0.01      # 0-0.05V
+        self.relaxed_hold_time          = 30.0      # 10 -200s
+        self.sampling_interval          = 2.0       # 0.5 - 100s
+
+    def set(self, other: 'soc_config'):
+        if not isinstance(other, soc_config):
+            raise TypeError("Expected soc_config instance")
+
+        checks = [
+            (10.0, 1000.0, other.capacity_ah,             "capacity_ah",                "10-1000 Ah"),
+            (16,   512,    int(other.num_cells),          "num_cells",                  "16-512"),
+            (0.0,  100.0,  other.initial_soc,             "initial_soc",                "0-100 %"),
+            (0.002,0.008,  other.cell_ir,                 "cell_ir",                    "2-8 mΩ"),
+            (15.0, 30.0,   other.ir_ref_temp,             "ir_ref_temp",                "15-30 °C"),
+            (0.002,0.007,  other.ir_temp_coeff,           "ir_temp_coeff",              "0.2-0.7 %/°C"),
+            (0.0,  2.0,    other.current_threshold,       "current_threshold",          "0-2 A"),
+            (0.0,  0.05,   other.voltage_stable_threshold,"voltage_stable_threshold",   "0-0.05 V"),
+            (10.0, 200.0,  other.relaxed_hold_time,       "relaxed_hold_time",          "10-200 s"),
+            (0.5,  100.0,  other.sampling_interval,       "sampling_interval",          "0.5-100 s"),
+        ]
+
+        for minv, maxv, value, name, desc in checks:
+            if not (minv <= value <= maxv):
+                raise ValueError(f"{name} must be between {minv} and {maxv} ({desc})")
+
+        # assign
+        self.__dict__.update({
+            k: float(v) if k != "num_cells" else int(v)
+            for k, v in other.__dict__.items()
+        })
+
 
 
 default_prot_cfg = {

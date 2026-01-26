@@ -4,6 +4,7 @@ import json
 import os
 from collections import deque
 from common.logger import *
+from common.common import *
 
 log_soc = Logger()
 # =============================================================================
@@ -160,11 +161,6 @@ class BatterySOC:
             >>> estimator = BatterySOC(config)
         """
         self.config = config
-        if config['num_cells'] <= 0:
-            raise ValueError("num_cells must be > 0")
-        if config['capacity_ah'] <= 0:
-            raise ValueError("capacity_ah must be > 0")
-
         # --- Voltage-SOC Lookup Table ---
         default_per_cell = [
             (3.60, 100.0),  # 100% - Full charge
@@ -177,7 +173,7 @@ class BatterySOC:
             (2.50,   0.0)   # 0% - Deep discharge
         ]
         per_cell = config.get('per_cell_voltage_soc_table', default_per_cell)
-        self.pack_table = [(v * config['num_cells'], soc) for v, soc in per_cell]
+        self.pack_table = [(v * config.num_cells, soc) for v, soc in default_per_cell]
 
         # --- Temperature Compensation ---
         self.ir_ref_temp = config.get('ir_ref_temp', 25.0)
