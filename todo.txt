@@ -15,6 +15,5 @@ TODO:
         - Trigger save relay if string voltage is over/under protecion minimum (config)
         - Trigger save relay if cell voltage is over/under protecion threshold (config)
     - Power manager
-        - cut
 
 

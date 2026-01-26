@@ -94,15 +94,15 @@ async def main():
         master.request_all_data()
         current = cur.read_current(samples=10)
         log.info(f"Current: {current} A")
-        bat_vol = await vol.read_voltage(channel=0)
-        inv_vol = await vol.read_voltage(channel=1)
-        vol_temp = await vol.read_temperature()
-        log.info(f"Battery Voltage: {bat_vol}, Inverter Voltage: {inv_vol}, ADC Temp: {vol_temp}")
-        temp = tmp.get_temperatures()
-        log.info(f"Temperatures: {temp}")
+        vpack = await vol.read_voltage(channel=0)
+        vinv = await vol.read_voltage(channel=1)
+        tadc = await vol.read_temperature()
+        log.info(f"Battery Voltage: {vpack}, Inverter Voltage: {vinv}, ADC Temp: {tadc}")
+        tpack = tmp.get_temperatures()
+        log.info(f"Temperatures: {tpack}")
 
-        avg_temp = sum(temp)/len(temp) if len(temp)>0 else 25.0 #change to sting temp
-        soc = max(0, int(round(await soc_estimator.update(current, bat_vol, avg_temp))))
+        avg_temp = sum(tpack)/len(tpack) if len(tpack)>0 else 25.0 #change to sting temp
+        soc = max(0, int(round(await soc_estimator.update(current, vpack, avg_temp))))
         log.info(f"Estimated SOC: {soc} %")
 
         #FIXME: protector should consider  and string temperatures.
@@ -110,7 +110,7 @@ async def main():
         #can_bus.send_status(prot_status)
         for s in slaves:
             log.info(f"Voltages: {s.battery.meas.vcell}")
-        await asyncio.sleep(default_soc_cfg['sampling_interval'])
+        await asyncio.sleep(5)
 
 # ----------------------------------------------------------------------
 #  Boot

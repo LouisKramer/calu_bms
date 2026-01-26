@@ -1,11 +1,4 @@
 
-default_prot_cfg = {
-    'over_voltage_cell': 3.65,
-    'under_voltage_cell': 3.00,
-    'critical_under_voltage': 2.80,
-    'over_temp': 60.0,
-    'under_temp': 0.0,
-}
 
 config_can = {
     'can_tx_pin': 40,      # ESP32 GPIO
@@ -16,7 +9,11 @@ config_can = {
 
 class protection_config:
     def __init__(self):
+        self.prot_rel_trigger_delay = 30.0 #time from triggering SiC stage to relay stage if connditions did not improve
+        self.prot_max_inv_vol = 1000.0
+        self.prot_min_inv_vol = 200.0
         self.prot_max_current = 28.0
+        self.prot_min_current = -28.0
         self.prot_max_temp    = 60.0
         self.prot_max_pack_vol = 1000.0
         self.prot_min_pack_vol = 200.0
@@ -81,6 +78,13 @@ class soc_config:
             k: float(v) if k != "num_cells" else int(v)
             for k, v in other.__dict__.items()
         })
+
+class master_data:
+    def __init__(self):
+        self.current = 0.0
+        self.vpack = 0.0
+        self.tpack = 0.0
+        self.vinv = 0.0
 
 class battery:
     def __init__(self):
