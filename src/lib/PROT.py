@@ -11,6 +11,7 @@ class Protector:
     PROT_STAGE_0        = 2 # no protection activated
     PROT_STAGE_1        = 3 # SiC procection active
     PROT_STAGE_2        = 4 # Stage 1 and external relay acivated.
+    
     def __init__(self, slaves: Slaves = None, data: master_data = None):
         self.log            = Logger()
         self.wdt            = None

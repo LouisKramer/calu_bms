@@ -6,39 +6,6 @@ config_can = {
     'baudrate': 125000,    # 125 kbps
     'update_interval': 1.0
 }
-
-class protection_config:
-    def __init__(self):
-        self.prot_rel_trigger_delay = 30.0 #time from triggering SiC stage to relay stage if connditions did not improve
-        self.prot_max_inv_vol = 1000.0
-        self.prot_min_inv_vol = 200.0
-        self.prot_max_current = 28.0
-        self.prot_min_current = -28.0
-        self.prot_max_temp    = 60.0
-        self.prot_max_pack_vol = 1000.0
-        self.prot_min_pack_vol = 200.0
-        self.prot_max_str_vol  = 120.0
-        self.prot_min_str_vol = 30.0
-        self.prot_max_cell_vol = 3.8
-        self.prot_min_cell_vol = 2.5
-
-    def set(self, other: 'protection_config'):
-        if not isinstance(other, protection_config):
-            raise TypeError("Expected protection_config instance")
-        else:
-            self.prot_rel_trigger_delay = other.prot_rel_trigger_delay
-            self.prot_max_inv_vol       = other.prot_max_inv_vol 
-            self.prot_min_inv_vol       = other.prot_min_inv_vol
-            self.prot_max_current       = other.prot_max_current
-            self.prot_min_current       = other.prot_min_current
-            self.prot_max_temp          = other.prot_max_temp
-            self.prot_max_pack_vol      = other.prot_max_pack_vol
-            self.prot_min_pack_vol      = other.prot_min_pack_vol
-            self.prot_max_str_vol       = other.prot_max_str_vol
-            self.prot_min_str_vol       = other.prot_min_str_vol
-            self.prot_max_cell_vol      = other.prot_max_cell_vol
-            self.prot_min_cell_vol      = other.prot_min_cell_vol
-
 class power_config:
     def __init__(self):
         self.max_charge_current = 25.0      #do not go over this at charge and discharge
@@ -56,6 +23,52 @@ class power_config:
         (99, 2.0),
         (100, 2.0)# still charging possible TODO: to be tested
     ]
+class protection_config:
+    def __init__(self):
+        self.prot_rel_trigger_delay = 30.0    # time from SiC stage to relay stage if conditions did not improve
+        self.prot_max_inv_vol       = 1000.0
+        self.prot_min_inv_vol       = 200.0
+        self.prot_max_current       = 28.0
+        self.prot_min_current       = -28.0
+        self.prot_max_temp          = 60.0
+        self.prot_max_pack_vol      = 1000.0
+        self.prot_min_pack_vol      = 200.0
+        self.prot_max_str_vol       = 120.0
+        self.prot_min_str_vol       = 30.0
+        self.prot_max_cell_vol      = 3.8
+        self.prot_min_cell_vol      = 2.5
+
+    def set(self, other: 'protection_config'):
+        if not isinstance(other, protection_config):
+            raise TypeError("Expected protection_config instance")
+
+        # Format: (min, max, value, attribute_name, description)
+        checks = [
+            (  5.0,   300.0, other.prot_rel_trigger_delay, "prot_rel_trigger_delay", "5–300 seconds"),
+            (200.0,  1500.0, other.prot_max_inv_vol,       "prot_max_inv_vol",       "inverter max voltage (V)"),
+            (100.0,   800.0, other.prot_min_inv_vol,       "prot_min_inv_vol",       "inverter min voltage (V)"),
+            ( 10.0,   400.0, other.prot_max_current,       "prot_max_current",       "max current (A)"),
+            (-400.0,   10.0, other.prot_min_current,       "prot_min_current",       "min current (A) — discharge limit"),
+            ( 40.0,   100.0, other.prot_max_temp,          "prot_max_temp",          "max temperature (°C)"),
+            (200.0,  1500.0, other.prot_max_pack_vol,      "prot_max_pack_vol",      "pack max voltage (V)"),
+            (100.0,   800.0, other.prot_min_pack_vol,      "prot_min_pack_vol",      "pack min voltage (V)"),
+            ( 80.0,   200.0, other.prot_max_str_vol,       "prot_max_str_vol",       "string max voltage (V)"),
+            ( 20.0,    80.0, other.prot_min_str_vol,       "prot_min_str_vol",       "string min voltage (V)"),
+            ( 3.40,   4.25,  other.prot_max_cell_vol,      "prot_max_cell_vol",      "cell max voltage (V)"),
+            ( 2.30,   3.00,  other.prot_min_cell_vol,      "prot_min_cell_vol",      "cell min voltage (V)"),
+        ]
+
+        for minv, maxv, value, name, desc in checks:
+            if not (minv <= value <= maxv):
+                raise ValueError(
+                    f"protection_config.{name} must be between {minv} and {maxv} ({desc}), "
+                    f"got {value}"
+                )
+
+        # If all checks pass → copy all attributes
+        self.__dict__.update(other.__dict__)
+
+
 class soc_config:
     def __init__(self):
         self.capacity_ah                = 100.0     # 10-1000Ah
