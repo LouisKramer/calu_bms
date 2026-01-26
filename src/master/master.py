@@ -45,25 +45,22 @@ async def main():
     int_rel0.test(cycles=3, on_time=0.05, off_time=0.05)
     int_rel1.test(cycles=3, on_time=0.05, off_time=0.05)
     ext_rel0.test(cycles=3, on_time=0.05, off_time=0.05)
+
     cur = ACS71240(viout_pin=HAL.ADC_CURRENT_BAT_PIN, fault_pin=HAL.CURRENT_FAULT_PIN)
     cur.calibrate_zero()
     spi = SoftSPI(baudrate=1000000, polarity=0, phase=0, sck=Pin(HAL.SPI_SCLK_PIN), mosi=Pin(HAL.SPI_MOSI_PIN), miso=Pin(HAL.SPI_MISO_PIN))
     vol = ADS1118(spi=spi, cs_pin = HAL.SPI_CS_PIN, channel_mux={0: 0b000, 1: 0b011}, gain=[1.0, 1.0]) #channel 0 = Bat, channel 1 = inv
     tmp = DS18B20(data_pin=HAL.OWM_TEMP_PIN, pullup=False)
+
     soc_estimator = BatterySOC(soc_config)
-    soc_auto_safe_task = asyncio.create_task(autosave_task(soc_estimator, 60))
+    asyncio.create_task(autosave_task(soc_estimator, 60))
     #can= BMSCan(config_can)
-    #protector = BatteryProtection(config_prot, inverter_en_pin = BAT_FAULT_PIN ,current_sensor=cur, slaves=slaves)
     
     # Start tasks
     ntp = ntp_sync(NTP_HOST, NTP_PORT, NTP_TIMEOUT, NTP_SYNC_INTERVAL)
     ntp_sync_task = asyncio.create_task(ntp.ntp_task())
-
-    #slave_sync_task = asyncio.create_task(slaves.sync_slaves_task(e))
-    #slave_gc_task = asyncio.create_task(slaves.slave_gc())
     
     log.info("Initialization complete, entering main loop.")
-
     while True:
         #TODO: this chan be put in a method/class e.g. master measurements handler
         slave_handler.request_all_data()
