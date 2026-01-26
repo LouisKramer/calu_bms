@@ -7,8 +7,14 @@ TODO:
     - add crc check to BMSnowProtocol's
     - Add CAN support
     - Add sic driver (maybe relay driver?)
-    - Protection:
-        - Trigger save relay if slave is lost. (see BMSnow::_connection_supervisor_task)
-        - Trigger save relay if current over 25A + 2A
-        - Trigger save relay if temperatures over 40 C°
+    - Protection manager:
+        - Trigger save relay if slave a is lost. (see BMSnow::_connection_supervisor_task)
+        - Trigger save relay if current over +/- max_current + X (config)
+        - Trigger save relay if temperatures over 60 C° (config)
+        - Trigger save relay if pack voltage is over/under protecion minimum (config)
+        - Trigger save relay if string voltage is over/under protecion minimum (config)
+        - Trigger save relay if cell voltage is over/under protecion threshold (config)
+    - Power manager
+        - cut
+
 

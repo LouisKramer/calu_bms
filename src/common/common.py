@@ -1,15 +1,47 @@
-default_soc_cfg = {
-    'capacity_ah': 100.0,
-    'num_cells': 16,
-    'initial_soc': 80.0,
-    'cell_ir': 0.004,           # 4 mΩ at 25°C
-    'ir_ref_temp': 25.0,
-    'ir_temp_coeff': 0.004,        # 0.4%/°C
-    'current_threshold': 1.0,
-    'voltage_stable_threshold': 0.01,
-    'relaxed_hold_time': 30.0,
-    'sampling_interval': 2.0
+
+default_prot_cfg = {
+    'over_voltage_cell': 3.65,
+    'under_voltage_cell': 3.00,
+    'critical_under_voltage': 2.80,
+    'over_temp': 60.0,
+    'under_temp': 0.0,
 }
+
+config_can = {
+    'can_tx_pin': 40,      # ESP32 GPIO
+    'can_rx_pin': 39,
+    'baudrate': 125000,    # 125 kbps
+    'update_interval': 1.0
+}
+
+class protection_config:
+    def __init__(self):
+        self.prot_max_current = 28.0
+        self.prot_max_temp    = 60.0
+        self.prot_max_pack_vol = 1000.0
+        self.prot_min_pack_vol = 200.0
+        self.prot_max_str_vol  = 120.0
+        self.prot_min_str_vol = 30.0
+        self.prot_max_cell_vol = 3.8
+        self.prot_min_cell_vol = 2.5
+
+class power_config:
+    def __init__(self):
+        self.max_charge_current = 25.0      #do not go over this at charge and discharge
+        self.under_voltage_cell = 2.7       #if lower, set discharge current to 0A only allow charge
+        self.over_voltage_cell = 3.65       #if higher set charge current to 0 A and settle
+        self.charge_settle_time = 600       #settle time in s, 
+        self.soc_low_cutoff = 10.0          #if lower, reduce discharge current to 0 A only allow charge
+        self.max_temp = 50.0                #if any temp is greater than this, reduce charge/discharge current
+        self.charge_current_table = [       #charge current depending on soc
+        (0, 2.0),
+        (10, self.max_charge_current),
+        (90, self.max_charge_current),
+        (95, 10.0),
+        (98, 5.0),
+        (99, 2.0),
+        (100, 2.0)# still charging possible TODO: to be tested
+    ]
 class soc_config:
     def __init__(self):
         self.capacity_ah                = 100.0     # 10-1000Ah
@@ -49,37 +81,6 @@ class soc_config:
             k: float(v) if k != "num_cells" else int(v)
             for k, v in other.__dict__.items()
         })
-
-
-
-default_prot_cfg = {
-    'inverter_en_pin': 15,
-    'max_current': 25.0,
-    'charge_current_table': [
-        (0, 25.0),
-        (90, 25.0),
-        (95, 10.0),
-        (98, 5.0),
-        (99, 2.0),
-        (100, 0.0)
-    ],
-    'over_voltage_cell': 3.65,
-    'under_voltage_cell': 3.00,
-    'critical_under_voltage': 2.80,
-    'over_temp': 60.0,
-    'under_temp': 0.0,
-    'soc_low_cutoff': 10.0,
-    'soc_critical_cutoff': 5.0,
-    'short_circuit_threshold': 120.0,
-    'use_hardware_fault': True
-}
-
-config_can = {
-    'can_tx_pin': 40,      # ESP32 GPIO
-    'can_rx_pin': 39,
-    'baudrate': 125000,    # 125 kbps
-    'update_interval': 1.0
-}
 
 class battery:
     def __init__(self):
