@@ -10,5 +10,5 @@ wlan.connect(WIFI_SSID, WIFI_PASS)
 while not wlan.isconnected():
     time.sleep(1)
 mip.install("github:LouisKramer/calu_bms/src/master/package.json", target="/",version="dev")
-
+mip.install('github:ederjc/uhome/uhome/uhome.py')
 import master

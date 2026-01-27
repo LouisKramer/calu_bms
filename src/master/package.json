@@ -15,12 +15,8 @@
     ["lib/SOC.py"           , "github:LouisKramer/calu_bms/src/lib/SOC.py       "],
     ["lib/BMSnow.py"        , "github:LouisKramer/calu_bms/src/lib/BMSnow.py    "],
     ["lib/WLAN.py"          , "github:LouisKramer/calu_bms/src/lib/WLAN.py      "],   
-    ["lib/PROT.py"          , "github:LouisKramer/calu_bms/src/lib/PROT.py      "],
-    ["lib/uhome.py"         , "github:ederjc/uhome/uhome/uhome.py"]
+    ["lib/PROT.py"          , "github:LouisKramer/calu_bms/src/lib/PROT.py      "]
   ],
-    "deps": [
-    ["github:LouisKramer/calu_bms/src/lib", "dev"],
-    ["github:LouisKramer/calu_bms/src/common", "dev"]
-  ],
+    "deps": [],
   "version": "0.1"
 }
