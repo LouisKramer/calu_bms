@@ -1,6 +1,6 @@
 # master.py
 import network, espnow, time
-import asyncio, mqtt.robust
+import asyncio
 from common.HAL import master_hal as HAL
 from machine import RTC, SoftSPI
 from common.credentials import *

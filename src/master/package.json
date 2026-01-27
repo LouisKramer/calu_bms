@@ -2,7 +2,7 @@
   "urls": [
     ["main.py"              , "main.py"             ],
     ["master.py"            , "master.py"           ],
-    ["common/boot.py"       , "../common/boot.py"   ],
+    ["boot.py"              , "../common/boot.py"   ],
     ["common/logger.py"     , "../common/logger.py" ],
     ["common/common.py"     , "../common/common.py" ],
     ["common/credentials.py", "../common/credentials.py"],
@@ -16,7 +16,8 @@
     ["lib/SOC.py"           , "../lib/SOC.py       "],
     ["lib/BMSnow.py"        , "../lib/BMSnow.py    "],
     ["lib/WLAN.py"          , "../lib/WLAN.py      "],   
-    ["lib/PROT.py"          , "../lib/PROT.py      "]
+    ["lib/PROT.py"          , "../lib/PROT.py      "],
+    ["lib/uhome.py"         , "github:ederjc/uhome/uhome/uhome.py"]
 
   ],
   "version": "0.1"
