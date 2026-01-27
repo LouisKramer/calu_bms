@@ -1,7 +1,22 @@
 {
   "urls": [
     ["main.py"              , "main.py"             ],
-    ["master.py"            , "master.py"           ]
+    ["master.py"            , "master.py"           ],
+    ["boot.py"              , "github:LouisKramer/calu_bms/src/common/boot.py"   ],
+    ["common/logger.py"     , "github:LouisKramer/calu_bms/src/common/logger.py" ],
+    ["common/common.py"     , "github:LouisKramer/calu_bms/src/common/common.py" ],
+    ["common/HAL.py"        , "github:LouisKramer/calu_bms/src/common/HAL.py"    ],
+    ["lib/ACS71240.py"      , "github:LouisKramer/calu_bms/src/lib/ACS71240.py"  ],
+    ["lib/ADS1118.py"       , "github:LouisKramer/calu_bms/src/lib/ADS1118.py   "],
+    ["lib/DS18B20.py"       , "github:LouisKramer/calu_bms/src/lib/DS18B20.py   "],
+    ["lib/NTP.py"           , "github:LouisKramer/calu_bms/src/lib/NTP.py       "],
+    ["lib/RELAY.py"         , "github:LouisKramer/calu_bms/src/lib/RELAY.py     "],
+    ["lib/virt_slave.py"    , "github:LouisKramer/calu_bms/src/lib/virt_slave.py"],
+    ["lib/SOC.py"           , "github:LouisKramer/calu_bms/src/lib/SOC.py       "],
+    ["lib/BMSnow.py"        , "github:LouisKramer/calu_bms/src/lib/BMSnow.py    "],
+    ["lib/WLAN.py"          , "github:LouisKramer/calu_bms/src/lib/WLAN.py      "],   
+    ["lib/PROT.py"          , "github:LouisKramer/calu_bms/src/lib/PROT.py      "],
+    ["lib/uhome.py"         , "github:ederjc/uhome/uhome/uhome.py"]
   ],
     "deps": [
     ["github:LouisKramer/calu_bms/src/lib", "dev"],
