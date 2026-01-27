@@ -1,0 +1,9 @@
+{
+  "urls": [
+    ["boot.py"              , "boot.py"   ],
+    ["common/logger.py"     , "logger.py" ],
+    ["common/common.py"     , "common.py" ],
+    ["common/HAL.py"        , "HAL.py"    ]
+  ],
+  "version": "0.1"
+}

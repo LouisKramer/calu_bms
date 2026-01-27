@@ -1,0 +1,16 @@
+{
+  "urls": [
+    ["lib/ACS71240.py"      , "ACS71240.py"  ],
+    ["lib/ADS1118.py"       , "ADS1118.py   "],
+    ["lib/DS18B20.py"       , "DS18B20.py   "],
+    ["lib/NTP.py"           , "NTP.py       "],
+    ["lib/RELAY.py"         , "RELAY.py     "],
+    ["lib/virt_slave.py"    , "virt_slave.py"],
+    ["lib/SOC.py"           , "SOC.py       "],
+    ["lib/BMSnow.py"        , "BMSnow.py    "],
+    ["lib/WLAN.py"          , "WLAN.py      "],   
+    ["lib/PROT.py"          , "PROT.py      "],
+    ["lib/uhome.py"         , "github:ederjc/uhome/uhome/uhome.py"]
+  ],
+  "version": "0.1"
+}
