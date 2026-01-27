@@ -9,8 +9,6 @@ class Slaves:
     MAX_NR_OF_SLAVES = 16    
     def __init__(self):
         log_slave.info("Initializing slave handler...")
-
-        self.T1 = 0
         # start with an *empty* list – we grow only when push() is called
         self._slaves: list["virt_slave | None"] = []
 
@@ -27,6 +25,9 @@ class Slaves:
 
     def nr_of_slaves(self) -> int:
         return len(self._slaves)
+    
+    def nr_of_cells(self) -> int:
+        return sum(s.battery.info.ncell for s in self._slaves if s is not None)
 
     # ------------------------------------------------------------------
     #  Core CRUD operations 

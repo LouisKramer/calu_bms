@@ -1,8 +1,7 @@
 # Makefile for ESP32 MicroPython project deployment
 
 # Path to fw binary
-FW_BINARY := bin/ESP32_GENERIC_S3-SPIRAM_OCT-20250911-v1.26.1.bin
-
+FW_BINARY := bin/ESP32_GENERIC_S3-SPIRAM_OCT-20251209-v1.27.0.bin
 # Path to your requirements.txt (adjust if needed)
 REQUIREMENTS_MASTER := src/master/requirements.txt
 REQUIREMENTS_SLAVE := src/slave/requirements.txt
@@ -11,9 +10,6 @@ PORT ?=
 
 # Python command (use python3 if needed)
 PYTHON := python
-
-# Scripts (place these in the same directory as the Makefile)
-UPLOAD_SCRIPT := tools/upload.py
 
 # Default target: clean + upload
 .PHONY: all_slave
@@ -26,10 +22,14 @@ all_master: clean appl_master soft_reset
 .PHONY: fw
 fw:
 	@echo "=== Programming firmware ==="
-	mpremote $(if $(PORT),connect $(PORT)) soft-reset
-	mpremote $(if $(PORT),connect $(PORT)) bootloader
+#mpremote $(if $(PORT),connect $(PORT)) bootloader
+	mpremote bootloader
+	Start-Sleep -Seconds 5
+	mpremote reset
+	Start-Sleep -Seconds 5
 	esptool erase-flash
-	esptool --baud 460800 write_flash 0 $(FW_BINARY)
+	Start-Sleep -Seconds 5
+	esptool --baud 460800 write-flash 0 $(FW_BINARY)
 	@echo "Firmware programming complete!"
 
 # Hard reset
@@ -57,14 +57,14 @@ clean:
 .PHONY: appl_master
 appl_master:
 	@echo "=== UPLOADING MASTER FILES ==="
-	$(PYTHON) $(UPLOAD_SCRIPT) $(REQUIREMENTS_MASTER) $(if $(PORT),--port $(PORT))
+	mpremote mip install ./src/master/package.json
 	@echo "Deployment complete!"
 
 # Upload slave files
 .PHONY: appl_slave
 appl_slave:
 	@echo "=== UPLOADING SLAVE FILES ==="
-	$(PYTHON) $(UPLOAD_SCRIPT) $(REQUIREMENTS_SLAVE) $(if $(PORT),--port $(PORT))
+	mpremote mip install ./src/slave/package.json
 	@echo "Slave deployment complete!"
 
 # Connect to REPL (interactive console)

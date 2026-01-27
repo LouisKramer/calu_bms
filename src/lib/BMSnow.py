@@ -307,12 +307,14 @@ class BMSnowSlave(BMSnowComm):
 
     async def _channel_monitor_task(self):
         while True:
-            if not self.state.channel_found:
+            if self.state.channel_found == False:
                 self.log.info("Channel not found - starting scan")
                 for ch in self.WLAN_CHANNELS:
+                    if self.state.channel_found == True:
+                        break
                     self.log.info(f"Scanning channel {ch}")
                     await self._set_channel(ch)
-                    await asyncio.sleep(3)
+                    await asyncio.sleep(13)
             else:
                 if self.state.ttl <= 0:
                     self.log.warn("Communication timeout - restarting scan")
@@ -324,7 +326,7 @@ class BMSnowSlave(BMSnowComm):
                 else:
                     self.state.ttl -= 1
 
-            await asyncio.sleep(30)
+            await asyncio.sleep(13)
 
     def _handle_search(self, mac, msg):
         self.state.channel_found = True

@@ -72,7 +72,6 @@ class protection_config:
 class soc_config:
     def __init__(self):
         self.capacity_ah                = 100.0     # 10-1000Ah
-        self.num_cells                  = 0         # 16-512
         self.initial_soc                = 80.0      # 0-100%
         self.cell_ir                    = 0.004     # 2-8 mΩ at 25°C
         self.ir_ref_temp                = 25.0      # 15-20 °C
@@ -88,7 +87,6 @@ class soc_config:
 
         checks = [
             (10.0, 1000.0, other.capacity_ah,             "capacity_ah",                "10-1000 Ah"),
-            (16,   512,    int(other.num_cells),          "num_cells",                  "16-512"),
             (0.0,  100.0,  other.initial_soc,             "initial_soc",                "0-100 %"),
             (0.002,0.008,  other.cell_ir,                 "cell_ir",                    "2-8 mΩ"),
             (15.0, 30.0,   other.ir_ref_temp,             "ir_ref_temp",                "15-30 °C"),
@@ -104,10 +102,7 @@ class soc_config:
                 raise ValueError(f"{name} must be between {minv} and {maxv} ({desc})")
 
         # assign
-        self.__dict__.update({
-            k: float(v) if k != "num_cells" else int(v)
-            for k, v in other.__dict__.items()
-        })
+        self.__dict__.update(other.__dict__)
 
 class master_data:
     def __init__(self):

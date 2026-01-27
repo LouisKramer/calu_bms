@@ -32,6 +32,7 @@ class WlanManager:
         
         self.wlan = network.WLAN(network.STA_IF)
         self.wlan.active(True)
+        print(f"Wlan channel: {self.wlan.config('channel')}")
         
         # LED: active-low (common on ESP32 dev boards)
         self.led = Pin(led_pin, Pin.OUT)

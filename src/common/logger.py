@@ -5,7 +5,7 @@ import uasyncio as asyncio
 import os
 import time
 import socket
-
+from common.credentials import WIFI_HOST
 class Logger:
     _pending = []
     _lock = asyncio.Lock()
@@ -73,7 +73,7 @@ class Logger:
                     pri = cls._levels.get(level, 7)  # Default to debug if unknown
                     facility = 1  # User-level messages
                     priority = (facility * 8) + pri
-                    syslog_msg = "<{}>{} esp32 logger: {}".format(priority, ts, msg)
+                    syslog_msg = "<{}>{}: {} {}: {}".format(priority, ts, WIFI_HOST, level.upper(), msg)
                     try:
                         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                         sock.sendto(syslog_msg.encode(), (cls._syslog_host, cls._syslog_port))

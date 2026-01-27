@@ -129,7 +129,7 @@ class BatterySOC:
     Configuration is passed as a dictionary at initialization.
     """
 
-    def __init__(self, config: soc_config):
+    def __init__(self):
         """
         Initialize the SOC estimator with battery and algorithm parameters.
 
@@ -160,9 +160,9 @@ class BatterySOC:
             ... }
             >>> estimator = BatterySOC(config)
         """
-        self.config = config
+        self.config = soc_config()
         # --- Voltage-SOC Lookup Table ---
-        default_per_cell = [
+        self.default_per_cell = [
             (3.60, 100.0),  # 100% - Full charge
             (3.40,  95.0),
             (3.35,  80.0),
@@ -172,13 +172,12 @@ class BatterySOC:
             (3.20,  10.0),
             (2.50,   0.0)   # 0% - Deep discharge
         ]
-        self.pack_table = [(v * config.num_cells, soc) for v, soc in default_per_cell]
-
+        self.num_cells = 0
         # --- Runtime State ---
-        self.soc = float(config.initial_soc)
+        self.soc = float(self.config.initial_soc)
         self.last_time = time.time()
         self.last_voltage = None
-        self.last_temp = config.get('initial_temp', 25.0)
+        self.last_temp = 25.0
         self.relaxed_start_time = None
         self.voltage_history = deque([],10)
 
@@ -202,9 +201,9 @@ class BatterySOC:
         Returns:
             float: Temperature-compensated pack resistance in Ohms.
         """
-        delta_t = temp - self.ir_ref_temp
-        factor = 1.0 + (self.ir_temp_coeff * delta_t)
-        return self.config.cell_ir * self.config.num_cells * factor
+        delta_t = temp - self.config.ir_ref_temp
+        factor = 1.0 + (self.config.ir_temp_coeff * delta_t)
+        return self.config.cell_ir * self.num_cells * factor
 
     def _interpolate_soc(self, voltage):
         """
@@ -260,7 +259,7 @@ class BatterySOC:
     # Public API
     # -------------------------------------------------------------------------
 
-    async def update(self, current, voltage, temperature):
+    async def update(self, current, voltage, temperature, nr_cells):
         """
         Update SOC estimate with new sensor readings.
 
@@ -279,7 +278,8 @@ class BatterySOC:
         """
         now = time.time()
         dt = now - self.last_time if self.last_time else 0.1
-
+        self.num_cells = nr_cells
+        self.pack_table = [(v * self.num_cells, soc) for v, soc in self.default_per_cell]
         # === Coulomb Counting ===
         ah_delta = (current * dt) / 3600.0
         coulomb_soc = self.soc - (ah_delta / self.config.capacity_ah) * 100.0
@@ -305,7 +305,7 @@ class BatterySOC:
             coulomb_soc += (ocv_soc - coulomb_soc) * 0.001
 
         # === Finalize ===
-        self.soc = max(0.0, min(100.0, coulomb_soc))
+        self.soc = round(max(0.0, min(100.0, coulomb_soc)),1)
         self.last_time = now
         self.last_voltage = voltage
         self.last_temp = temperature
