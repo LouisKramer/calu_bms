@@ -69,7 +69,7 @@ class Protector:
 
     def protect(self):
         self.wdt.feed()
-        msg = self._check()
+        check_message = self._check()
         #inital settling state
         if self.stage == self.PROT_STAGE_STABLE:
             self.stage_stable_delay -= 1
@@ -77,17 +77,17 @@ class Protector:
                 self.stage = self.PROT_STAGE_0
 
         elif self.stage == self.PROT_STAGE_0:
-            if msg is not None:
+            if check_message is not None:
                 self.trigger_stage_1()
-                self.log.warn(msg)
-                self._last_logged_msg = msg
+                self.log.warn(check_message)
+                self._last_logged_msg = check_message
 
         elif self.stage == self.PROT_STAGE_1:
-            if msg is not None:
+            if check_message is not None:
                 # Only log if message changed → reduces spam
-                if msg != self._last_logged_msg:
-                    self.log.warn(msg)
-                    self._last_logged_msg = msg
+                if check_message != self._last_logged_msg:
+                    self.log.warn(check_message)
+                    self._last_logged_msg = check_message
                 self.stage_2_delay -= 1
                 if self.stage_2_delay <= 0:
                     self.trigger_stage_2()
@@ -100,9 +100,9 @@ class Protector:
 
         elif self.stage == self.PROT_STAGE_2:
             # In many BMS designs: continue monitoring, but no automatic recovery
-            if msg is not None and msg != self._last_logged_msg:
-                self.log.warn(f"Stage 2 active - still detecting: {msg}")
-                self._last_logged_msg = msg
+            if check_message is not None and check_message != self._last_logged_msg:
+                self.log.warn(f"Stage 2 active - still detecting: {check_message}")
+                self._last_logged_msg = check_message
 
         else:
             self.log.error(f"Unknown protection stage: {self.stage}")

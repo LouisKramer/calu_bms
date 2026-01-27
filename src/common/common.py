@@ -27,15 +27,15 @@ class protection_config:
     def __init__(self):
         self.prot_rel_trigger_delay = 30.0    # time from SiC stage to relay stage if conditions did not improve
         self.prot_max_inv_vol       = 1000.0
-        self.prot_min_inv_vol       = 200.0
+        self.prot_min_inv_vol       = 0.0
         self.prot_max_current       = 28.0
         self.prot_min_current       = -28.0
         self.prot_max_temp          = 60.0
         self.prot_max_pack_vol      = 1000.0
-        self.prot_min_pack_vol      = 200.0
+        self.prot_min_pack_vol      = 30.0
         self.prot_max_str_vol       = 120.0
         self.prot_min_str_vol       = 30.0
-        self.prot_max_cell_vol      = 3.8
+        self.prot_max_cell_vol      = 4.2
         self.prot_min_cell_vol      = 2.5
 
     def set(self, other: 'protection_config'):

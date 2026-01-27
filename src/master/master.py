@@ -50,7 +50,7 @@ async def main():
     cur = ACS71240(viout_pin=HAL.ADC_CURRENT_BAT_PIN, fault_pin=HAL.CURRENT_FAULT_PIN)
     cur.calibrate_zero()
     spi = SoftSPI(baudrate=1000000, polarity=0, phase=0, sck=Pin(HAL.SPI_SCLK_PIN), mosi=Pin(HAL.SPI_MOSI_PIN), miso=Pin(HAL.SPI_MISO_PIN))
-    vol = ADS1118(spi=spi, cs_pin = HAL.SPI_CS_PIN, channel_mux={0: 0b000, 1: 0b011}, gain=[1.0, 1.0]) #channel 0 = Bat, channel 1 = inv
+    vol = ADS1118(spi=spi, cs_pin = HAL.SPI_CS_PIN, channel_mux={0: 0b000, 1: 0b011},  soft_gain=[249.0, 249.0]) #channel 0 = Bat, channel 1 = inv
     tmp = DS18B20(data_pin=HAL.OWM_TEMP_PIN, pullup=False)
 
     soc_estimator = BatterySOC()
@@ -67,7 +67,7 @@ async def main():
         slave_handler.request_all_data()
         meas.current = cur.read_current(samples=10)
         log.info(f"Current: {meas.current} A")
-        meas.vpack = await vol.read_voltage(channel=0)
+        meas.vpack = await vol.read_voltage(channel=0)  * 1.75
         meas.vinv = await vol.read_voltage(channel=1)
         meas.tadc = await vol.read_temperature()
         log.info(f"Battery Voltage: {meas.vpack}, Inverter Voltage: {meas.vinv}, ADC Temp: {meas.tadc}")
@@ -80,7 +80,7 @@ async def main():
         #protector starts checks
         protector.start(slaves=slave_handler.slaves, data = meas)
         
-        #protector.connect_to_inv() #this only triggers if protection ready.
+        await protector.connect_to_inv() #this only triggers if protection ready.
         #can_bus.send_status(prot_status)
         for s in slave_handler.slaves:
             log.info(f"Voltages: {s.battery.meas.vcell}")

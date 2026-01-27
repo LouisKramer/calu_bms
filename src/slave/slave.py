@@ -1,5 +1,5 @@
 # slave.py
-import network, espnow, time, machine, random
+import time, machine, random
 from machine import Pin, SoftSPI, SoftI2C, RTC
 from common.HAL import slave_hal as HAL
 import asyncio
@@ -36,12 +36,6 @@ else:
 time.sleep(2)
 log = Logger()
 log.info("Init System")
-wlan = network.WLAN(network.STA_IF)
-wlan.active(True)
-#TODO: check for updates
-wlan.config(channel=1)
-wlan.disconnect()
-print(f"Wlan channel: {wlan.config('channel')}")
 
 #str_sel0 = Pin(STR_SEL0_PIN, Pin.IN, pull = Pin.PULL_DOWN) 
 #str_sel1 = Pin(STR_SEL1_PIN, Pin.IN, pull = Pin.PULL_DOWN)

@@ -1,23 +1,19 @@
 {
   "urls": [
     ["main.py"              , "main.py"             ],
-    ["master.py"            , "master.py"           ],
+    ["slave.py"             , "slave.py"            ],
     ["boot.py"              , "../common/boot.py"   ],
     ["common/logger.py"     , "../common/logger.py" ],
     ["common/common.py"     , "../common/common.py" ],
     ["common/credentials.py", "../common/credentials.py"],
     ["common/HAL.py"        , "../common/HAL.py"    ],
-    ["lib/ACS71240.py"      , "../lib/ACS71240.py"  ],
     ["lib/ADS1118.py"       , "../lib/ADS1118.py   "],
     ["lib/DS18B20.py"       , "../lib/DS18B20.py   "],
-    ["lib/NTP.py"           , "../lib/NTP.py       "],
-    ["lib/RELAY.py"         , "../lib/RELAY.py     "],
+    ["lib/PCA9685.py"       , "../lib/PCA9685.py   "],
+    ["lib/SN74HC154.py"     , "../lib/SN74HC154.py "],
     ["lib/virt_slave.py"    , "../lib/virt_slave.py"],
-    ["lib/SOC.py"           , "../lib/SOC.py       "],
-    ["lib/BMSnow.py"        , "../lib/BMSnow.py    "],
-    ["lib/WLAN.py"          , "../lib/WLAN.py      "],   
-    ["lib/PROT.py"          , "../lib/PROT.py      "],
-    ["lib/uhome.py"         , "github:ederjc/uhome/uhome/uhome.py"]
+    ["lib/BMSnow.py"        , "../lib/BMSnow.py    "]
+
   ],
   "version": "0.1"
 }

@@ -53,13 +53,16 @@ clean:
 appl_master:
 	@echo "=== UPLOADING MASTER FILES ==="
 	mpremote mip install --target / ./src/master/package_local.json
+	mpremote reset
 	@echo "Deployment complete!"
 
 # Upload slave files
 .PHONY: appl_slave
 appl_slave:
 	@echo "=== UPLOADING SLAVE FILES ==="
+	mpremote reset
 	mpremote mip install --target / ./src/slave/package_local.json
+	mpremote reset
 	@echo "Slave deployment complete!"
 
 # Connect to REPL (interactive console)

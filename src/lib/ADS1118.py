@@ -29,7 +29,7 @@ class ADS1118:
         pga=2,
         dr=4,
         channel_mux = None,
-        gain = [1.0, 1.0, 1.0, 1.0],
+        soft_gain = [1.0, 1.0, 1.0, 1.0],
         pull_up_en=1,
         cal_file="ads1118_cal.json",
     ):
@@ -68,11 +68,11 @@ class ADS1118:
             raise ValueError("Channel MUX must be provided and contain 1-8 entries")
         if vcc != 3.3 and vcc != 5.0:
             raise ValueError("Only VCC of 3.3V or 5V is supported ",vcc)
-        if gain is None or len(gain) != len(channel_mux):
+        if soft_gain is None or len(soft_gain) != len(channel_mux):
             raise ValueError("Gain list must match number of channels in channel_mux")
-        for g in gain:
-            if g <= -2.0 or g >= 2.0:
-                raise ValueError("Gain correction factors must be positive")
+        for g in soft_gain:
+            if g <= -1000.0 or g >= 1000.0:
+                raise ValueError("Gain correction factors must be +/-1000.0")
         self.spi = spi
         self.demux = demux
         self.demux_output = demux_output
@@ -84,7 +84,7 @@ class ADS1118:
         self.pull_up_en = pull_up_en
         self.cal_file = cal_file
         self.offset = [0, 0, 0, 0]  # Signed offsets for channels 0, 1,2,3
-        self.gain = gain  # Gain correction factors for channels 0,1,2,3
+        self.soft_gain = soft_gain  # Gain correction factors for channels 0,1,2,3
         self.frs = self._FSR_5V if vcc == 5.0 else self._FSR
         self._load_calibration()
 
@@ -267,7 +267,7 @@ class ADS1118:
         mux = self.channel_mux[channel]
         signed = (False if mux >= 4 else True)
         voltage = vol * self._get_lsb(signed)
-        return voltage
+        return round(voltage * self.soft_gain[channel],2)
 
     async def read_temperature(self):
         """Read internal temperature sensor (single-shot)."""

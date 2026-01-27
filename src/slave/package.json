@@ -2,18 +2,16 @@
   "urls": [
     ["main.py"              , "main.py"             ],
     ["slave.py"             , "slave.py"            ],
-    ["boot.py"              , "../common/boot.py"   ],
-    ["common/logger.py"     , "../common/logger.py" ],
-    ["common/common.py"     , "../common/common.py" ],
-    ["common/credentials.py", "../common/credentials.py"],
-    ["common/HAL.py"        , "../common/HAL.py"    ],
-    ["lib/ADS1118.py"       , "../lib/ADS1118.py   "],
-    ["lib/DS18B20.py"       , "../lib/DS18B20.py   "],
-    ["lib/PCA9685.py"       , "../lib/PCA9685.py   "],
-    ["lib/SN74HC154.py"     , "../lib/SN74HC154.py "],
-    ["lib/virt_slave.py"    , "../lib/virt_slave.py"],
-    ["lib/BMSnow.py"        , "../lib/BMSnow.py    "]
-
+    ["boot.py"              , "github:LouisKramer/calu_bms/src/common/boot.py"   ],
+    ["common/logger.py"     , "github:LouisKramer/calu_bms/src/common/logger.py" ],
+    ["common/common.py"     , "github:LouisKramer/calu_bms/src/common/common.py" ],
+    ["common/HAL.py"        , "github:LouisKramer/calu_bms/src/common/HAL.py"    ],
+    ["lib/ADS1118.py"       , "github:LouisKramer/calu_bms/src/lib/ADS1118.py   "],
+    ["lib/DS18B20.py"       , "github:LouisKramer/calu_bms/src/lib/DS18B20.py   "],
+    ["lib/PCA9685.py"       , "github:LouisKramer/calu_bms/src/lib/PCA9685.py   "],
+    ["lib/SN74HC154.py"     , "github:LouisKramer/calu_bms/src/lib/SN74HC154.py "],
+    ["lib/virt_slave.py"    , "github:LouisKramer/calu_bms/src/lib/virt_slave.py"],
+    ["lib/BMSnow.py"        , "github:LouisKramer/calu_bms/src/lib/BMSnow.py    "]
   ],
   "version": "0.1"
 }
