@@ -1,0 +1,19 @@
+{
+  "urls": [
+    ["main.py"              , "main.py"             ],
+    ["slave.py"             , "slave.py"            ],
+    ["common/boot.py"       , "../common/boot.py"   ],
+    ["common/logger.py"     , "../common/logger.py" ],
+    ["common/common.py"     , "../common/common.py" ],
+    ["common/credentials.py", "../common/credentials.py"],
+    ["common/HAL.py"        , "../common/HAL.py"    ],
+    ["lib/ADS1118.py"       , "../lib/ADS1118.py   "],
+    ["lib/DS18B20.py"       , "../lib/DS18B20.py   "],
+    ["lib/PCA9685.py"       , "../lib/PCA9685.py   "],
+    ["lib/SN74HC154.py"     , "../lib/SN74HC154.py "],
+    ["lib/virt_slave.py"    , "../lib/virt_slave.py"],
+    ["lib/BMSnow.py"        , "../lib/BMSnow.py    "]
+
+  ],
+  "version": "0.1"
+}
