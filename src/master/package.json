@@ -1,12 +1,12 @@
 {
   "urls": [
     ["main.py"              , "main.py"             ],
-    ["master.py"            , "master.py"           ],
-    ["lib/uhome.py"         , "github:ederjc/uhome/uhome/uhome.py"]
+    ["master.py"            , "master.py"           ]
   ],
     "deps": [
     ["github:LouisKramer/calu_bms/src/master/lib", "dev"],
-    ["github:LouisKramer/calu_bms/src/master/common", "dev"]
+    ["github:LouisKramer/calu_bms/src/master/common", "dev"],
+    ["github:ederjc/uhome/uhome/uhome.py"]
   ],
   "version": "0.1"
 }
