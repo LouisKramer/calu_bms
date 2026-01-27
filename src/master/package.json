@@ -2,7 +2,7 @@
   "urls": [
     ["main.py"              , "main.py"             ],
     ["master.py"            , "master.py"           ],
-    ["boot.py"              , "../common/boot.py"   ],
+    ["boot.py"              , "./../common/boot.py"   ],
     ["common/logger.py"     , "../common/logger.py" ],
     ["common/common.py"     , "../common/common.py" ],
     ["common/credentials.py", "../common/credentials.py"],

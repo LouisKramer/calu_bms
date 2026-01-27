@@ -23,12 +23,7 @@ all_master: clean appl_master soft_reset
 fw:
 	@echo "=== Programming firmware ==="
 #mpremote $(if $(PORT),connect $(PORT)) bootloader
-	mpremote bootloader
-	Start-Sleep -Seconds 5
-	mpremote reset
-	Start-Sleep -Seconds 5
 	esptool erase-flash
-	Start-Sleep -Seconds 5
 	esptool --baud 460800 write-flash 0 $(FW_BINARY)
 	@echo "Firmware programming complete!"
 
