@@ -60,7 +60,6 @@ appl_master:
 .PHONY: appl_slave
 appl_slave:
 	@echo "=== UPLOADING SLAVE FILES ==="
-	mpremote reset
 	mpremote mip install --target / ./src/slave/package_local.json
 	mpremote reset
 	@echo "Slave deployment complete!"

@@ -4,8 +4,8 @@ TODO:
     - Testing
 
 - HW master changes for v1.5.0.0:
-    - safe Bat fault only on save relay
-    - sic dirver seperately for top/bot
+    - safe Bat fault only on save relay (DONE)
+    - sic dirver seperately for top/bot (DONE)
     - precharge relay with 100Ohm 100W resistor in parallel to main switch
 
 - SW Future improvements
@@ -13,6 +13,7 @@ TODO:
     - add mqtt support
     - add crc check to BMSnowProtocol's
     - Add CAN support
+    - PROT.py adapt to HW 1.4.1.0
     - Protection manager (DONE)
         - Trigger save relay if slave a is lost. (see BMSnow::_connection_supervisor_task)
         - Trigger save relay if current over +/- max_current + X (config)
@@ -20,7 +21,7 @@ TODO:
         - Trigger save relay if pack voltage is over/under protecion minimum (config)
         - Trigger save relay if string voltage is over/under protecion minimum (config)
         - Trigger save relay if cell voltage is over/under protecion threshold (config)
-    - Power manager:
+    - Power manager (DONE)
 
-
+    - Check TODO's !!!
 

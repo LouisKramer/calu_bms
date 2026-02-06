@@ -84,10 +84,11 @@ class BMSnowProtocol:
         typ, nc, nt = struct.unpack_from('<BBB', msg)
         payload_fmt = f'<{nc}ff{nt}f'
         payload = struct.unpack_from(payload_fmt, msg, 3)
-        data.vcell = list(payload[:nc])
-        data.vstr  = payload[nc]
-        data.temps = list(payload[nc+1:])
-        return data
+        vcell = list(payload[:nc])
+        vstr  = payload[nc]
+        temps = list(payload[nc+1:])
+        return data.update(vcell, vstr, temps)
+
 
     @staticmethod
     def pack_config_msg(conf: conf_data):
@@ -195,7 +196,7 @@ class BMSnowMaster(BMSnowComm):
                 if s.battery.state.ttl <= 0:
                     self.slaves.pop(s.battery.info)
                     self.e.del_peer(s.battery.info.mac)
-                    #TODO: Trigger protection!!!
+                    #TODO: Trigger protection!!!--> add flag to Slaves class and check in protector class for flag.
                     self.log.warn(f"Communication timeout on slave {s.battery.info.addr}")
                 else:
                     s.battery.state.ttl -= 1
@@ -250,6 +251,7 @@ class BMSnowMaster(BMSnowComm):
             self.e.add_peer(mac)
             s = self.slaves.push(info)
             s.battery.state.ttl = s.battery.conf.ttl
+            s.battery.state.synced = True
             self.log.info(f"New slave discovered: {self.log.mac_to_str(mac)}")
         else:
             self.log.info(f"Update info from: {self.log.mac_to_str(mac)}")
@@ -260,7 +262,7 @@ class BMSnowMaster(BMSnowComm):
     def _handle_data(self, mac, msg):
         s = self.slaves.get_by_mac(mac)
         if s is not None:
-            self.protocol.unpack_data_msg(msg, s.battery.meas)
+            s.battery.state.stable = self.protocol.unpack_data_msg(msg, s.battery.meas)
             s.battery.state.ttl = s.battery.conf.ttl
             self.log.info(f"Received data from {self.log.mac_to_str(mac)}")
         else:

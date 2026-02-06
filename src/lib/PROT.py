@@ -33,7 +33,7 @@ class Protector:
     def start(self, slaves: Slaves, data: master_data):
         if self.stage != self.PROT_STAGE_OFF:
             self.log.warn("Protection already started")
-            return
+            return False
         self.log.info("Start protection")
         self.slaves = slaves
         self.data = data
@@ -41,11 +41,12 @@ class Protector:
         self.wdt = WDT(timeout = 8000)
         self.stage = self.PROT_STAGE_STABLE
         asyncio.create_task(self._worker())
+        return True
 
     async def connect_to_inv(self):
         if self.stage != self.PROT_STAGE_0:
             self.log.warn("Protection NOT ready to connect!")
-            return
+            return False
         delta = abs(self.data.vinv - self.data.vpack)
         if self.data.vinv < 50 : #TODO: find proper value
             #DC-Link precharge from battery
@@ -55,11 +56,12 @@ class Protector:
             if delta > 150:     #TODO: find proper value
                 self.log.error("Voltage difference too large - risk of high inrush to battery. Waiting or aborting.")
                 # Option: wait for sun to drop / load to consume, or refuse connection
-                return
+                return False
         self.rel_main.on()
         await asyncio.sleep(1)
         self.sic_driver.on()
         await asyncio.sleep(1)
+        return True
     
     async def _precharge(self):
             self.rel_pre_charge.on()

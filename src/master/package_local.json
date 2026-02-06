@@ -17,6 +17,7 @@
     ["lib/BMSnow.py"        , "../lib/BMSnow.py    "],
     ["lib/WLAN.py"          , "../lib/WLAN.py      "],   
     ["lib/PROT.py"          , "../lib/PROT.py      "],
+    ["lib/Power_manager.py" , "../lib/Power_manager.py"],
     ["lib/uhome.py"         , "github:ederjc/uhome/uhome/uhome.py"]
   ],
   "version": "0.1"

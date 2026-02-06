@@ -150,15 +150,6 @@ class BatterySOC:
 
         Raises:
             ValueError: If num_cells or capacity_ah are invalid.
-
-        Example:
-            >>> config = {
-            ...     'capacity_ah': 100.0,
-            ...     'num_cells': 4,
-            ...     'cell_ir': 0.040,
-            ...     'initial_soc': 80.0
-            ... }
-            >>> estimator = BatterySOC(config)
         """
         self.config = soc_config()
         # --- Voltage-SOC Lookup Table ---
@@ -259,7 +250,7 @@ class BatterySOC:
     # Public API
     # -------------------------------------------------------------------------
 
-    async def update(self, current, voltage, temperature, nr_cells):
+    def update(self, current, voltage, temperature, nr_cells):
         """
         Update SOC estimate with new sensor readings.
 

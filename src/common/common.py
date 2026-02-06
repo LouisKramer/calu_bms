@@ -121,12 +121,22 @@ class battery:
     def create_measurements(self):
         """Call this after you know ncell & ntemp"""
         self.meas = meas_data(self) 
+    def is_data_stable(self):
+        """Check if all cell voltages are above 2.5V and below 4.5V"""
+        if self.meas is None:
+            return False
+        for v in self.meas.vcell:
+            if not (2.0 < v < 4.5):
+                return False
+        return True
+
         
 class status_data:
     def __init__(self):
         self.channel_found = False
         self.com_active = False
         self.synced = False
+        self.stable = False
         self.ttl = 0
 
 class info_data:
@@ -154,6 +164,106 @@ class meas_data:
         self.vcell = [0] * bat.info.ncell
         self.vstr = 0
         self.temps = [0] * bat.info.ntemp
+
+class meas_data:
+    def __init__(self, bat: battery):
+        self.vcell = [0.0] * bat.info.ncell      # cell voltages in V
+        self.vstr = 0.0                           # string / total pack voltage in V
+        self.temps = [0.0] * bat.info.ntemp      # temperatures in °C
+
+    # ────────────────────────────────────────────────
+    # Cell voltage setters
+    # ────────────────────────────────────────────────
+    def set_vcell(self, index: int, voltage: float) -> bool:
+        """Set voltage for one specific cell.
+        Returns True if accepted, False if invalid."""
+        if not isinstance(index, int) or not 0 <= index < len(self.vcell):
+            return False
+        if not isinstance(voltage, (int, float)) or voltage < 0:
+            return False
+        self.vcell[index] = float(voltage)
+        return True
+
+    def set_all_vcells(self, voltages: list[float]) -> bool:
+        """Set all cell voltages at once.
+        Returns True if list length matches and all values are valid, False otherwise."""
+        if not isinstance(voltages, list) or len(voltages) != len(self.vcell):
+            return False
+        
+        # Check all values are non-negative numbers
+        if not all(isinstance(v, (int, float)) and v >= 0 for v in voltages):
+            return False
+        
+        self.vcell = [float(v) for v in voltages]
+        return True
+
+    # ────────────────────────────────────────────────
+    # String voltage setter
+    # ────────────────────────────────────────────────
+    def set_vstr(self, voltage: float) -> bool:
+        """Set string voltage.
+        Returns True if accepted, False if invalid."""
+        if not isinstance(voltage, (int, float)) or voltage < 0:
+            return False
+        self.vstr = float(voltage)
+        return True
+
+    # ────────────────────────────────────────────────
+    # Temperature setters
+    # ────────────────────────────────────────────────
+    def set_temp(self, index: int, temp: float) -> bool:
+        """Set one temperature value.
+        Returns True if accepted, False if invalid index."""
+        if not isinstance(index, int) or not 0 <= index < len(self.temps):
+            return False
+        # Temperatures can be negative (e.g. -20°C), so only check type
+        if not isinstance(temp, (int, float)):
+            return False
+        self.temps[index] = float(temp)
+        return True
+
+    def set_all_temps(self, temps: list[float]) -> bool:
+        """Set all temperatures at once.
+        Returns True if length matches and values are valid numbers."""
+        if not isinstance(temps, list) or len(temps) != len(self.temps):
+            return False
+        
+        if not all(isinstance(t, (int, float)) for t in temps):
+            return False
+        self.temps = [float(t) for t in temps]
+        print(f"Updated temps: {self.temps}")
+        return True
+
+    # ────────────────────────────────────────────────
+    # Convenience method for bulk update (common in comms)
+    # ────────────────────────────────────────────────
+    def update(self,
+               vcells: list[float] | None = None,
+               vstr: float | None = None,
+               temps: list[float] | None = None) -> bool:
+        """
+        Update multiple fields at once.
+        Returns True only if ALL provided values were successfully set.
+        """
+        success = True
+        if vcells is not None:
+            success = success and self.set_all_vcells(vcells)
+        
+        if vstr is not None:
+            success = success and self.set_vstr(vstr)
+        
+        if temps is not None:
+            success = success and self.set_all_temps(temps)
+        
+        return success
+
+    # Optional helper: check if string voltage roughly matches sum of cells
+    def is_vstr_consistent(self, max_diff: float = 0.3) -> bool:
+        """Check if measured vstr is close to sum of cell voltages."""
+        if not self.vcell:
+            return True  # no cells → can't check
+        calculated_sum = sum(self.vcell)
+        return abs(self.vstr - calculated_sum) <= max_diff
 
 class conf_data:
     def __init__(self):

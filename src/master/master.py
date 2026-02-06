@@ -18,6 +18,7 @@ from lib.BMSnow import BMSnowMaster
 from lib.WLAN import WlanManager
 #from lib.CAN import * Wait for support in micropython-esp32
 from lib.PROT import Protector
+from lib.Power_manager import PowerManager
 
 # ========================================
 # INIT
@@ -54,36 +55,62 @@ async def main():
     tmp = DS18B20(data_pin=HAL.OWM_TEMP_PIN, pullup=False)
 
     soc_estimator = BatterySOC()
+    pow_manager = PowerManager(slaves=slave_handler.slaves)
     asyncio.create_task(autosave_task(soc_estimator, 60))
     #can= BMSCan(config_can)
     
     # Start tasks
     ntp = ntp_sync(NTP_HOST, NTP_PORT, NTP_TIMEOUT, NTP_SYNC_INTERVAL)
     ntp_sync_task = asyncio.create_task(ntp.ntp_task())
-    
+    state = "discover slaves"
     log.info("Initialization complete, entering main loop.")
     while True:
         #TODO: this chan be put in a method/class e.g. master measurements handler
         slave_handler.request_all_data()
         meas.current = cur.read_current(samples=10)
-        log.info(f"Current: {meas.current} A")
         meas.vpack = await vol.read_voltage(channel=0)  * 1.75
         meas.vinv = await vol.read_voltage(channel=1)
         meas.tadc = await vol.read_temperature()
-        log.info(f"Battery Voltage: {meas.vpack}, Inverter Voltage: {meas.vinv}, ADC Temp: {meas.tadc}")
         meas.tpack = 0#tmp.get_temperatures()
+        soc = soc_estimator.update(meas.current, meas.vpack, meas.tpack, slave_handler.slaves.nr_of_cells())
+        log.info(f"Battery Voltage: {meas.vpack}, Inverter Voltage: {meas.vinv}, ADC Temp: {meas.tadc}")
+        log.info(f"Current: {meas.current} A")
         log.info(f"Temperatures: {meas.tpack}")
-        soc = await soc_estimator.update(meas.current, meas.vpack, meas.tpack, slave_handler.slaves.nr_of_cells())
-        log.info(f"Estimated SOC: {soc} %")
 
         #TODO: implement FSM!!!!!!!
         #protector starts checks
-        protector.start(slaves=slave_handler.slaves, data = meas)
-        
-        await protector.connect_to_inv() #this only triggers if protection ready.
+        if state == "discover slaves":
+            #wait for some time to discover slaves and get initial data
+            if len(slave_handler.slaves) > 0: #TODO: define expected number of slaves.
+                log.info(f"Discovered {len(slave_handler.slaves)} slaves with total {slave_handler.slaves.nr_of_cells()} cells")
+                state = "wait for stable measurements"
+            else:
+                log.warn("No slaves discovered yet")
+        elif state == "wait for stable measurements":
+            #wait for measurements to stabilize
+            if all(s.battery.state.stable for s in slave_handler.slaves):
+                log.info("Measurements stabilized, ready to connect to inverter")
+                state = "start protection"
+            else:
+                log.info("Waiting for stable measurements from all slaves")
+        elif state == "start protection":
+            if protector.start(slaves=slave_handler.slaves, data = meas)==True:
+                log.info("Protection started successfully")
+                state = "connect to inverter"
+        elif state == "connect to inverter":
+            if await protector.connect_to_inv() == True:
+                log.info("Connected to inverter, entering normal operation")
+                state = "normal operation"
+        elif state == "normal operation":
+            charge_current, discharge_current = pow_manager.update(soc)
+            log.info(f"Allowed charge current: {charge_current:.2f} A, discharge current: {discharge_current:.2f} A")
+
+
         #can_bus.send_status(prot_status)
         for s in slave_handler.slaves:
             log.info(f"Voltages: {s.battery.meas.vcell}")
+            log.info(f"Temperatures: {s.battery.meas.temps}")
+            log.info(f"String Voltage: {s.battery.meas.vstr}")
         await asyncio.sleep(5)
 
 # ----------------------------------------------------------------------
