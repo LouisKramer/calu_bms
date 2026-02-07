@@ -59,9 +59,9 @@ class Protector:
                 self.log.error("Voltage difference too large - risk of high inrush to battery. Waiting or aborting.")
                 # Option: wait for sun to drop / load to consume, or refuse connection
                 return False
-        self._connect_to_inverter()
+        self._connect_main()
 
-    async def _connect_to_inverter(self):
+    async def _connect_main(self):
         self.rel_main.on()
         await asyncio.sleep(1)
         self.sic_driver.on()
