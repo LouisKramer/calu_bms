@@ -48,15 +48,20 @@ class Protector:
             self.log.warn("Protection NOT ready to connect!")
             return False
         delta = abs(self.data.vinv - self.data.vpack)
+        # DC-Link precharge if large voltage difference → reduces risk of high inrush current. 
         if self.data.vinv < 50 : #TODO: find proper value
             #DC-Link precharge from battery
             await self._precharge()
+        # if voltage diff to DC-Link ist too high → wait or refuse connection to avoid high inrush current
         elif delta > 80:        #TODO: find proper value
             self.log.warn(f"Large voltage delta detected: vinv={self.data.vinv:.1f} V > vpack={self.data.vpack:.1f} V")
             if delta > 150:     #TODO: find proper value
                 self.log.error("Voltage difference too large - risk of high inrush to battery. Waiting or aborting.")
                 # Option: wait for sun to drop / load to consume, or refuse connection
                 return False
+        self._connect_to_inverter()
+
+    async def _connect_to_inverter(self):
         self.rel_main.on()
         await asyncio.sleep(1)
         self.sic_driver.on()
