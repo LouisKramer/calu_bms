@@ -37,6 +37,12 @@ class Slaves:
         if len(self._slaves) >= self.MAX_NR_OF_SLAVES:
             log_slave.warn(f"Cannot add more than {self.MAX_NR_OF_SLAVES} slaves")
             return None
+        elif self.is_known(info.mac):
+            log_slave.warn(f"Slave with MAC {log_slave.mac_to_str(info.mac)} already known")
+            return None
+        elif info.addr == self.get_by_addr(info.addr):
+            log_slave.warn(f"Slave with address {info.addr} already known")
+            return None
         else:
             log_slave.info(f"Add slave {log_slave.mac_to_str(info.mac)} to list")
             new = virt_slave(info)
