@@ -97,8 +97,8 @@ class Protector:
             else:
                 # Fault cleared → reset delay counter
                 self.stage_2_delay = self.cfg.prot_rel_trigger_delay
-                # Optional: log recovery (uncomment if desired)
-                # self.log.info("Fault cleared in stage 1 – delay reset")
+                self.stage = self.PROT_STAGE_0
+                self.log.info("Fault cleared in stage 1 - returning to stage 0")
 
         elif self.stage == self.PROT_STAGE_2:
             # In many BMS designs: continue monitoring, but no automatic recovery
