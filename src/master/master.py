@@ -61,7 +61,6 @@ async def main():
     
     # Start tasks
     ntp = ntp_sync(NTP_HOST, NTP_PORT, NTP_TIMEOUT, NTP_SYNC_INTERVAL)
-    ntp_sync_task = asyncio.create_task(ntp.ntp_task())
     state = "discover slaves"
     log.info("Initialization complete, entering main loop.")
     while True:
@@ -111,7 +110,7 @@ async def main():
             log.info(f"Voltages: {s.battery.meas.vcell}")
             log.info(f"Temperatures: {s.battery.meas.temps}")
             log.info(f"String Voltage: {s.battery.meas.vstr}")
-        await asyncio.sleep(5)
+        await asyncio.sleep(2)
 
 # ----------------------------------------------------------------------
 #  Boot
