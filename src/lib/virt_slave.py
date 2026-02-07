@@ -9,6 +9,7 @@ class Slaves:
     MAX_NR_OF_SLAVES = 16    
     def __init__(self):
         log_slave.info("Initializing slave handler...")
+        self.slave_lost_flag = False
         # start with an *empty* list – we grow only when push() is called
         self._slaves: list["virt_slave | None"] = []
 

@@ -196,7 +196,7 @@ class BMSnowMaster(BMSnowComm):
                 if s.battery.state.ttl <= 0:
                     self.slaves.pop(s.battery.info)
                     self.e.del_peer(s.battery.info.mac)
-                    #TODO: Trigger protection!!!--> add flag to Slaves class and check in protector class for flag.
+                    self.slaves.slave_lost_flag = True
                     self.log.warn(f"Communication timeout on slave {s.battery.info.addr}")
                 else:
                     s.battery.state.ttl -= 1

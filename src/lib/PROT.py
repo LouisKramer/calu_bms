@@ -111,6 +111,8 @@ class Protector:
 
 
     def _check(self):
+        if self.slaves.slave_lost_flag == True:
+            return "Slave lost detected!"
         if not(self.cfg.prot_min_pack_vol <= self.data.vpack <= self.cfg.prot_max_pack_vol):
             return f"Battery Pack over/under Voltage {self.data.vpack}V detected!"
         if self.data.tpack >= self.cfg.prot_max_temp:
