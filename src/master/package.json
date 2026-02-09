@@ -16,8 +16,8 @@
     ["lib/BMSnow.py"        , "github:LouisKramer/calu_bms/src/lib/BMSnow.py    "],
     ["lib/WLAN.py"          , "github:LouisKramer/calu_bms/src/lib/WLAN.py      "],   
     ["lib/PROT.py"          , "github:LouisKramer/calu_bms/src/lib/PROT.py      "],
-    ["lib/Power_manager.py" , "../lib/Power_manager.py"]
+    ["lib/Power_manager.py" , "github:LouisKramer/calu_bms/src/lib/Power_manager.py"]
   ],
-    "deps": [],
+  "deps": [],
   "version": "0.1"
 }
