@@ -223,11 +223,11 @@ class Select(Entity):
 # ───────────────────────────────────────────────
 class BMSmqtt:
     def __init__(self,
-                 device_name,
-                 device_id,
-                 mqtt_broker,
-                 mqtt_user="",
-                 mqtt_password="",
+                 device_name = MQTT_DEVICE_NAME,
+                 device_id = MQTT_DEVICE_ID,
+                 mqtt_broker = MQTT_BROKER,
+                 mqtt_user= MQTT_USER,
+                 mqtt_password= MQTT_PASSWORD,
                  base_topic=None,
                  update_interval=60,
                  availability_topic=None):
@@ -288,6 +288,7 @@ class BMSmqtt:
             self.mqtt_client.subscribe(entity.command_topic)
         
         self.entities.append(entity)
+        return entity
 
     def publish_discovery(self):
         for entity in self.entities:
@@ -383,11 +384,11 @@ class BMSmqtt:
 
 if __name__ == "__main__":
     bms = BMSmqtt(
-        device_name="Battery Monitor",
-        device_id="bms_jbd_01",
-        mqtt_broker=MQTT_BROKER,
-        mqtt_user=MQTT_USER,
-        mqtt_password=MQTT_PASSWORD,
+        device_name = MQTT_DEVICE_NAME,
+        device_id   = MQTT_DEVICE_ID,
+        mqtt_broker = MQTT_BROKER,
+        mqtt_user   = MQTT_USER,
+        mqtt_password = MQTT_PASSWORD,
         update_interval=30
     )
 

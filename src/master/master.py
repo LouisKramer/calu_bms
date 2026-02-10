@@ -19,6 +19,7 @@ from lib.WLAN import WlanManager
 #from lib.CAN import * Wait for support in micropython-esp32
 from lib.PROT import Protector
 from lib.Power_manager import PowerManager
+from lib.BMSmqtt import BMSmqtt, Sensor, Number, Switch, Select
 
 # ========================================
 # INIT
@@ -37,7 +38,6 @@ async def main():
     log.info("Starting main application")
     protector = Protector()
     meas = master_data()
-    # TODO:add watchdog
     slave_handler = BMSnowMaster()
     slave_handler.start()
 
@@ -61,13 +61,19 @@ async def main():
     
     # Start tasks
     ntp = ntp_sync(NTP_HOST, NTP_PORT, NTP_TIMEOUT, NTP_SYNC_INTERVAL)
+    mqtt = BMSmqtt()
+    vpack_mqtt = mqtt.add_entity(Sensor("Package Voltage",unit="V",device_class="voltage"))
+    current_mqtt = mqtt.add_entity(Sensor("Package Current",unit="A",device_class="current"))
+
     state = "discover slaves"
     log.info("Initialization complete, entering main loop.")
     while True:
         #TODO: this chan be put in a method/class e.g. master measurements handler
         slave_handler.request_all_data()
         meas.current = cur.read_current(samples=10)
+        current_mqtt.set_value(meas.current)
         meas.vpack = await vol.read_voltage(channel=0)  * 1.75
+        vpack_mqtt.set_value(meas.vpack)
         meas.vinv = await vol.read_voltage(channel=1)
         meas.tadc = await vol.read_temperature()
         meas.tpack = 0#tmp.get_temperatures()
