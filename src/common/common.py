@@ -91,12 +91,12 @@ class power_config():
         self.soc_low_cutoff = 10.0          #if lower, reduce discharge current to 0 A only allow charge
         self.max_temp = 50.0                #if any temp is greater than this, reduce charge/discharge current
 
-        self._max_current = Number("Max Charge Current", min_val=0.0, max_val=100.0, step=0.5, mode="slider", default=25.0, unit="A", cb=self.update)
-        self._under_voltage_cell = Number("Under Voltage Cell", min_val=2.0, max_val=3.0, step=0.1, mode="slider", default=2.7, unit="V", cb=self.update)
-        self._over_voltage_cell = Number("Over Voltage Cell", min_val=3.0, max_val=4.5, step=0.1, mode="slider", default=3.65, unit="V", cb=self.update)
-        self._charge_settle_time = Number("Charge Settle Time", min_val=10, max_val=3600, step=10, mode="slider", default=600, unit="s", cb=self.update)
-        self._soc_low_cutoff = Number("SOC Low Cutoff", min_val=0, max_val=100, step=1, mode="slider", default=10, unit="%", cb=self.update)
-        self._max_temp = Number("Max Temperature", min_val=0, max_val=100, step=1, mode="slider", default=50, unit="°C", cb=self.update)
+        self._max_current = Number("Max Charge Current", min_val=0.0, max_val=100.0, step=0.5, mode="slider", default=self.max_current, unit="A", cb=self.update)
+        self._under_voltage_cell = Number("Under Voltage Cell", min_val=2.0, max_val=3.0, step=0.1, mode="slider", default=self.under_voltage_cell, unit="V", cb=self.update)
+        self._over_voltage_cell = Number("Over Voltage Cell", min_val=3.0, max_val=4.5, step=0.1, mode="slider", default=self.over_voltage_cell, unit="V", cb=self.update)
+        self._charge_settle_time = Number("Charge Settle Time", min_val=10, max_val=3600, step=10, mode="slider", default=self.charge_settle_time, unit="s", cb=self.update)
+        self._soc_low_cutoff = Number("SOC Low Cutoff", min_val=0, max_val=100, step=1, mode="slider", default=self.soc_low_cutoff, unit="%", cb=self.update)
+        self._max_temp = Number("Max Temperature", min_val=0, max_val=100, step=1, mode="slider", default=self.max_temp, unit="°C", cb=self.update)
         self.charge_current_table = []
         self._load_from_config()
         self._update_charge_current_table()
@@ -151,9 +151,10 @@ class power_config():
         self._update_charge_current_table()
         self.save()
 
-
 class protection_config:
     def __init__(self):
+        self.config = config()
+        self._section_name = "protection_config"
         self.prot_rel_trigger_delay = 30.0    # time from SiC stage to relay stage if conditions did not improve
         self.prot_max_inv_vol       = 1000.0
         self.prot_min_inv_vol       = 0.0
@@ -167,39 +168,86 @@ class protection_config:
         self.prot_max_cell_vol      = 4.2
         self.prot_min_cell_vol      = 2.5
 
-    def set(self, other: 'protection_config'):
-        if not isinstance(other, protection_config):
-            raise TypeError("Expected protection_config instance")
+        self._prot_rel_trigger_delay = Number("Protection Relay Trigger Delay", min_val=5, max_val=300, step=1, mode="slider", default=self.prot_rel_trigger_delay, unit="s", cb=self.update)
+        self._prot_max_inv_vol = Number("Protection Max Inverter Voltage", min_val=200, max_val=1500, step=10, mode="slider", default=self.prot_max_inv_vol, unit="V", cb=self.update)
+        self._prot_min_inv_vol = Number("Protection Min Inverter Voltage", min_val=100, max_val=800, step=10, mode="slider", default=self.prot_min_inv_vol, unit="V", cb=self.update)
+        self._prot_max_current = Number("Protection Max Current", min_val=10, max_val=400, step=1, mode="slider", default=self.prot_max_current, unit="A", cb=self.update)
+        self._prot_min_current = Number("Protection Min Current", min_val=-400, max_val=10, step=1, mode="slider", default=self.prot_min_current, unit="A", cb=self.update)
+        self._prot_max_temp = Number("Protection Max Temperature", min_val=40, max_val=100, step=1, mode="slider", default=self.prot_max_temp, unit="°C", cb=self.update)
+        self._prot_max_pack_vol = Number("Protection Max Pack Voltage", min_val=200, max_val=1500, step=10, mode="slider", default=self.prot_max_pack_vol, unit="V", cb=self.update)
+        self._prot_min_pack_vol = Number("Protection Min Pack Voltage", min_val=100, max_val=800, step=10, mode="slider", default=self.prot_min_pack_vol, unit="V", cb=self.update)
+        self._prot_max_str_vol = Number("Protection Max String Voltage", min_val=80, max_val=200, step=10, mode="slider", default=self.prot_max_str_vol, unit="V", cb=self.update)
+        self._prot_min_str_vol = Number("Protection Min String Voltage", min_val=20, max_val=80, step=10, mode="slider", default=self.prot_min_str_vol, unit="V", cb=self.update)
+        self._prot_max_cell_vol = Number("Protection Max Cell Voltage", min_val=3.4, max_val=4.25, step=0.05, mode="slider", default=self.prot_max_cell_vol, unit="V", cb=self.update)
+        self._prot_min_cell_vol = Number("Protection Min Cell Voltage", min_val=2.3, max_val=3.0, step=0.05, mode="slider", default=self.prot_min_cell_vol, unit="V", cb=self.update)
 
-        # Format: (min, max, value, attribute_name, description)
-        checks = [
-            (  5.0,   300.0, other.prot_rel_trigger_delay, "prot_rel_trigger_delay", "5–300 seconds"),
-            (200.0,  1500.0, other.prot_max_inv_vol,       "prot_max_inv_vol",       "inverter max voltage (V)"),
-            (100.0,   800.0, other.prot_min_inv_vol,       "prot_min_inv_vol",       "inverter min voltage (V)"),
-            ( 10.0,   400.0, other.prot_max_current,       "prot_max_current",       "max current (A)"),
-            (-400.0,   10.0, other.prot_min_current,       "prot_min_current",       "min current (A) — discharge limit"),
-            ( 40.0,   100.0, other.prot_max_temp,          "prot_max_temp",          "max temperature (°C)"),
-            (200.0,  1500.0, other.prot_max_pack_vol,      "prot_max_pack_vol",      "pack max voltage (V)"),
-            (100.0,   800.0, other.prot_min_pack_vol,      "prot_min_pack_vol",      "pack min voltage (V)"),
-            ( 80.0,   200.0, other.prot_max_str_vol,       "prot_max_str_vol",       "string max voltage (V)"),
-            ( 20.0,    80.0, other.prot_min_str_vol,       "prot_min_str_vol",       "string min voltage (V)"),
-            ( 3.40,   4.25,  other.prot_max_cell_vol,      "prot_max_cell_vol",      "cell max voltage (V)"),
-            ( 2.30,   3.00,  other.prot_min_cell_vol,      "prot_min_cell_vol",      "cell min voltage (V)"),
-        ]
+        self._load_from_config()
 
-        for minv, maxv, value, name, desc in checks:
-            if not (minv <= value <= maxv):
-                raise ValueError(
-                    f"protection_config.{name} must be between {minv} and {maxv} ({desc}), "
-                    f"got {value}"
-                )
+    def _load_from_config(self):
+        section = self.config.get_section(self._section_name, {})
+        self.prot_rel_trigger_delay = section.get("prot_rel_trigger_delay", self.prot_rel_trigger_delay)
+        self.prot_max_inv_vol = section.get("prot_max_inv_vol", self.prot_max_inv_vol)
+        self.prot_min_inv_vol = section.get("prot_min_inv_vol", self.prot_min_inv_vol)
+        self.prot_max_current = section.get("prot_max_current", self.prot_max_current)
+        self.prot_min_current = section.get("prot_min_current", self.prot_min_current)
+        self.prot_max_temp = section.get("prot_max_temp", self.prot_max_temp)
+        self.prot_max_pack_vol = section.get("prot_max_pack_vol", self.prot_max_pack_vol)
+        self.prot_min_pack_vol = section.get("prot_min_pack_vol", self.prot_min_pack_vol)
+        self.prot_max_str_vol = section.get("prot_max_str_vol", self.prot_max_str_vol)
+        self.prot_min_str_vol = section.get("prot_min_str_vol", self.prot_min_str_vol)
+        self.prot_max_cell_vol = section.get("prot_max_cell_vol", self.prot_max_cell_vol)
+        self.prot_min_cell_vol = section.get("prot_min_cell_vol", self.prot_min_cell_vol)
 
-        # If all checks pass → copy all attributes
-        self.__dict__.update(other.__dict__)
+        self._prot_rel_trigger_delay.set_value(self.prot_rel_trigger_delay)
+        self._prot_max_inv_vol.set_value(self.prot_max_inv_vol)
+        self._prot_min_inv_vol.set_value(self.prot_min_inv_vol)
+        self._prot_max_current.set_value(self.prot_max_current)
+        self._prot_min_current.set_value(self.prot_min_current)
+        self._prot_max_temp.set_value(self.prot_max_temp)
+        self._prot_max_pack_vol.set_value(self.prot_max_pack_vol)
+        self._prot_min_pack_vol.set_value(self.prot_min_pack_vol)
+        self._prot_max_str_vol.set_value(self.prot_max_str_vol)
+        self._prot_min_str_vol.set_value(self.prot_min_str_vol)
+        self._prot_max_cell_vol.set_value(self.prot_max_cell_vol)
+        self._prot_min_cell_vol.set_value(self.prot_min_cell_vol)
 
+    def save(self):
+        data = {
+            "prot_rel_trigger_delay": self.prot_rel_trigger_delay,
+            "prot_max_inv_vol": self.prot_max_inv_vol,
+            "prot_min_inv_vol": self.prot_min_inv_vol,
+            "prot_max_current": self.prot_max_current,
+            "prot_min_current": self.prot_min_current,
+            "prot_max_temp": self.prot_max_temp,
+            "prot_max_pack_vol": self.prot_max_pack_vol,
+            "prot_min_pack_vol": self.prot_min_pack_vol,
+            "prot_max_str_vol": self.prot_max_str_vol,
+            "prot_min_str_vol": self.prot_min_str_vol,
+            "prot_max_cell_vol": self.prot_max_cell_vol,
+            "prot_min_cell_vol": self.prot_min_cell_vol
+            }
+        self.config.set_section(self._section_name, data)
+        self.config.save()
 
+    def update(self):
+        """Call this to update config values from the Number entities (e.g. after user changes in Home Assistant)"""
+        self.prot_rel_trigger_delay = self._prot_rel_trigger_delay.get_state_value()
+        self.prot_max_inv_vol = self._prot_max_inv_vol.get_state_value()
+        self.prot_min_inv_vol = self._prot_min_inv_vol.get_state_value()
+        self.prot_max_current = self._prot_max_current.get_state_value()
+        self.prot_min_current = self._prot_min_current.get_state_value()
+        self.prot_max_temp = self._prot_max_temp.get_state_value()
+        self.prot_max_pack_vol = self._prot_max_pack_vol.get_state_value()
+        self.prot_min_pack_vol = self._prot_min_pack_vol.get_state_value()
+        self.prot_max_str_vol = self._prot_max_str_vol.get_state_value()
+        self.prot_min_str_vol = self._prot_min_str_vol.get_state_value()
+        self.prot_max_cell_vol = self._prot_max_cell_vol.get_state_value()
+        self.prot_min_cell_vol = self._prot_min_cell_vol.get_state_value()
+        self.save()
 class soc_config:
     def __init__(self):
+        self.config = config()
+        self._section_name = "soc_config"
         self.capacity_ah                = 100.0     # 10-1000Ah
         self.initial_soc                = 80.0      # 0-100%
         self.cell_ir                    = 0.004     # 2-8 mΩ at 25°C
@@ -210,29 +258,65 @@ class soc_config:
         self.relaxed_hold_time          = 30.0      # 10 -200s
         self.sampling_interval          = 2.0       # 0.5 - 100s
 
-    def set(self, other: 'soc_config'):
-        if not isinstance(other, soc_config):
-            raise TypeError("Expected soc_config instance")
+        self._capacity_ah = Number("Battery Capacity (Ah)", min_val=10.0, max_val=1000.0, step=10.0, mode="slider", default=self.capacity_ah, unit="Ah", cb=self.update)
+        self._initial_soc = Number("Initial SOC (%)", min_val=0.0, max_val=100.0, step=1.0, mode="slider", default=self.initial_soc, unit="%", cb=self.update)
+        self._cell_ir = Number("Cell Internal Resistance (mΩ)", min_val=1, max_val=10, step=1, mode="slider", default=self.cell_ir*1000, unit="mΩ", cb=self.update)
+        self._ir_ref_temp = Number("IR Reference Temperature (°C)", min_val=15.0, max_val=35.0, step=1.0, mode="slider", default=self.ir_ref_temp, unit="°C", cb=self.update)
+        self._ir_temp_coeff = Number("IR Temperature Coefficient (%/°C)", min_val=0.0, max_val=2, step=0.1, mode="slider", default=self.ir_temp_coeff*100, unit="%/°C", cb=self.update)
+        self._current_threshold = Number("Current Threshold (A)", min_val=0.0, max_val=2.0, step=0.1, mode="slider", default=self.current_threshold, unit="A", cb=self.update)
+        self._voltage_stable_threshold = Number("Voltage Stable Threshold (V)", min_val=0.001, max_val=0.05, step=0.001, mode="slider", default=self.voltage_stable_threshold, unit="V", cb=self.update)
+        self._relaxed_hold_time = Number("Relaxed Hold Time (s)", min_val=10.0, max_val=200.0, step=10.0, mode="slider", default=self.relaxed_hold_time, unit="s", cb=self.update)
+        self._sampling_interval = Number("Sampling Interval (s)", min_val=0.5, max_val=100.0, step=0.5, mode="slider", default=self.sampling_interval, unit="s", cb=self.update)
+        self._load_from_config()
 
-        checks = [
-            (10.0, 1000.0, other.capacity_ah,             "capacity_ah",                "10-1000 Ah"),
-            (0.0,  100.0,  other.initial_soc,             "initial_soc",                "0-100 %"),
-            (0.002,0.008,  other.cell_ir,                 "cell_ir",                    "2-8 mΩ"),
-            (15.0, 30.0,   other.ir_ref_temp,             "ir_ref_temp",                "15-30 °C"),
-            (0.002,0.007,  other.ir_temp_coeff,           "ir_temp_coeff",              "0.2-0.7 %/°C"),
-            (0.0,  2.0,    other.current_threshold,       "current_threshold",          "0-2 A"),
-            (0.0,  0.05,   other.voltage_stable_threshold,"voltage_stable_threshold",   "0-0.05 V"),
-            (10.0, 200.0,  other.relaxed_hold_time,       "relaxed_hold_time",          "10-200 s"),
-            (0.5,  100.0,  other.sampling_interval,       "sampling_interval",          "0.5-100 s"),
-        ]
+    def _load_from_config(self):
+        section = self.config.get_section(self._section_name, {})
+        self.capacity_ah = section.get("capacity_ah", self.capacity_ah)
+        self.initial_soc = section.get("initial_soc", self.initial_soc)
+        self.cell_ir = section.get("cell_ir", self.cell_ir)
+        self.ir_ref_temp = section.get("ir_ref_temp", self.ir_ref_temp)
+        self.ir_temp_coeff = section.get("ir_temp_coeff", self.ir_temp_coeff)
+        self.current_threshold = section.get("current_threshold", self.current_threshold)
+        self.voltage_stable_threshold = section.get("voltage_stable_threshold", self.voltage_stable_threshold)
+        self.relaxed_hold_time = section.get("relaxed_hold_time", self.relaxed_hold_time)
+        self.sampling_interval = section.get("sampling_interval", self.sampling_interval)
 
-        for minv, maxv, value, name, desc in checks:
-            if not (minv <= value <= maxv):
-                raise ValueError(f"{name} must be between {minv} and {maxv} ({desc})")
-
-        # assign
-        self.__dict__.update(other.__dict__)
-
+        self._capacity_ah.set_value(self.capacity_ah)
+        self._initial_soc.set_value(self.initial_soc)
+        self._cell_ir.set_value(self.cell_ir*1000)
+        self._ir_ref_temp.set_value(self.ir_ref_temp)
+        self._ir_temp_coeff.set_value(self.ir_temp_coeff*100)
+        self._current_threshold.set_value(self.current_threshold)
+        self._voltage_stable_threshold.set_value(self.voltage_stable_threshold)
+        self._relaxed_hold_time.set_value(self.relaxed_hold_time)
+        self._sampling_interval.set_value(self.sampling_interval)
+    
+    def save(self):
+        data = {
+            "capacity_ah": self.capacity_ah,
+            "initial_soc": self.initial_soc,
+            "cell_ir": self.cell_ir,
+            "ir_ref_temp": self.ir_ref_temp,
+            "ir_temp_coeff": self.ir_temp_coeff,
+            "current_threshold": self.current_threshold,
+            "voltage_stable_threshold": self.voltage_stable_threshold,
+            "relaxed_hold_time": self.relaxed_hold_time,
+            "sampling_interval": self.sampling_interval
+        }
+        self.config.set_section(self._section_name, data)
+        self.config.save()
+    def update(self):
+        """Call this to update config values from the Number entities (e.g. after user changes in Home Assistant)"""
+        self.capacity_ah = self._capacity_ah.get_state_value()
+        self.initial_soc = self._initial_soc.get_state_value()
+        self.cell_ir = self._cell_ir.get_state_value() / 1000
+        self.ir_ref_temp = self._ir_ref_temp.get_state_value()
+        self.ir_temp_coeff = self._ir_temp_coeff.get_state_value() / 100
+        self.current_threshold = self._current_threshold.get_state_value()
+        self.voltage_stable_threshold = self._voltage_stable_threshold.get_state_value()
+        self.relaxed_hold_time = self._relaxed_hold_time.get_state_value()
+        self.sampling_interval = self._sampling_interval.get_state_value()
+        self.save()
 class master_data:
     def __init__(self):
         self.current = 0.0
@@ -287,6 +371,7 @@ class battery:
         self.conf    = conf_data()
         self.meas    = None
         self.state   = status_data()
+        self.info.init_mqtt_entities()
     def create_measurements(self):
         """Call this after you know ncell & ntemp"""
         self.meas = meas_data(self) 
@@ -307,7 +392,6 @@ class status_data:
         self.synced = False
         self.stable = False
         self.ttl = 0
-
 class info_data:
     def __init__(self):
         self.mac        = b''
@@ -317,7 +401,25 @@ class info_data:
         self.ntemp      = 0
         self.fw_ver     = "0.0.0.0"
         self.hw_ver     = "0.0.0.0"
-     
+    
+    def init_mqtt_entities(self):
+        self._mac = Text(name = f"MAC", default=self.mac.hex(), sub_device={"name": f"Slave {self.addr}", "id": f"slave_{self.addr}"})
+        self._master_mac = Text(name = f"Master MAC", default=self.master_mac.hex(), sub_device={"name": f"Slave {self.addr}", "id": f"slave_{self.addr}"})
+        self._addr = Text(name = f"Address", default=str(self.addr), sub_device={"name": f"Slave {self.addr}", "id": f"slave_{self.addr}"})
+        self._ncell = Text(name = f"Number of Cells", default=str(self.ncell), sub_device={"name": f"Slave {self.addr}", "id": f"slave_{self.addr}"})
+        self._ntemp = Text(name = f"Number of Temps", default=str(self.ntemp), sub_device={"name": f"Slave {self.addr}", "id": f"slave_{self.addr}"})
+        self._fw_ver = Text(name = f"Firmware Version", default=self.fw_ver, sub_device={"name": f"Slave {self.addr}", "id": f"slave_{self.addr}"})
+        self._hw_ver = Text(name = f"Hardware Version", default=self.hw_ver, sub_device={"name": f"Slave {self.addr}", "id": f"slave_{self.addr}"})
+
+    def update_mqtt_entities(self):
+        self._mac.set_value(self.mac.hex())
+        self._master_mac.set_value(self.master_mac.hex())
+        self._addr.set_value(str(self.addr))
+        self._ncell.set_value(str(self.ncell))
+        self._ntemp.set_value(str(self.ntemp))
+        self._fw_ver.set_value(self.fw_ver)
+        self._hw_ver.set_value(self.hw_ver)
+
     def set(self, other: 'info_data'):
         if isinstance(other, info_data):
             self.mac        =    other.mac        
@@ -326,7 +428,8 @@ class info_data:
             self.ncell      =    other.ncell      
             self.ntemp      =    other.ntemp      
             self.fw_ver     =    other.fw_ver     
-            self.hw_ver     =    other.hw_ver          
+            self.hw_ver     =    other.hw_ver        
+            self.update_mqtt_entities()  
 
 class meas_data:
     def __init__(self, bat: battery):

@@ -26,9 +26,6 @@ class Protector:
         self.rel_pre_charge = Pin(HAL.INT_REL0_PIN, Pin.OUT)
         self.oc_in          = Pin(HAL.CURRENT_FAULT_PIN, Pin.IN)
         self._last_logged_msg = ""   # prevent log spam
-    
-    def set_config(self, config: protection_config):
-        self.cfg.set(config)
         
     def start(self, slaves: Slaves, data: master_data):
         if self.stage != self.PROT_STAGE_OFF:
