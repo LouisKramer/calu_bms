@@ -1,28 +1,157 @@
+from lib.BMSmqtt import Number, Select
+from common.logger import Logger
+import json
 
-
-config_can = {
-    'can_tx_pin': 40,      # ESP32 GPIO
-    'can_rx_pin': 39,
-    'baudrate': 125000,    # 125 kbps
-    'update_interval': 1.0
-}
-class power_config:
+class can_config:
     def __init__(self):
-        self.max_charge_current = 25.0      #do not go over this at charge and discharge
+        self.baudrate = Select("baudrate", options=[125000, 250000, 500000, 1000000], initial=125000)
+        self.can_tx_pin = 40      # ESP32 GPIO
+        self.can_rx_pin = 39
+        self.baudrate = 125000    # 125 kbps
+        self.update_interval = 1.0
+# file: config.py
+
+import json
+from common.logger import Logger
+
+class Config:
+    """
+    Generic configuration manager (singleton).
+    Handles loading/saving sections from/to JSON.
+    """
+
+    def __init__(self, filename="config.json", indent=2):
+        self._filename = filename
+        self._indent = indent
+        self.log = Logger()
+        self._sections = {}
+        self._load()
+
+    def _load(self):
+        try:
+            with open(self._filename, 'r') as f:
+                self._sections = json.load(f)
+            self.log.info(f"Config loaded from {self._filename}")
+        except FileNotFoundError:
+            self.log.info(f"Config file {self._filename} not found → using defaults")
+        except Exception as e:
+            self.log.error(f"Config load error: {e}")
+
+    def save(self):
+        try:
+            with open(self._filename, 'w') as f:
+                json.dump(self._sections, f, indent=self._indent)
+            self.log.info(f"Config saved to {self._filename}")
+        except Exception as e:
+            self.log.error(f"Config save error: {e}")
+
+    def get_section(self, section_name, default=None):
+        return self._sections.get(section_name, default or {})
+
+    def set_section(self, section_name, data: dict):
+        self._sections[section_name] = data
+
+    def get(self, section_name, key, default=None):
+        return self.get_section(section_name).get(key, default)
+
+    def set(self, section_name, key, value):
+        if section_name not in self._sections:
+            self._sections[section_name] = {}
+        self._sections[section_name][key] = value
+
+
+# ───────────────────────────────────────────────
+# Singleton instance & access functions
+# ───────────────────────────────────────────────
+_instance = None
+
+def init_config(filename="config.json", indent=2):
+    """Initialize the global config singleton (call once at startup)"""
+    global _instance
+    if _instance is not None:
+        return _instance
+    _instance = Config(filename=filename, indent=indent)
+    return _instance
+
+def config() -> Config:
+    """Get the global config instance"""
+    global _instance
+    if _instance is None:
+        init_config()
+    return _instance
+
+class power_config():
+    def __init__(self):
+        self.config = config()
+        self._section_name = "power_config"
+        self.max_current = 25.0
         self.under_voltage_cell = 2.7       #if lower, set discharge current to 0A only allow charge
         self.over_voltage_cell = 3.65       #if higher set charge current to 0 A and settle
         self.charge_settle_time = 600       #settle time in s, 
         self.soc_low_cutoff = 10.0          #if lower, reduce discharge current to 0 A only allow charge
         self.max_temp = 50.0                #if any temp is greater than this, reduce charge/discharge current
+
+        self._max_current = Number("Max Charge Current", min_val=0.0, max_val=100.0, step=0.5, mode="slider", default=25.0, unit="A", cb=self.update)
+        self._under_voltage_cell = Number("Under Voltage Cell", min_val=2.0, max_val=3.0, step=0.1, mode="slider", default=2.7, unit="V", cb=self.update)
+        self._over_voltage_cell = Number("Over Voltage Cell", min_val=3.0, max_val=4.5, step=0.1, mode="slider", default=3.65, unit="V", cb=self.update)
+        self._charge_settle_time = Number("Charge Settle Time", min_val=10, max_val=3600, step=10, mode="slider", default=600, unit="s", cb=self.update)
+        self._soc_low_cutoff = Number("SOC Low Cutoff", min_val=0, max_val=100, step=1, mode="slider", default=10, unit="%", cb=self.update)
+        self._max_temp = Number("Max Temperature", min_val=0, max_val=100, step=1, mode="slider", default=50, unit="°C", cb=self.update)
+        self.charge_current_table = []
+        self._load_from_config()
+        self._update_charge_current_table()
+
+    def _update_charge_current_table(self):
         self.charge_current_table = [       #charge current depending on soc
         (0, 2.0),
-        (10, self.max_charge_current),
-        (90, self.max_charge_current),
+        (10, self.max_current),
+        (90, self.max_current),
         (95, 10.0),
         (98, 5.0),
         (99, 2.0),
         (100, 2.0)# still charging possible TODO: to be tested
-    ]
+        ]
+
+    def _load_from_config(self):
+        section = self.config.get_section(self._section_name, {})
+        self.max_current            = section.get("max_current",            self.max_current)
+        self.under_voltage_cell     = section.get("under_voltage_cell",     self.under_voltage_cell)
+        self.over_voltage_cell      = section.get("over_voltage_cell",      self.over_voltage_cell)
+        self.charge_settle_time     = section.get("charge_settle_time",     self.charge_settle_time)
+        self.soc_low_cutoff         = section.get("soc_low_cutoff",         self.soc_low_cutoff)
+        self.max_temp               = section.get("max_temp",               self.max_temp)
+        
+        self._max_current.set_value(self.max_current)
+        self._under_voltage_cell.set_value(self.under_voltage_cell)
+        self._over_voltage_cell.set_value(self.over_voltage_cell)
+        self._charge_settle_time.set_value(self.charge_settle_time)
+        self._soc_low_cutoff.set_value(self.soc_low_cutoff)
+        self._max_temp.set_value(self.max_temp)
+
+    def save(self):
+        data = {
+            "max_current":          self.max_current,
+            "under_voltage_cell":   self.under_voltage_cell,
+            "over_voltage_cell":    self.over_voltage_cell,
+            "charge_settle_time":   self.charge_settle_time,
+            "soc_low_cutoff":       self.soc_low_cutoff,
+            "max_temp":             self.max_temp
+        }
+        self.config.set_section(self._section_name, data)
+        self.config.save()
+
+    def update(self):
+        """Call this to update config values from the Number entities (e.g. after user changes in Home Assistant)"""
+        self.max_current = self._max_current.get_state_value()
+        self.under_voltage_cell = self._under_voltage_cell.get_state_value()
+        self.over_voltage_cell = self._over_voltage_cell.get_state_value()
+        self.charge_settle_time = self._charge_settle_time.get_state_value()
+        self.soc_low_cutoff = self._soc_low_cutoff.get_state_value()
+        self.max_temp = self._max_temp.get_state_value()
+        self._update_charge_current_table()
+        self.save()
+
+
 class protection_config:
     def __init__(self):
         self.prot_rel_trigger_delay = 30.0    # time from SiC stage to relay stage if conditions did not improve

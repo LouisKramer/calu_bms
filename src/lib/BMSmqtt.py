@@ -19,6 +19,7 @@ class Entity:
         self.unique_id = None
         self.state_topic = None
         self.device_info = None
+        self.bmsmqtt_dev = get_BMSmqtt()  # Get the singleton instance of BMSmqtt
     
     def get_discovery_payload(self):
         raise NotImplementedError("Subclasses must implement get_discovery_payload()")
@@ -40,6 +41,7 @@ class Sensor(Entity):
         self.device_class = device_class
         self.icon = icon
         self.value = 0.0
+        self.bmsmqtt_dev.add_entity(self)  # Register this entity with BMSmqtt
     
     def get_discovery_payload(self):
         payload = {
@@ -68,15 +70,17 @@ class Sensor(Entity):
 #          Number (unchanged)
 # ───────────────────────────────────────────────
 class Number(Entity):
-    def __init__(self, name, min_val=0, max_val=100, step=1, unit=None, mode="slider"):
+    def __init__(self, name, min_val=0, max_val=100, step=1, default = None ,unit=None, mode="slider", cb:callable = None):
         super().__init__(name)
         self.min_val = min_val
         self.max_val = max_val
         self.step = step
         self.unit = unit
         self.mode = mode
-        self.value = (min_val + max_val) / 2
+        self.value = default if default is not None else (self.min_val + self.max_val) / 2
         self.command_topic = None
+        self.cb = cb
+        self.bmsmqtt_dev.add_entity(self)  # Register this entity with BMSmqtt
     
     def get_discovery_payload(self):
         payload = {
@@ -102,6 +106,7 @@ class Number(Entity):
         try:
             v = float(val)
             self.value = max(self.min_val, min(self.max_val, v))
+            self.cb() if self.cb else None
         except (ValueError, TypeError):
             pass
 
@@ -116,6 +121,7 @@ class Switch(Entity):
         super().__init__(name)
         self.value = False              # internal state (bool)
         self.command_topic = None
+        self.bmsmqtt_dev.add_entity(self)  # Register this entity with BMSmqtt
     
     def get_discovery_payload(self):
         payload = {
@@ -156,6 +162,7 @@ class BinarySensor(Entity):
         self.value = False              # internal state (bool)
         self.device_class = device_class
         self.icon = icon
+        self.bmsmqtt_dev.add_entity(self)  # Register this entity with BMSmqtt
     
     def get_discovery_payload(self):
         payload = {
@@ -190,11 +197,12 @@ class BinarySensor(Entity):
 class Select(Entity):
     """Home Assistant Select entity (dropdown with options)"""
     
-    def __init__(self, name, options, initial=None):
+    def __init__(self, name, options, default=None):
         super().__init__(name)
         self.options = options          # list of strings
-        self.value = initial if initial in options else options[0]
+        self.value = default if default in options else options[0]
         self.command_topic = None
+        self.bmsmqtt_dev.add_entity(self)  # Register this entity with BMSmqtt
     
     def get_discovery_payload(self):
         payload = {
@@ -211,6 +219,17 @@ class Select(Entity):
     def get_state_value(self):
         return self.value
     
+    def get_numeric_value(self):
+        try:
+            return int(self.value)
+        except ValueError:
+            return None
+    def set_numeric_value(self, val:int):
+        if str(val) in self.options:
+            self.value = str(val)
+        else: 
+            pass
+
     def set_value(self, val):
         if val in self.options:
             self.value = val
@@ -275,7 +294,6 @@ class BMSmqtt:
         except Exception as e:
             self.log.warn(f"MQTT connection failed: {e}")
             time.sleep(10)
-            machine.reset()
 
     def add_entity(self, entity: Entity):
         entity.unique_id = f"{self.device_id}_{entity.entity_id}"
@@ -366,7 +384,14 @@ class BMSmqtt:
                 self.log.error(f"Error: {e}")
                 await asyncio.sleep(5)
 
+BMSmqtt_dev = None
 
+def get_BMSmqtt() -> BMSmqtt:
+    """Get or create the singleton instance"""
+    global BMSmqtt_dev
+    if BMSmqtt_dev is None:
+        BMSmqtt_dev = BMSmqtt()
+    return BMSmqtt_dev
 # ───────────────────────────────────────────────
 #          Example usage
 # ───────────────────────────────────────────────

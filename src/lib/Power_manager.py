@@ -66,9 +66,9 @@ class PowerManager:
         low_soc = soc < self.config.soc_low_cutoff
         
         # Base currents
-        max_current = self.config.max_charge_current
+        max_current = self.config.max_current
         base_charge_current = self.get_charge_current_from_table(soc)
-        base_discharge_current = max_current
+        base_discharge_current = -max_current #TODO: can also implement discharge current table if needed, for now we just use max current for discharge
         
         # Initialize allowed currents
         allowed_charge = base_charge_current
