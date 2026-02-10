@@ -357,21 +357,10 @@ class BMSmqtt:
                 
                 now = time.time()
                 if now - last_update >= self.update_interval:
-                    # ← Replace with real BMS data reading
-                    for entity in self.entities:
-                        if isinstance(entity, Sensor):
-                            if "voltage" in entity.entity_id:
-                                entity.set_value(13.45)
-                            # ...
-                        elif isinstance(entity, BinarySensor):
-                            if "fault" in entity.entity_id:
-                                entity.set_value(False)
-                        # etc.
-                    
                     self.publish_state()
                     last_update = now
                 
-                await asyncio.sleep(0.3)
+                await asyncio.sleep(1)
                 
             except Exception as e:
                 self.log.error(f"Error: {e}")
@@ -382,30 +371,30 @@ class BMSmqtt:
 #          Example usage
 # ───────────────────────────────────────────────
 
-if __name__ == "__main__":
-    bms = BMSmqtt(
-        device_name = MQTT_DEVICE_NAME,
-        device_id   = MQTT_DEVICE_ID,
-        mqtt_broker = MQTT_BROKER,
-        mqtt_user   = MQTT_USER,
-        mqtt_password = MQTT_PASSWORD,
-        update_interval=30
-    )
-
-    # Sensors
-    bms.add_entity(Sensor("Voltage",       unit="V",   device_class="voltage"))
-    bms.add_entity(Sensor("Current",       unit="A",   device_class="current"))
-    bms.add_entity(Sensor("Temperature",   unit="°C",  device_class="temperature"))
-
-    # Controllable
-    bms.add_entity(Number("Charge Limit",  min_val=0, max_val=30, step=0.5, unit="A"))
-    bms.add_entity(Switch("Balancing"))
-    bms.add_entity(Select("Operation Mode", options=["Idle", "Charge", "Discharge", "Auto"]))
-
-    # Status / alarms (read-only)
-    bms.add_entity(BinarySensor("Charging",    device_class="battery_charging"))
-    bms.add_entity(BinarySensor("Fault",       device_class="problem"))
-    bms.add_entity(BinarySensor("Low Voltage", device_class="problem"))
-
-    # Start the loop
-    asyncio.run(bms.run())
+#if __name__ == "__main__":
+#    bms = BMSmqtt(
+#        device_name = MQTT_DEVICE_NAME,
+#        device_id   = MQTT_DEVICE_ID,
+#        mqtt_broker = MQTT_BROKER,
+#        mqtt_user   = MQTT_USER,
+#        mqtt_password = MQTT_PASSWORD,
+#        update_interval=30
+#    )
+#
+#    # Sensors
+#    bms.add_entity(Sensor("Voltage",       unit="V",   device_class="voltage"))
+#    bms.add_entity(Sensor("Current",       unit="A",   device_class="current"))
+#    bms.add_entity(Sensor("Temperature",   unit="°C",  device_class="temperature"))
+#
+#    # Controllable
+#    bms.add_entity(Number("Charge Limit",  min_val=0, max_val=30, step=0.5, unit="A"))
+#    bms.add_entity(Switch("Balancing"))
+#    bms.add_entity(Select("Operation Mode", options=["Idle", "Charge", "Discharge", "Auto"]))
+#
+#    # Status / alarms (read-only)
+#    bms.add_entity(BinarySensor("Charging",    device_class="battery_charging"))
+#    bms.add_entity(BinarySensor("Fault",       device_class="problem"))
+#    bms.add_entity(BinarySensor("Low Voltage", device_class="problem"))
+#
+#    # Start the loop
+#    asyncio.run(bms.run())

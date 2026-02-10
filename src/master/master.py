@@ -64,6 +64,8 @@ async def main():
     mqtt = BMSmqtt()
     vpack_mqtt = mqtt.add_entity(Sensor("Package Voltage",unit="V",device_class="voltage"))
     current_mqtt = mqtt.add_entity(Sensor("Package Current",unit="A",device_class="current"))
+    mqtt.publish_discovery()
+    mqtt.publish_state()
 
     state = "discover slaves"
     log.info("Initialization complete, entering main loop.")
@@ -71,9 +73,7 @@ async def main():
         #TODO: this chan be put in a method/class e.g. master measurements handler
         slave_handler.request_all_data()
         meas.current = cur.read_current(samples=10)
-        current_mqtt.set_value(meas.current)
         meas.vpack = await vol.read_voltage(channel=0)  * 1.75
-        vpack_mqtt.set_value(meas.vpack)
         meas.vinv = await vol.read_voltage(channel=1)
         meas.tadc = await vol.read_temperature()
         meas.tpack = 0#tmp.get_temperatures()
@@ -95,6 +95,9 @@ async def main():
             #wait for measurements to stabilize
             if all(s.battery.state.stable for s in slave_handler.slaves):
                 log.info("Measurements stabilized, ready to connect to inverter")
+                for s in slave_handler.slaves:
+                    for i, v in enumerate(s.battery.meas.vcell):
+                        mqtt.add_entity(Sensor(f"Slave {s.battery.info.addr} Cell {i+1}", unit="V", device_class="voltage"))
                 state = "start protection"
             else:
                 log.info("Waiting for stable measurements from all slaves")
@@ -108,6 +111,8 @@ async def main():
                 state = "normal operation"
         elif state == "normal operation":
             charge_current, discharge_current = pow_manager.update(soc)
+            vpack_mqtt.set_value(meas.vpack)
+            current_mqtt.set_value(meas.current)
             log.info(f"Allowed charge current: {charge_current:.2f} A, discharge current: {discharge_current:.2f} A")
 
 
