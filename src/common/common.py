@@ -1,4 +1,4 @@
-from lib.BMSmqtt import Number, Select
+from lib.BMSmqtt import Number, Select, Sensor, BinarySensor, Text
 from common.logger import Logger
 import json
 
@@ -241,6 +241,46 @@ class master_data:
         self.tadc = 0.0
         self.vinv = 0.0
 
+        self._current = Sensor("Pack Current", unit = "A", device_class="current")
+        self._vpack = Sensor("Pack Voltage", unit = "V", device_class="voltage")
+        self._tpack = Sensor("Pack Temperature", unit = "°C", device_class="temperature")
+        self._tadc = Sensor("ADC Temperature", unit = "°C", device_class="temperature")
+        self._vinv = Sensor("Inverter Voltage", unit = "V", device_class="voltage")
+
+    def update_current(self, value: float):
+        """Update pack current and sync with HA sensor"""
+        self.current = float(value)
+        self._current.set_value(self.current)
+
+    def update_vpack(self, value: float):
+        """Update pack voltage and sync with HA sensor"""
+        self.vpack = float(value)
+        self._vpack.set_value(self.vpack)
+
+    def update_tpack(self, value: float):
+        """Update pack temperature and sync with HA sensor"""
+        self.tpack = float(value)
+        self._tpack.set_value(self.tpack)
+
+    def update_tadc(self, value: float):
+        """Update ADC temperature and sync with HA sensor"""
+        self.tadc = float(value)
+        self._tadc.set_value(self.tadc)
+
+    def update_vinv(self, value: float):
+        """Update inverter voltage and sync with HA sensor"""
+        self.vinv = float(value)
+        self._vinv.set_value(self.vinv)
+
+    # Optional: one method to update everything at once (convenient when reading from BMS)
+    def update_all(self, current=0.0, vpack=0.0, tpack=0.0, tadc=0.0, vinv=0.0):
+        """Update all master values and sensors in one call"""
+        self.update_current(current)
+        self.update_vpack(vpack)
+        self.update_tpack(tpack)
+        self.update_tadc(tadc)
+        self.update_vinv(vinv)
+
 class battery:
     def __init__(self):
         self.info    = info_data()
@@ -277,7 +317,7 @@ class info_data:
         self.ntemp      = 0
         self.fw_ver     = "0.0.0.0"
         self.hw_ver     = "0.0.0.0"
-        
+     
     def set(self, other: 'info_data'):
         if isinstance(other, info_data):
             self.mac        =    other.mac        

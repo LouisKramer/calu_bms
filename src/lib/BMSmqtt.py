@@ -16,9 +16,9 @@ class Entity:
     def __init__(self, name, entity_id=None):
         self.name = name
         self.entity_id = entity_id or name.lower().replace(" ", "_")
-        self.unique_id = None
-        self.state_topic = None
-        self.device_info = None
+        self.unique_id = None # will be set by BMSmqtt when entity is registered
+        self.state_topic = None # will be set by BMSmqtt when entity is registered
+        self.device_info = None # will be set by BMSmqtt when entity is registered
         self.bmsmqtt_dev = get_BMSmqtt()  # Get the singleton instance of BMSmqtt
     
     def get_discovery_payload(self):
@@ -35,12 +35,13 @@ class Entity:
 #          Sensor (unchanged)
 # ───────────────────────────────────────────────
 class Sensor(Entity):
-    def __init__(self, name, unit=None, device_class=None, icon=None):
+    def __init__(self, name, unit=None, device_class=None, icon=None, sub_device=None):
         super().__init__(name)
         self.unit = unit
         self.device_class = device_class
         self.icon = icon
         self.value = 0.0
+        self.sub_device = sub_device # e.g.{"name": "Slave", "id": "slave_x"}
         self.bmsmqtt_dev.add_entity(self)  # Register this entity with BMSmqtt
     
     def get_discovery_payload(self):
@@ -56,7 +57,18 @@ class Sensor(Entity):
             payload["device_class"] = self.device_class
         if self.icon:
             payload["icon"] = self.icon
-        payload["device"] = self.device_info
+
+        if self.sub_device:
+            payload["device"] = {
+                "name": self.sub_device["name"],
+                "identifiers": [f"{self.bmsmqtt_dev.device_id}_{self.sub_device['id']}"],
+                "via_device": self.bmsmqtt_dev.device_id,  # ← this creates the sub-device link
+                "model": "BMS Submodule",
+                "manufacturer": "DIY",
+            }
+        else:
+            payload["device"] = self.device_info
+
         return payload
     
     def get_state_value(self):
@@ -67,10 +79,10 @@ class Sensor(Entity):
 
 
 # ───────────────────────────────────────────────
-#          Number (unchanged)
+#          Number
 # ───────────────────────────────────────────────
 class Number(Entity):
-    def __init__(self, name, min_val=0, max_val=100, step=1, default = None ,unit=None, mode="slider", cb:callable = None):
+    def __init__(self, name, min_val=0, max_val=100, step=1, default = None ,unit=None, mode="slider", sub_device=None, cb:callable = None):
         super().__init__(name)
         self.min_val = min_val
         self.max_val = max_val
@@ -79,6 +91,7 @@ class Number(Entity):
         self.mode = mode
         self.value = default if default is not None else (self.min_val + self.max_val) / 2
         self.command_topic = None
+        self.sub_device = sub_device # e.g.{"name": "Slave", "id": "slave_x"}
         self.cb = cb
         self.bmsmqtt_dev.add_entity(self)  # Register this entity with BMSmqtt
     
@@ -92,11 +105,22 @@ class Number(Entity):
             "min": self.min_val,
             "max": self.max_val,
             "step": self.step,
-            "mode": self.mode,
-            "device": self.device_info
+            "mode": self.mode
         }
         if self.unit:
             payload["unit_of_measurement"] = self.unit
+
+        if self.sub_device:
+            payload["device"] = {
+                "name": self.sub_device["name"],
+                "identifiers": [f"{self.bmsmqtt_dev.device_id}_{self.sub_device['id']}"],
+                "via_device": self.bmsmqtt_dev.device_id,  # ← this creates the sub-device link
+                "model": "BMS Submodule",
+                "manufacturer": "DIY",
+            }
+        else:
+            payload["device"] = self.device_info
+
         return payload
     
     def get_state_value(self):
@@ -112,7 +136,7 @@ class Number(Entity):
 
 
 # ───────────────────────────────────────────────
-#          Switch (new)
+#          Switch
 # ───────────────────────────────────────────────
 class Switch(Entity):
     """Home Assistant Switch entity (controllable ON/OFF)"""
@@ -152,16 +176,17 @@ class Switch(Entity):
 
 
 # ───────────────────────────────────────────────
-#          BinarySensor (new)
+#          BinarySensor
 # ───────────────────────────────────────────────
 class BinarySensor(Entity):
     """Home Assistant Binary Sensor (read-only ON/OFF state)"""
     
-    def __init__(self, name, device_class=None, icon=None):
+    def __init__(self, name, device_class=None, icon=None, sub_device=None):
         super().__init__(name)
         self.value = False              # internal state (bool)
         self.device_class = device_class
         self.icon = icon
+        self.sub_device = sub_device # e.g.{"name": "Slave", "id": "slave_x"}
         self.bmsmqtt_dev.add_entity(self)  # Register this entity with BMSmqtt
     
     def get_discovery_payload(self):
@@ -172,12 +197,22 @@ class BinarySensor(Entity):
             "value_template": f"{{{{ value_json.{self.entity_id} }}}}",
             "payload_on": "ON",
             "payload_off": "OFF",
-            "device": self.device_info
         }
         if self.device_class:
             payload["device_class"] = self.device_class
         if self.icon:
             payload["icon"] = self.icon
+
+        if self.sub_device:
+            payload["device"] = {
+                "name": self.sub_device["name"],
+                "identifiers": [f"{self.bmsmqtt_dev.device_id}_{self.sub_device['id']}"],
+                "via_device": self.bmsmqtt_dev.device_id,  # ← this creates the sub-device link
+                "model": "BMS Submodule",
+                "manufacturer": "DIY",
+            }
+        else:
+            payload["device"] = self.device_info
         return payload
     
     def get_state_value(self):
@@ -192,7 +227,7 @@ class BinarySensor(Entity):
 
 
 # ───────────────────────────────────────────────
-#          Select (new)
+#          Select
 # ───────────────────────────────────────────────
 class Select(Entity):
     """Home Assistant Select entity (dropdown with options)"""
@@ -236,7 +271,53 @@ class Select(Entity):
         else:
             pass  # invalid option → keep current
 
-
+# ───────────────────────────────────────────────
+#          Text 
+# ───────────────────────────────────────────────
+class Text(Entity):
+    """
+    Home Assistant Text entity (free-form text input/output)
+    Can be used for strings, custom labels, debug info, etc.
+    """
+    
+    def __init__(self, name, default="", max_length=255, sub_device=None):
+        super().__init__(name)
+        self.value = default
+        self.max_length = max_length
+        self.command_topic = None
+        self.sub_device = sub_device # e.g.{"name": "Slave", "id": "slave_x"}
+        self.bmsmqtt_dev.add_entity(self)  # Auto-register with singleton
+    
+    def get_discovery_payload(self):
+        payload = {
+            "name": f"{self.device_info['name']} {self.name}",
+            "unique_id": self.unique_id,
+            "command_topic": self.command_topic,
+            "state_topic": self.state_topic,
+            "value_template": f"{{{{ value_json.{self.entity_id} }}}}",
+            "max": self.max_length,
+            "mode": "text",  # can also be "password" if needed
+        }
+        if self.sub_device:
+            payload["device"] = {
+                "name": self.sub_device["name"],
+                "identifiers": [f"{self.bmsmqtt_dev.device_id}_{self.sub_device['id']}"],
+                "via_device": self.bmsmqtt_dev.device_id,  # ← this creates the sub-device link
+                "model": "BMS Submodule",
+                "manufacturer": "DIY",
+            }
+        else:
+            payload["device"] = self.device_info
+        return payload
+    
+    def get_state_value(self):
+        return self.value
+    
+    def set_value(self, val):
+        if isinstance(val, str):
+            self.value = val[:self.max_length]  # enforce max length
+        else:
+            self.value = str(val) if val is not None else ""
 # ───────────────────────────────────────────────
 #          BMSmqtt – updated to support new types
 # ───────────────────────────────────────────────
@@ -320,6 +401,8 @@ class BMSmqtt:
                 component = "binary_sensor"
             elif isinstance(entity, Select):
                 component = "select"
+            elif isinstance(entity, Text):    
+                component = "text"
             else:
                 self.log.warn(f"Skipping unknown entity type: {entity.__class__.__name__}")
                 continue
@@ -329,6 +412,38 @@ class BMSmqtt:
             payload = str(payload_dict).replace("'", '"')
             self.mqtt_client.publish(topic, payload, retain=True)
             self.log.info(f"Discovery published: {topic}")
+
+    def publish_runtime_entity(self, entity: Entity):
+        if entity not in self.entities:
+            self.log.warn(f"Entity not registered, cannot publish: {entity.name}")
+            return
+        if isinstance(entity, Sensor):
+            component = "sensor"
+        elif isinstance(entity, Number):
+            component = "number"
+        elif isinstance(entity, Switch):
+            component = "switch"
+        elif isinstance(entity, BinarySensor):
+            component = "binary_sensor"
+        elif isinstance(entity, Select):
+            component = "select"
+        elif isinstance(entity, Text):    
+            component = "text"
+        else:
+            self.log.warn(f"Cannot publish unknown entity type: {entity.__class__.__name__}")
+            return
+
+        topic = entity.get_discovery_topic(component)
+        payload_dict = entity.get_discovery_payload()
+        payload = str(payload_dict).replace("'", '"')
+        self.mqtt_client.publish(topic, payload, retain=True, qos=1)
+        self.log.info(f"Runtime discovery published: {topic}")
+
+        # re-announce availability (helps if HA missed previous online msg)
+        self.mqtt_client.publish(self.availability_topic, "online", retain=True, qos=1)
+
+        # send current state immediately
+        self.publish_state()
 
     def _on_message(self, topic, msg):
         topic_str = topic.decode()

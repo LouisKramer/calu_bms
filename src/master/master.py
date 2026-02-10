@@ -70,11 +70,11 @@ async def main():
     while True:
         #TODO: this chan be put in a method/class e.g. master measurements handler
         slave_handler.request_all_data()
-        meas.current = cur.read_current(samples=10)
-        meas.vpack = await vol.read_voltage(channel=0)  * 1.75
-        meas.vinv = await vol.read_voltage(channel=1)
-        meas.tadc = await vol.read_temperature()
-        meas.tpack = 0#tmp.get_temperatures()
+        meas.update_current(cur.read_current(samples=10))
+        meas.update_vpack(await vol.read_voltage(channel=0)  * 1.75)
+        meas.update_vinv(await vol.read_voltage(channel=1))
+        meas.update_tadc(await vol.read_temperature())
+        meas.update_tpack(0)#tmp.get_temperatures())
         soc = soc_estimator.update(meas.current, meas.vpack, meas.tpack, slave_handler.slaves.nr_of_cells())
         log.info(f"Battery Voltage: {meas.vpack}, Inverter Voltage: {meas.vinv}, ADC Temp: {meas.tadc}")
         log.info(f"Current: {meas.current} A")
