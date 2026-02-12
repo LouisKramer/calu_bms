@@ -26,6 +26,9 @@ class Protector:
         self.rel_pre_charge = Pin(HAL.INT_REL0_PIN, Pin.OUT)
         self.oc_in          = Pin(HAL.CURRENT_FAULT_PIN, Pin.IN)
         self._last_logged_msg = ""   # prevent log spam
+        self.rel_main.off()
+        self.sic_driver.off()
+        self.rel_pre_charge.off()
     
     def set_config(self, config: protection_config):
         self.cfg.set(config)
@@ -59,14 +62,14 @@ class Protector:
                 self.log.error("Voltage difference too large - risk of high inrush to battery. Waiting or aborting.")
                 # Option: wait for sun to drop / load to consume, or refuse connection
                 return False
-        self._connect_main()
+        await self._connect_main()
+        return True
 
     async def _connect_main(self):
         self.rel_main.on()
         await asyncio.sleep(1)
         self.sic_driver.on()
         await asyncio.sleep(1)
-        return True
     
     async def _precharge(self):
             self.rel_pre_charge.on()

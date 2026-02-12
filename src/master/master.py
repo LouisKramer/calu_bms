@@ -106,6 +106,7 @@ async def main():
 
 
         #can_bus.send_status(prot_status)
+        
         for s in slave_handler.slaves:
             log.info(f"Voltages: {s.battery.meas.vcell}")
             log.info(f"Temperatures: {s.battery.meas.temps}")
