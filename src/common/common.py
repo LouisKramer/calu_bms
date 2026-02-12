@@ -161,12 +161,6 @@ class info_data:
 
 class meas_data:
     def __init__(self, bat: battery):
-        self.vcell = [0] * bat.info.ncell
-        self.vstr = 0
-        self.temps = [0] * bat.info.ntemp
-
-class meas_data:
-    def __init__(self, bat: battery):
         self.vcell = [0.0] * bat.info.ncell      # cell voltages in V
         self.vstr = 0.0                           # string / total pack voltage in V
         self.temps = [0.0] * bat.info.ntemp      # temperatures in °C

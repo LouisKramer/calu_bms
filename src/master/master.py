@@ -19,6 +19,7 @@ from lib.WLAN import WlanManager
 #from lib.CAN import * Wait for support in micropython-esp32
 from lib.PROT import Protector
 from lib.Power_manager import PowerManager
+from lib.BMSmqtt import BMSmqtt, Sensor, Number, Switch, Select
 
 # ========================================
 # INIT
@@ -37,7 +38,6 @@ async def main():
     log.info("Starting main application")
     protector = Protector()
     meas = master_data()
-    # TODO:add watchdog
     slave_handler = BMSnowMaster()
     slave_handler.start()
 
@@ -61,6 +61,12 @@ async def main():
     
     # Start tasks
     ntp = ntp_sync(NTP_HOST, NTP_PORT, NTP_TIMEOUT, NTP_SYNC_INTERVAL)
+    mqtt = BMSmqtt()
+    vpack_mqtt = mqtt.add_entity(Sensor("Package Voltage",unit="V",device_class="voltage"))
+    current_mqtt = mqtt.add_entity(Sensor("Package Current",unit="A",device_class="current"))
+    mqtt.publish_discovery()
+    mqtt.publish_state()
+
     state = "discover slaves"
     log.info("Initialization complete, entering main loop.")
     while True:
@@ -89,6 +95,9 @@ async def main():
             #wait for measurements to stabilize
             if all(s.battery.state.stable for s in slave_handler.slaves):
                 log.info("Measurements stabilized, ready to connect to inverter")
+                for s in slave_handler.slaves:
+                    for i, v in enumerate(s.battery.meas.vcell):
+                        mqtt.add_entity(Sensor(f"Slave {s.battery.info.addr} Cell {i+1}", unit="V", device_class="voltage"))
                 state = "start protection"
             else:
                 log.info("Waiting for stable measurements from all slaves")
@@ -102,6 +111,8 @@ async def main():
                 state = "normal operation"
         elif state == "normal operation":
             charge_current, discharge_current = pow_manager.update(soc)
+            vpack_mqtt.set_value(meas.vpack)
+            current_mqtt.set_value(meas.current)
             log.info(f"Allowed charge current: {charge_current:.2f} A, discharge current: {discharge_current:.2f} A")
 
 
