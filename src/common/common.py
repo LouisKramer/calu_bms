@@ -158,6 +158,25 @@ class protection_config(BaseConfig):
 # soc_config (with scaled values handling)
 # ==============================================================
 class soc_config(BaseConfig):
+    """
+    Initialize the SOC estimator with battery and algorithm parameters.
+    Args:
+        config (dict): Configuration dictionary. Required keys:
+            - 'capacity_ah': Battery capacity in Amp-hours
+            - 'num_cells': Number of cells in series
+            - 'cell_ir': Cell internal resistance in Ohms (at ref temp)
+            Optional keys:
+            - 'initial_soc': Starting SOC (%) [default: 50.0]
+            - 'initial_temp': Starting temperature (°C) [default: 25.0]
+            - 'ir_ref_temp': Reference temperature for IR (°C) [default: 25.0]
+            - 'ir_temp_coeff': IR temp coefficient (%/°C) [default: 0.004]
+            - 'current_threshold': Current below which battery is "relaxed" (A)
+            - 'voltage_stable_threshold': Max voltage change for stability (V)
+            - 'relaxed_hold_time': Time to confirm relaxed state (s)
+            - 'per_cell_voltage_soc_table': Custom voltage-SOC curve
+    Raises:
+        ValueError: If num_cells or capacity_ah are invalid.
+    """
     def __init__(self):
         super().__init__("soc_config")
         defaults = {
@@ -271,6 +290,7 @@ class master_data:
         self.tpack = 0.0
         self.tadc = 0.0
         self.vinv = 0.0
+        self.soc = 0.0
 
     def init_mqtt_entities(self):
         mqtt = get_BMSmqtt()
@@ -279,6 +299,7 @@ class master_data:
         self._tpack   = Sensor("Pack Temperature", unit="°C", device_class="temperature")
         self._tadc    = Sensor("ADC Temperature", unit="°C", device_class="temperature")
         self._vinv    = Sensor("Inverter Voltage", unit="V", device_class="voltage")
+        self._soc     = Sensor("State of Charge", unit="%", device_class="battery")
         for e in (self._current, self._vpack, self._tpack, self._tadc, self._vinv):
             mqtt.add_entity(e)
 
@@ -287,14 +308,15 @@ class master_data:
     def update_tpack(self, value: float):   self.tpack   = float(value); self._tpack.set_value(self.tpack)
     def update_tadc(self, value: float):    self.tadc    = float(value); self._tadc.set_value(self.tadc)
     def update_vinv(self, value: float):    self.vinv    = float(value); self._vinv.set_value(self.vinv)
+    def update_soc(self, value: float):     self.soc     = float(value); self._soc.set_value(self.soc)
 
-    def update_all(self, current=0.0, vpack=0.0, tpack=0.0, tadc=0.0, vinv=0.0):
+    def update_all(self, current=0.0, vpack=0.0, tpack=0.0, tadc=0.0, vinv=0.0, soc=0.0):
         self.update_current(current)
         self.update_vpack(vpack)
         self.update_tpack(tpack)
         self.update_tadc(tadc)
         self.update_vinv(vinv)
-
+        self.update_soc(soc)
 
 class battery:
     def __init__(self):

@@ -79,6 +79,7 @@ async def main():
         meas.update_tadc(await vol.read_temperature())
         meas.update_tpack(0)#tmp.get_temperatures())
         soc = soc_estimator.update(meas.current, meas.vpack, meas.tpack, slave_handler.slaves.nr_of_cells())
+        meas.update_soc(soc)
         log.info(f"Battery Voltage: {meas.vpack}, Inverter Voltage: {meas.vinv}, ADC Temp: {meas.tadc}")
         log.info(f"Current: {meas.current} A")
         log.info(f"Temperatures: {meas.tpack}")
