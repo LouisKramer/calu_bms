@@ -37,6 +37,7 @@ init_config()
 # ========================================
 async def main():
     log.info("Starting main application")
+    mqtt = BMSmqtt()
     protector = Protector()
     meas = master_data()
     meas.init_mqtt_entities()
@@ -65,7 +66,6 @@ async def main():
     ntp = ntp_sync(NTP_HOST, NTP_PORT, NTP_TIMEOUT, NTP_SYNC_INTERVAL)
 
     #init mqtt
-    mqtt = get_BMSmqtt()
     asyncio.run(mqtt.run())
 
     state = "discover slaves"

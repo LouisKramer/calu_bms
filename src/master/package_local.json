@@ -18,6 +18,7 @@
     ["lib/WLAN.py"          , "../lib/WLAN.py      "],   
     ["lib/PROT.py"          , "../lib/PROT.py      "],
     ["lib/Power_manager.py" , "../lib/Power_manager.py"],
+    ["lib/BMSmqtt.py"       , "../lib/BMSmqtt.py    "],
     ["lib/uhome.py"         , "github:ederjc/uhome/uhome/uhome.py"]
   ],
   "version": "0.1"

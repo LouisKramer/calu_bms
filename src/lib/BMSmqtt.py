@@ -361,13 +361,10 @@ class BMSmqtt:
             self.mqtt_broker,
             user=self.mqtt_user or None,
             password=self.mqtt_password or None,
-            keepalive=120,
-            # IMPROVED: Last Will & Testament (HA shows offline instantly)
-            lwt_topic=self.availability_topic,
-            lwt_msg=b"offline",
-            lwt_qos=1,
-            lwt_retain=True
-        )
+            keepalive=120)
+        
+        self.mqtt_client.set_last_will(self.availability_topic, b"offline", retain=True, qos=1)
+        
         self.mqtt_client.set_callback(self._on_message)
 
         self.log.info("Connecting MQTT...")

@@ -236,8 +236,6 @@ class Config:
             with open(self._filename, 'r') as f:
                 self._sections = json.load(f)
             self.log.info(f"Config loaded from {self._filename}")
-        except FileNotFoundError:
-            self.log.info(f"Config file {self._filename} not found → using defaults")
         except Exception as e:
             self.log.error(f"Config load error: {e}")
 
