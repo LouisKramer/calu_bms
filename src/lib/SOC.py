@@ -151,7 +151,8 @@ class BatterySOC:
         Raises:
             ValueError: If num_cells or capacity_ah are invalid.
         """
-        self.config = soc_config()
+        self.cfg = soc_config()
+        self.cfg.init_mqtt_entities()
         # --- Voltage-SOC Lookup Table ---
         self.default_per_cell = [
             (3.60, 100.0),  # 100% - Full charge
@@ -165,7 +166,7 @@ class BatterySOC:
         ]
         self.num_cells = 0
         # --- Runtime State ---
-        self.soc = float(self.config.initial_soc)
+        self.soc = float(self.cfg.initial_soc)
         self.last_time = time.time()
         self.last_voltage = None
         self.last_temp = 25.0
@@ -192,9 +193,9 @@ class BatterySOC:
         Returns:
             float: Temperature-compensated pack resistance in Ohms.
         """
-        delta_t = temp - self.config.ir_ref_temp
-        factor = 1.0 + (self.config.ir_temp_coeff * delta_t)
-        return self.config.cell_ir * self.num_cells * factor
+        delta_t = temp - self.cfg.ir_ref_temp
+        factor = 1.0 + (self.cfg.ir_temp_coeff * delta_t)
+        return self.cfg.cell_ir * self.num_cells * factor
 
     def _interpolate_soc(self, voltage):
         """
@@ -244,7 +245,7 @@ class BatterySOC:
         """
         if len(self.voltage_history) < 5:
             return False
-        return max(self.voltage_history) - min(self.voltage_history) < self.config.voltage_stable_threshold
+        return max(self.voltage_history) - min(self.voltage_history) < self.cfg.voltage_stable_threshold
 
     # -------------------------------------------------------------------------
     # Public API
@@ -273,7 +274,7 @@ class BatterySOC:
         self.pack_table = [(v * self.num_cells, soc) for v, soc in self.default_per_cell]
         # === Coulomb Counting ===
         ah_delta = (current * dt) / 3600.0
-        coulomb_soc = self.soc - (ah_delta / self.config.capacity_ah) * 100.0
+        coulomb_soc = self.soc - (ah_delta / self.cfg.capacity_ah) * 100.0
         coulomb_soc = max(0.0, min(100.0, coulomb_soc))
 
         # === OCV Estimation ===
@@ -281,13 +282,13 @@ class BatterySOC:
         self.voltage_history.append(voltage)
 
         # === Relaxed State Detection ===
-        low_i = abs(current) < self.config.current_threshold
+        low_i = abs(current) < self.cfg.current_threshold
         stable = self._is_voltage_stable()
 
         if low_i and stable:
             if self.relaxed_start_time is None:
                 self.relaxed_start_time = now
-            elif now - self.relaxed_start_time >= self.config.relaxed_hold_time:
+            elif now - self.relaxed_start_time >= self.cfg.relaxed_hold_time:
                 ocv_soc = self._interpolate_soc(ocv)
                 coulomb_soc += (ocv_soc - coulomb_soc) * 0.2
         else:
@@ -311,7 +312,7 @@ class BatterySOC:
             str: "RELAXED" if low current and stable for hold time, else "LOAD".
         """
         if (self.relaxed_start_time and
-            time.time() - self.relaxed_start_time >= self.config.relaxed_hold_time):
+            time.time() - self.relaxed_start_time >= self.cfg.relaxed_hold_time):
             return "RELAXED"
         return "LOAD"
 

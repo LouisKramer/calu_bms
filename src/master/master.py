@@ -31,6 +31,7 @@ wifi.start()
 time.sleep(3)
 rtc = RTC()
 log.info("Startup system")
+init_config()
 # ========================================
 # MAIN
 # ========================================
@@ -38,8 +39,9 @@ async def main():
     log.info("Starting main application")
     protector = Protector()
     meas = master_data()
+    meas.init_mqtt_entities()
     slave_handler = BMSnowMaster()
-    slave_handler.start()
+    slave_handler.start()    
 
     #int_rel0 = Relay(pin=HAL.INT_REL0_PIN, active_high=True)
     #int_rel1 = Relay(pin=HAL.INT_REL1_PIN, active_high=True)
@@ -59,11 +61,12 @@ async def main():
     asyncio.create_task(autosave_task(soc_estimator, 60))
     #can= BMSCan(config_can)
     
-    # Start tasks
+
     ntp = ntp_sync(NTP_HOST, NTP_PORT, NTP_TIMEOUT, NTP_SYNC_INTERVAL)
+
+    #init mqtt
     mqtt = get_BMSmqtt()
-    mqtt.publish_discovery()
-    mqtt.publish_state()
+    asyncio.run(mqtt.run())
 
     state = "discover slaves"
     log.info("Initialization complete, entering main loop.")
