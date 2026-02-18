@@ -16,6 +16,7 @@ class Protector:
         self.log            = Logger()
         self.wdt            = None
         self.cfg            = protection_config()
+        self.cfg.init_mqtt_entities()
         self.slaves         = slaves
         self.data           = data
         self.stage          = self.PROT_STAGE_OFF
@@ -29,9 +30,6 @@ class Protector:
         self.rel_main.off()
         self.sic_driver.off()
         self.rel_pre_charge.off()
-    
-    def set_config(self, config: protection_config):
-        self.cfg.set(config)
         
     def start(self, slaves: Slaves, data: master_data):
         if self.stage != self.PROT_STAGE_OFF:

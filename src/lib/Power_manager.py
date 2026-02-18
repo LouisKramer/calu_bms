@@ -4,12 +4,13 @@ from lib.virt_slave import *
 
 class PowerManager:
     def __init__(self, slaves: Slaves):
-        self.config = power_config()
+        self.cfg = power_config()
+        self.cfg.init_mqtt_entities()
         self.settle_end_time = 0  # Timestamp for end of settle period
         self.slaves = slaves
 
     def get_charge_current_from_table(self, soc):
-        table = self.config.charge_current_table
+        table = self.cfg.charge_current_table
         # Assume table is sorted by SOC; clamp to bounds
         if soc <= table[0][0]:
             return table[0][1]
@@ -60,15 +61,15 @@ class PowerManager:
         
         now = time.time()
         
-        over_temp = max_temperature > self.config.max_temp
-        under_voltage = min_cell_voltage < self.config.under_voltage_cell
-        over_voltage = max_cell_voltage > self.config.over_voltage_cell
-        low_soc = soc < self.config.soc_low_cutoff
+        over_temp = max_temperature > self.cfg.max_temp
+        under_voltage = min_cell_voltage < self.cfg.under_voltage_cell
+        over_voltage = max_cell_voltage > self.cfg.over_voltage_cell
+        low_soc = soc < self.cfg.soc_low_cutoff
         
         # Base currents
-        max_current = self.config.max_charge_current
+        max_current = self.cfg.max_current
         base_charge_current = self.get_charge_current_from_table(soc)
-        base_discharge_current = max_current
+        base_discharge_current = -max_current #TODO: can also implement discharge current table if needed, for now we just use max current for discharge
         
         # Initialize allowed currents
         allowed_charge = base_charge_current
@@ -88,7 +89,7 @@ class PowerManager:
         if over_voltage:
             allowed_charge = 0.0
             if not settle_active:
-                self.settle_end_time = now + self.config.charge_settle_time
+                self.settle_end_time = now + self.cfg.charge_settle_time
         elif settle_active:
             allowed_charge = 0.0
         else:

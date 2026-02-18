@@ -82,6 +82,9 @@ class Slaves:
 class virt_slave(Slaves):
     def __init__(self, info: info_data):
         self.battery = battery()
+        self.battery.init_mqtt_entities(info.addr)
         self.battery.info.set(info)
+        self.battery.info.update_mqtt_entities()
         self.battery.create_measurements()
+        self.battery.meas.init_mqtt_entities(info.addr)
     

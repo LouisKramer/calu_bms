@@ -91,7 +91,7 @@ class BMSnowProtocol:
 
 
     @staticmethod
-    def pack_config_msg(conf: conf_data):
+    def pack_config_msg(conf: slave_config):
         return struct.pack('<Bff??',
                            BMSnowProtocol.CONF_MSG,
                            conf.bal_start_vol,
@@ -100,7 +100,7 @@ class BMSnowProtocol:
                            conf.bal_ext_en)
 
     @staticmethod
-    def unpack_config_msg(msg: bytes, conf: conf_data):
+    def unpack_config_msg(msg: bytes, conf: slave_config):
         values = struct.unpack('<Bff??', msg)
         conf.bal_start_vol   = values[1]
         conf.bal_threshold   = values[2]
@@ -263,6 +263,8 @@ class BMSnowMaster(BMSnowComm):
         s = self.slaves.get_by_mac(mac)
         if s is not None:
             s.battery.state.stable = self.protocol.unpack_data_msg(msg, s.battery.meas)
+            if s.battery.state.stable:
+                s.battery.meas.update_mqtt_entities()
             s.battery.state.ttl = s.battery.conf.ttl
             self.log.info(f"Received data from {self.log.mac_to_str(mac)}")
         else:
@@ -368,7 +370,7 @@ class BMSnowSlave(BMSnowComm):
 
     def _handle_config(self, mac, msg):
         if mac == self.info.master_mac:
-            conf = conf_data()
+            conf = slave_config()
             self.protocol.unpack_config_msg(msg, conf)
             self.conf.set(conf)
             self.send(mac, self.protocol.pack_conf_ack())
