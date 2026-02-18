@@ -1,7 +1,8 @@
 from common.credentials import *
 from common.logger import Logger
 import asyncio
-import machine
+import machine 
+import utime
 import ubinascii
 import ujson as json 
 from umqtt.robust import MQTTClient
@@ -333,7 +334,7 @@ class BMSmqtt:
         self.log = Logger()
         self.device_name = device_name
         self.device_id = device_id
-        self.base_topic = base_topic or f"home/{device_id}"
+        self.base_topic = base_topic or f"homeassistant/{device_id}"
         self.update_interval = update_interval
         self.availability_topic = f"{self.base_topic}/status"
 
@@ -364,37 +365,54 @@ class BMSmqtt:
             keepalive=120)
         
         self.mqtt_client.set_last_will(self.availability_topic, b"offline", retain=True, qos=1)
-        
         self.mqtt_client.set_callback(self._on_message)
 
         self.log.info("Connecting MQTT...")
         try:
             self.mqtt_client.connect()
-            self.mqtt_client.publish(self.availability_topic, b"online", retain=True, qos=1)
             self.log.info("MQTT connected")
+            self.mqtt_client.publish(self.availability_topic, b"online", retain=True, qos=1)
+            self.log.info("MQTT availability published: online")
+            # ← NEW: subscribe to all commands once we are really online
+            self._subscribe_all_commands()
+            
         except Exception as e:
             self.log.warn(f"MQTT connect failed: {e}")
+   
+    def _subscribe_all_commands(self):
+        """Subscribe to all command topics. Safe to call multiple times."""
+        if not self.mqtt_client:
+            return
+        for entity in self.entities:
+            if hasattr(entity, "command_topic") and entity.command_topic:
+                try:
+                    self.mqtt_client.subscribe(entity.command_topic)
+                    self.log.info(f"Subscribed: {entity.command_topic}")
+                except Exception as e:
+                    self.log.warn(f"Subscribe failed for {entity.command_topic}: {e}")
 
     def add_entity(self, entity: Entity):
+        """Add entity and prepare command topic, but DO NOT subscribe yet."""
         entity.unique_id = f"{self.device_id}_{entity.entity_id}"
         entity.state_topic = self.state_topic
         entity.device_info = self.device_info
 
-        # FIXED: always set command_topic for controllable entities
-        if hasattr(entity, "command_topic"):
+        # Only prepare command topic — subscribe later when connected
+        if hasattr(entity, "command_topic") and getattr(entity, "command_topic", None) is None:
             entity.command_topic = f"{self.base_topic}/set/{entity.entity_id}"
-            self.mqtt_client.subscribe(entity.command_topic)
 
         self.entities.append(entity)
+        self.log.info(f"Entity added: {entity.name} (command_topic prepared)")
         return entity
 
     def _publish_discovery(self, entity, component):
         topic = entity.get_discovery_topic(component)
         payload_dict = entity.get_discovery_payload()
         payload = json.dumps(payload_dict)          # FIXED: proper JSON
-        self.mqtt_client.publish(topic, payload, retain=True, qos=1)
+        self.mqtt_client.publish(topic, payload, retain=True, qos=0)
 
     def publish_discovery(self):
+        print(f"Publishing discovery for all entities...{self.entities}")
         for entity in self.entities:
             if isinstance(entity, Sensor):
                 component = "sensor"
@@ -409,30 +427,33 @@ class BMSmqtt:
             elif isinstance(entity, Text):
                 component = "text"
             else:
+                self.log.warn(f"Cannot publish discovery: unknown entity type {type(entity)}")
                 continue
 
             self._publish_discovery(entity, component)
             self.log.info(f"Discovery published: {entity.name}")
 
-    def publish_runtime_entity(self, entity: Entity):
-        for entity in self.entities:
-            if isinstance(entity, Sensor):
-                component = "sensor"
-            elif isinstance(entity, Number):
-                component = "number"
-            elif isinstance(entity, Switch):
-                component = "switch"
-            elif isinstance(entity, BinarySensor):
-                component = "binary_sensor"
-            elif isinstance(entity, Select):
-                component = "select"
-            elif isinstance(entity, Text):
-                component = "text"
-            else:
-                continue
-        self._publish_discovery(entity, component)   # reuse the helper
-        self.mqtt_client.publish(self.availability_topic, b"online", retain=True, qos=1)
-        self.publish_state()
+    def publish_runtime_entity(self, entity: Entity):       
+        if isinstance(entity, Sensor):
+            component = "sensor"
+        elif isinstance(entity, Number):
+            component = "number"
+        elif isinstance(entity, Switch):
+            component = "switch"
+        elif isinstance(entity, BinarySensor):
+            component = "binary_sensor"
+        elif isinstance(entity, Select):
+            component = "select"
+        elif isinstance(entity, Text):
+            component = "text"
+        else:
+            self.log.warn(f"Cannot publish runtime discovery: unknown entity type {type(entity)}")
+            return
+
+        self._publish_discovery(entity, component)
+        self.mqtt_client.publish(self.availability_topic, b"online", retain=True, qos=0)
+        self.publish_state()                    # refresh full JSON state
+        self.log.info(f"Runtime entity discovery published: {entity.name}")
 
     def _on_message(self, topic, msg):
         topic_str = topic.decode()
@@ -448,29 +469,23 @@ class BMSmqtt:
     def publish_state(self):
         state_dict = {e.entity_id: e.get_state_value() for e in self.entities}
         payload = json.dumps(state_dict)                # FIXED: proper JSON
-        self.mqtt_client.publish(self.state_topic, payload)
+        self.mqtt_client.publish(self.state_topic, payload, qos=0)
         self.log.info(f"State published: {payload}")
 
     async def run(self):
+        """Main MQTT loop – fixed timing for all MicroPython ports"""
+        #self._subscribe_all_commands()
         self.publish_discovery()
         self.publish_state()
-
-        last_update = asyncio.get_event_loop().time()   # better than time.time() on some ports
-
         while True:
             try:
                 self.mqtt_client.check_msg()            # robust handles reconnect internally
-
-                now = asyncio.get_event_loop().time()
-                if now - last_update >= self.update_interval:
-                    self.publish_state()
-                    last_update = now
-
-                await asyncio.sleep(1)
+                self.publish_state()
+                await asyncio.sleep(30)
 
             except Exception as e:
                 self.log.error(f"MQTT loop error: {e}")
-                await asyncio.sleep(5)
+                await asyncio.sleep(30)
 
 BMSmqtt_dev = None
 

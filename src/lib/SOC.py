@@ -84,8 +84,6 @@ class BatterySOC:
         if not load_state(self, "soc_state.json"):
             log_soc.info("No saved SOC state → starting fresh")
 
-        self._soc_sensor.set_value(self.soc)
-
     def _build_pack_table(self):
         self.pack_table = [(v * self.num_cells, soc) for v, soc in self.default_per_cell]
 
@@ -155,7 +153,6 @@ class BatterySOC:
         self.last_voltage = voltage
         self.last_temp = temperature
 
-        self._soc_sensor.set_value(self.soc)
         log_soc.info(f"SOC update → {self.soc}% | OCV {ocv:.3f}V | {'RELAXED' if low_i and stable else 'LOAD'}")
         return self.soc
 
@@ -173,7 +170,6 @@ class BatterySOC:
         self.last_time = time.time()
         self.relaxed_start_time = None
         self.voltage_history.clear()
-        self._soc_sensor.set_value(self.soc)
         save_state(self)
 # =============================================================================
 # Recommended usage (add to your main.py)

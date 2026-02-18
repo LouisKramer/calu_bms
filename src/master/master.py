@@ -24,11 +24,11 @@ from lib.BMSmqtt import get_BMSmqtt
 # ========================================
 # INIT
 # ========================================
+time.sleep(3)
 log = Logger()
 log.info("Starting wifi manager")
 wifi = WlanManager(ssid=WIFI_SSID, password=WIFI_PASS, hostname=WIFI_HOST, led_pin=HAL.LED_USER_PIN)
 wifi.start()
-time.sleep(3)
 rtc = RTC()
 log.info("Startup system")
 init_config()
@@ -37,12 +37,25 @@ init_config()
 # ========================================
 async def main():
     log.info("Starting main application")
-    mqtt = BMSmqtt()
+    while not wifi.is_connected():
+        print("Waiting for WiFi connection...")
+        await asyncio.sleep(1)
+    log.info("WiFi connected, starting MQTT")
+    mqtt = get_BMSmqtt()
+    await asyncio.sleep(3)
+    log.info("Init protetion")
     protector = Protector()
+    await asyncio.sleep(1)
+    log.info("Init master data")
     meas = master_data()
+    await asyncio.sleep(1)
     meas.init_mqtt_entities()
+    log.info("Init slave handler")
     slave_handler = BMSnowMaster()
+    await asyncio.sleep(1)
+    log.info("Start slave handler")
     slave_handler.start()    
+    await asyncio.sleep(1)
 
     #int_rel0 = Relay(pin=HAL.INT_REL0_PIN, active_high=True)
     #int_rel1 = Relay(pin=HAL.INT_REL1_PIN, active_high=True)
@@ -66,7 +79,7 @@ async def main():
     ntp = ntp_sync(NTP_HOST, NTP_PORT, NTP_TIMEOUT, NTP_SYNC_INTERVAL)
 
     #init mqtt
-    asyncio.run(mqtt.run())
+    asyncio.create_task(mqtt.run())
 
     state = "discover slaves"
     log.info("Initialization complete, entering main loop.")
@@ -84,7 +97,6 @@ async def main():
         log.info(f"Current: {meas.current} A")
         log.info(f"Temperatures: {meas.tpack}")
 
-        mqtt.publish_state()
         #TODO: implement FSM!!!!!!!
         #protector starts checks
         if state == "discover slaves":
