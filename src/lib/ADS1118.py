@@ -267,7 +267,7 @@ class ADS1118:
         mux = self.channel_mux[channel]
         signed = (False if mux >= 4 else True)
         voltage = vol * self._get_lsb(signed)
-        return round(voltage * self.soft_gain[channel],2)
+        return round(voltage * self.soft_gain[channel],4)
 
     async def read_temperature(self):
         """Read internal temperature sensor (single-shot)."""
@@ -291,7 +291,7 @@ class ADS1118:
         if channel < 0 or channel > self.nr_of_ch:
             raise ValueError(f"Channel must be 0 to {self.nr_of_ch}")
         if ret:
-            vol = self._get_signed(self._start_conversion(channel, 0))- self.offset[channel]
+            vol = self._get_value(self._start_conversion(channel, 0), True)- self.offset[channel]
             mux = self.channel_mux[channel]
             signed = (False if mux >= 4 else True)
             return vol * self._get_lsb(signed)

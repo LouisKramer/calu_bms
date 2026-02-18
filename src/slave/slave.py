@@ -15,7 +15,7 @@ from lib.BMSnow import BMSnowSlave
 # ========================================
 # CONFIG
 # ========================================
-BAL_PWM_FREQ = 100  # Hz
+BAL_PWM_FREQ = 1600  # Hz
 
 FW_VERSION = "0.0.0.1"
 HW_VERSION = "2.0.0.0"
@@ -56,11 +56,17 @@ async def main():
     bat.info.fw_ver = FW_VERSION
     bat.info.fw_ver = HW_VERSION
     bat.create_measurements()
-
-    #i2c = SoftI2C(scl=Pin(HAL.I2C_SCL_PIN), sda=Pin(HAL.I2C_SDA_PIN), freq=400000)
-    #spi = SoftSPI(baudrate=1000000, polarity=0, phase=0, sck=Pin(HAL.SPI_SCLK_PIN), mosi=Pin(HAL.SPI_MOSI_PIN), miso=Pin(HAL.SPI_MISO_PIN))
-    #demux = SN74HC154(enable_pin=HAL.CS_EN_PIN, a0_pin=HAL.SPI_CS0_PIN, a1_pin=HAL.SPI_CS1_PIN, a2_pin=HAL.SPI_CS2_PIN, a3_pin=HAL.SPI_CS3_PIN)
+    i2c = SoftI2C(scl=Pin(HAL.I2C_SCL_PIN, pull=Pin.PULL_UP), sda=Pin(HAL.I2C_SDA_PIN, pull=Pin.PULL_UP), freq=400000)
+    spi = SoftSPI(baudrate=1000000, polarity=0, phase=0, sck=Pin(HAL.SPI_SCLK_PIN), mosi=Pin(HAL.SPI_MOSI_PIN), miso=Pin(HAL.SPI_MISO_PIN))
+    demux = SN74HC154(enable_pin=HAL.CS_EN_PIN, a0_pin=HAL.SPI_CS0_PIN, a1_pin=HAL.SPI_CS1_PIN, a2_pin=HAL.SPI_CS2_PIN, a3_pin=HAL.SPI_CS3_PIN)
     # Initialize PCA9685
+    #pca1=PCA9685(i2c, address=0x40)
+    #pca1.set_pwm_freq(BAL_PWM_FREQ)  # 100 Hz PWM
+    pca = PCA9685(i2c)
+    pca.freq(BAL_PWM_FREQ)
+
+    #pca1.all_off()
+
     #pcas = [PCA9685(i2c, address=0x40 + i) for i in range(NR_OF_PCA)]
     #for pca in pcas:
     #    pca.set_pwm_freq(BAL_PWM_FREQ)  # 100 Hz PWM
@@ -68,14 +74,31 @@ async def main():
 
     # Initialize ADS1118 instances
     #mux = {0: 0b000, 1: 0b010, 2: 0b011}
-    #adcs = []#
-#
-    #adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0x1, pga=2, dr=4, channel_mux=mux, gain=[1.0, 1.0, 1.0]))
-    #adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0x2, pga=2, dr=4, channel_mux=mux, gain=[1.0, 1.0, 1.0]))
-    #adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0x3, pga=2, dr=4, channel_mux=mux, gain=[1.0, 1.0, 1.0]))
-    #adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0x4, pga=2, dr=4, channel_mux=mux, gain=[1.0, 1.0, 1.0]))
-    #adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0x5, pga=2, dr=4, channel_mux=mux, gain=[1.0, 1.0, 1.0]))
-    #adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0x6, pga=2, dr=4, channel_mux={0: 0b000, 1: 0b011}, gain=[1.0, 1.0]))
+    #adcs = []
+    bat1_3 = ADS1118(spi=spi, demux=demux, demux_output=0x1, pga=2, dr=4,
+                     channel_mux={0: 0b000, 1: 0b010, 2: 0b011},  
+                     soft_gain=[x * 2 for x in [1.0, 1.0, 1.0]]) #channel 0 = Bat, channel 1 = inv
+    bat4_6 = ADS1118(spi=spi, demux=demux, demux_output=0x2, pga=2, dr=4,
+                     channel_mux={0: 0b000, 1: 0b010, 2: 0b011},  
+                     soft_gain=[x * 2 for x in [1.0, 1.0, 1.0]])
+    bat7_9 = ADS1118(spi=spi, demux=demux, demux_output=0x3, pga=2, dr=4,
+                     channel_mux={0: 0b000, 1: 0b010, 2: 0b011},  
+                     soft_gain=[x * 2 for x in [1.0, 1.0, 1.0]])
+    bat10_12 = ADS1118(spi=spi, demux=demux, demux_output=0x4, pga=2, dr=4,
+                     channel_mux={0: 0b000, 1: 0b010, 2: 0b011},  
+                     soft_gain=[x * 2 for x in [1.0, 1.0, 1.0]])
+    bat13_15 = ADS1118(spi=spi, demux=demux, demux_output=0x5, pga=2, dr=4,
+                     channel_mux={0: 0b000, 1: 0b010, 2: 0b011},  
+                     soft_gain=[x * 2 for x in [1.0, 1.0, 1.0]])
+    bat16 = ADS1118(spi=spi, demux=demux, demux_output=0x6, pga=2, dr=4,
+                     channel_mux={0: 0b000},  
+                     soft_gain=[x * 2 for x in [1.0]])
+    #adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0x1, pga=2, dr=4, channel_mux=mux, soft_gain=[1.0, 1.0, 1.0]))
+    #adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0x2, pga=2, dr=4, channel_mux=mux, soft_gain=[1.0, 1.0, 1.0]))
+    #adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0x3, pga=2, dr=4, channel_mux=mux, soft_gain=[1.0, 1.0, 1.0]))
+    #adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0x4, pga=2, dr=4, channel_mux=mux, soft_gain=[1.0, 1.0, 1.0]))
+    #adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0x5, pga=2, dr=4, channel_mux=mux, soft_gain=[1.0, 1.0, 1.0]))
+    #adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0x6, pga=2, dr=4, channel_mux={0: 0b000, 1: 0b011}, soft_gain=[1.0, 1.0]))
     #if SLAVE_MAX :
     #    adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0xF, pga=2, dr=4, channel_mux=mux, gain=[1.0, 1.0, 1.0]))
     #    adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0xE, pga=2, dr=4, channel_mux=mux, gain=[1.0, 1.0, 1.0]))
@@ -105,18 +128,50 @@ async def main():
         bat.meas.vcell = [round(random.uniform(3.0, 4.2), 3) for _ in range(bat.info.ncell)]
         bat.meas.vstr = 48.5
         # Read voltages
-        #voltages = await read_all_adc()
-        #log.info(f"Cell Voltages: {voltages}", ctx="main")
+        #voltages = await read_all_adc(adcs=adcs)
+        #demux.select(0x0)
+        b1 = await bat1_3.read_voltage(channel=0)
+        b2 = await bat1_3.read_voltage(channel=1)
+        b3 = await bat1_3.read_voltage(channel=2)
+
+        b4 = await bat4_6.read_voltage(channel=0)
+        b5 = await bat4_6.read_voltage(channel=1)
+        b6 = await bat4_6.read_voltage(channel=2)
+
+        b7 = await bat7_9.read_voltage(channel=0)
+        b8 = await bat7_9.read_voltage(channel=1)
+        b9 = await bat7_9.read_voltage(channel=2)
+
+        b10 = await bat10_12.read_voltage(channel=0)
+        b11 = await bat10_12.read_voltage(channel=1)
+        b12 = await bat10_12.read_voltage(channel=2)
+
+        b13 = await bat13_15.read_voltage(channel=0)
+        b14 = await bat13_15.read_voltage(channel=1)
+        b15 = await bat13_15.read_voltage(channel=2)
+
+        b16 = await bat16.read_voltage(channel=0)
+        #demux.deselect()
+        log.info(f"Cell Voltages: {b1}, {b2}, {b3}")
+        log.info(f"Cell Voltages: {b4}, {b5}, {b6}")
+        log.info(f"Cell Voltages: {b7}, {b8}, {b9}")
+        log.info(f"Cell Voltages: {b10}, {b11}, {b12}")
+        log.info(f"Cell Voltages: {b13}, {b14}, {b15}")
+        log.info(f"Cell Voltage: {b16}")
         #cell_voltages_1 = voltages[0:15]
         #string_voltage_1 = voltages[16]
         #if SLAVE_MAX :
         #    cell_voltages_2 = voltages[17:32]
         #    string_voltage_2 = voltages[33]
         temps = tmp.get_temperatures()
+        temps[0] = 33.3
         bat.meas.temps = [temps[0]]
         log.info(f"Temperatures: {temps}")
 
         ## Balancing
+        for i in range(NR_OF_CELLS):
+            pca.duty(i, 0) #channel i, on=0, off=2048 (50% duty cycle)
+
         ## TODO: odd and even Balancing must be synced over all slaves!!!!!!
         #even_odd_flag = not even_odd_flag
         #if bal_en == True and ext_bal_en == False:

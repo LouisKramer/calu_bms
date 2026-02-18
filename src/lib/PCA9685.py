@@ -1,129 +1,59 @@
+import ustruct
 import time
-from machine import I2C
+
 
 class PCA9685:
-    # Register addresses
-    MODE1 = 0x00
-    MODE2 = 0x01
-    PRESCALE = 0xFE
-    LED0_ON_L = 0x06
-    ALL_LED_ON_L = 0xFA
-    
     def __init__(self, i2c, address=0x40):
-        """Initialize PCA9685 with I2C interface and address."""
         self.i2c = i2c
         self.address = address
         self.reset()
-    
+
+    def _write(self, address, value):
+        self.i2c.writeto_mem(self.address, address, bytearray([value]))
+
+    def _read(self, address):
+        return self.i2c.readfrom_mem(self.address, address, 1)[0]
+
     def reset(self):
-        """Reset the PCA9685 to default settings."""
-        self.i2c.writeto_mem(self.address, self.MODE1, bytearray([0x00]))
-        time.sleep_ms(10)
-    
-    def set_pwm_freq(self, freq_hz):
-        """Set PWM frequency in Hz (25 to 1526 Hz)."""
-        # Calculate prescale value: round(25MHz / (4096 * freq_hz)) - 1
-        prescale = int(round(25000000.0 / (4096 * freq_hz)) - 1)
-        if prescale < 3 or prescale > 255:
-            raise ValueError("Frequency out of range (25-1526 Hz)")
-        
-        # Read current MODE1 register
-        mode1 = self.i2c.readfrom_mem(self.address, self.MODE1, 1)[0]
-        
-        # Set sleep bit to enter low power mode
-        self.i2c.writeto_mem(self.address, self.MODE1, bytearray([mode1 | 0x10]))
-        
-        # Set prescale value
-        self.i2c.writeto_mem(self.address, self.PRESCALE, bytearray([prescale]))
-        
-        # Clear sleep bit and enable auto-increment
-        self.i2c.writeto_mem(self.address, self.MODE1, bytearray([mode1 & ~0x10 | 0x20]))
-        time.sleep_ms(5)
-    
-    def set_pwm(self, channel, on, off):
-        """Set PWM on and off times for a specific channel (0-15)."""
-        if channel < 0 or channel > 15:
-            raise ValueError("Channel must be 0-15")
-        if on < 0 or on > 4095 or off < 0 or off > 4095:
-            raise ValueError("On/Off values must be 0-4095")
-        
-        # Calculate register addresses for the channel
-        reg = self.LED0_ON_L + 4 * channel
-        # Write ON and OFF times (12-bit values, split into low and high bytes)
-        data = bytearray([on & 0xFF, on >> 8, off & 0xFF, off >> 8])
-        self.i2c.writeto_mem(self.address, reg, data)
-    
-    def set_all_pwm(self, on, off):
-        """Set PWM on and off times for all channels."""
-        if on < 0 or on > 4095 or off < 0 or off > 4095:
-            raise ValueError("On/Off values must be 0-4095")
-        
-        # Write to ALL_LED registers
-        data = bytearray([on & 0xFF, on >> 8, off & 0xFF, off >> 8])
-        self.i2c.writeto_mem(self.address, self.ALL_LED_ON_L, data)
-    
-    def set_duty(self, channel, duty):
-        """Set duty cycle (0-100%) for a specific channel."""
-        if duty < 0 or duty > 100:
-            raise ValueError("Duty cycle must be 0-100%")
-        # Convert percentage to 12-bit value (0-4095)
-        off = int(duty * 4095 / 100)
-        self.set_pwm(channel, 0, off)
-    
-    def set_all_duty(self, duty):
-        """Set duty cycle (0-100%) for all channels."""
-        if duty < 0 or duty > 100:
-            raise ValueError("Duty cycle must be 0-100%")
-        off = int(duty * 4095 / 100)
-        self.set_all_pwm(0, off)
-    
-    def off(self, channel):
-        """Turn off a specific channel."""
-        self.set_pwm(channel, 0, 0)
-    
-    def all_off(self):
-        """Turn off all channels."""
-        self.set_all_pwm(0, 0)
-    
-    def enable_odd_channels(self, duty, mask=None):
-        """Enable specified odd-numbered channels (1, 3, ..., 15) with duty cycle.
-        
-        :param duty: Duty cycle (0-100%).
-        :param mask: List or set of odd channels to enable (e.g., [1, 5]). If None, enable all odd channels.
-        """
-        if duty < 0 or duty > 100:
-            raise ValueError("Duty cycle must be 0-100%")
-        valid_odd_channels = set(range(1, 16, 2))  # {1, 3, 5, 7, 9, 11, 13, 15}
-        if mask is not None:
-            mask = set(mask)
-            if not mask.issubset(valid_odd_channels):
-                raise ValueError("Mask contains invalid odd channels. Must be subset of " + str(valid_odd_channels))
+        self._write(0x00, 0x00) # Mode1
+
+    def freq(self, freq=None):
+        if freq is None:
+            return int(25000000.0 / 4096 / (self._read(0xfe) - 0.5))
+        prescale = int(25000000.0 / 4096.0 / freq + 0.5)
+        old_mode = self._read(0x00) # Mode 1
+        self._write(0x00, (old_mode & 0x7F) | 0x10) # Mode 1, sleep
+        self._write(0xfe, prescale) # Prescale
+        self._write(0x00, old_mode) # Mode 1
+        time.sleep_us(5)
+        self._write(0x00, old_mode | 0xa1) # Mode 1, autoincrement on
+        self.i2c.writeto_mem(self.address, 0x01, bytearray([0x05]))  # INVRT=0, OUTDRV=1, OUTNE=01
+
+    def pwm(self, index, on=None, off=None):
+        if on is None or off is None:
+            data = self.i2c.readfrom_mem(self.address, 0x06 + 4 * index, 4)
+            return ustruct.unpack('<HH', data)
+        data = ustruct.pack('<HH', on, off)
+        self.i2c.writeto_mem(self.address, 0x06 + 4 * index,  data)
+
+    def duty(self, index, value=None, invert=False):
+        if value is None:
+            pwm = self.pwm(index)
+            if pwm == (0, 4096):
+                value = 0
+            elif pwm == (4096, 0):
+                value = 4095
+            value = pwm[1]
+            if invert:
+                value = 4095 - value
+            return value
+        if not 0 <= value <= 4095:
+            raise ValueError("Out of range")
+        if invert:
+            value = 4095 - value
+        if value == 0:
+            self.pwm(index, 0, 4096)
+        elif value == 4095:
+            self.pwm(index, 4096, 0)
         else:
-            mask = valid_odd_channels
-        
-        self.all_off()  # Turn off all channels first
-        for channel in valid_odd_channels:
-            if channel in mask:
-                self.set_duty(channel, duty)
-    
-    def enable_even_channels(self, duty, mask=None):
-        """Enable specified even-numbered channels (0, 2, ..., 14) with duty cycle.
-        
-        :param duty: Duty cycle (0-100%).
-        :param mask: List or set of even channels to enable (e.g., [0, 4]). If None, enable all even channels.
-        """
-        if duty < 0 or duty > 100:
-            raise ValueError("Duty cycle must be 0-100%")
-        valid_even_channels = set(range(0, 16, 2))  # {0, 2, 4, 6, 8, 10, 12, 14}
-        if mask is not None:
-            mask = set(mask)
-            if not mask.issubset(valid_even_channels):
-                raise ValueError("Mask contains invalid even channels. Must be subset of " + str(valid_even_channels))
-        else:
-            mask = valid_even_channels
-        # Turn off all channels first
-        self.all_off()  
-        # Turn on even channels masked 
-        for channel in valid_even_channels:
-            if channel in mask:
-                self.set_duty(channel, duty)
+            self.pwm(index, 0, value)

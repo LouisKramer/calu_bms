@@ -27,6 +27,7 @@ class slave_hal:
     SPI_SCLK_PIN = 6
     SPI_MOSI_PIN = 7
     SPI_MISO_PIN = 15
+    CS_EN_PIN = 10
     SPI_CS0_PIN = 16
     SPI_CS1_PIN = 17
     SPI_CS2_PIN = 18
@@ -34,7 +35,6 @@ class slave_hal:
     I2C_SCL_PIN = 46
     I2C_SDA_PIN = 3
     OWM_TEMP_PIN = 9
-    CS_EN_PIN = 10
     ACT_BAL_PIN = 47
     ACT_BAL_PWM_PIN = 48
     LED_USER_PIN = 40
