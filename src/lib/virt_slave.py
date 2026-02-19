@@ -33,20 +33,20 @@ class Slaves:
     # ------------------------------------------------------------------
     #  Core CRUD operations 
     # ------------------------------------------------------------------
-    def push(self, info: info_data):
+    def push(self, mac, addr, ncell, ntemp, fw_ver, hw_ver):
         """Add a new slave if there is room"""
         if len(self._slaves) >= self.MAX_NR_OF_SLAVES:
             log_slave.warn(f"Cannot add more than {self.MAX_NR_OF_SLAVES} slaves")
             return None
-        elif self.is_known(info.mac):
-            log_slave.warn(f"Slave with MAC {log_slave.mac_to_str(info.mac)} already known")
+        elif self.is_known(mac):
+            log_slave.warn(f"Slave with MAC {log_slave.mac_to_str(mac)} already known")
             return None
-        elif info.addr == self.get_by_addr(info.addr):
-            log_slave.warn(f"Slave with address {info.addr} already known")
+        elif addr == self.get_by_addr(addr):
+            log_slave.warn(f"Slave with address {addr} already known")
             return None
         else:
-            log_slave.info(f"Add slave {log_slave.mac_to_str(info.mac)} to list")
-            new = virt_slave(info)
+            log_slave.info(f"Add slave {log_slave.mac_to_str(mac)} to list")
+            new = virt_slave(self, mac, addr, ncell, ntemp, fw_ver, hw_ver)
             for i, s in enumerate(self._slaves):
                 if s is None:
                     self._slaves[i] = new
@@ -80,11 +80,10 @@ class Slaves:
         return any(s is not None and s.battery.info.mac == mac for s in self._slaves)
     
 class virt_slave(Slaves):
-    def __init__(self, info: info_data):
+    def __init__(self, mac, addr, ncell, ntemp, fw_ver, hw_ver):
         self.battery = battery()
-        self.battery.init_mqtt_entities(info.addr)
-        self.battery.info.set(info)
-        self.battery.info.update_mqtt_entities()
+        self.battery.init_mqtt_entities(addr)
+        self.battery.info.update_all(mac=mac, addr=addr, ncell=ncell, ntemp=ntemp, fw_ver=fw_ver, hw_ver=hw_ver)
         self.battery.create_measurements()
-        self.battery.meas.init_mqtt_entities(info.addr)
+
     

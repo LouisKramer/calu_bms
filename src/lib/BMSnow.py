@@ -48,17 +48,17 @@ class BMSnowProtocol:
         return payload# + crc
 
     @staticmethod
-    def unpack_hello_msg(msg: bytes, info):
+    def unpack_hello_msg(msg: bytes):
         payload = msg[:-4]
         #crc_calc = binascii.crc32(payload)
         #crc_rx = int.from_bytes(msg[-4:], 'little')
         values = struct.unpack('<BBHH32s32s', msg)
-        info.addr   = values[1]
-        info.ncell  = values[2]
-        info.ntemp  = values[3]
-        info.fw_ver = values[4].rstrip(b'\x00').decode('utf-8')
-        info.hw_ver = values[5].rstrip(b'\x00').decode('utf-8')
-        return info
+        addr   = values[1]
+        ncell  = values[2]
+        ntemp  = values[3]
+        fw_ver = values[4].rstrip(b'\x00').decode('utf-8')
+        hw_ver = values[5].rstrip(b'\x00').decode('utf-8')
+        return addr, ncell, ntemp, fw_ver, hw_ver
 
     @staticmethod
     def pack_welcome():
@@ -242,30 +242,26 @@ class BMSnowMaster(BMSnowComm):
 
     # Handlers
     def _handle_hello(self, mac, msg):
-        info = info_data()
-        self.protocol.unpack_hello_msg(msg, info)
-        info.mac = mac
+        addr, ncell, ntemp, fw_ver, hw_ver = self.protocol.unpack_hello_msg(msg)
         s = self.slaves.get_by_mac(mac)
         self.log.info(f"Hello from: {self.log.mac_to_str(mac)}")
         if s is None:
             self.e.add_peer(mac)
-            s = self.slaves.push(info)
-            s.battery.state.ttl = s.battery.conf.ttl
-            s.battery.state.synced = True
+            s = self.slaves.push(mac, addr, ncell, ntemp, fw_ver, hw_ver)
+            s.battery.state.update_ttl(s.battery.conf.ttl)
+            s.battery.state.update_synced(True)
             self.log.info(f"New slave discovered: {self.log.mac_to_str(mac)}")
         else:
             self.log.info(f"Update info from: {self.log.mac_to_str(mac)}")
             s = self.slaves.get_by_mac(mac)
-            s.battery.info.set(info)
+            s.battery.info.update_all(mac=mac, addr=addr, ncell=ncell, ntemp=ntemp, fw_ver=fw_ver, hw_ver=hw_ver)
         self.send(mac, self.protocol.pack_welcome())
 
     def _handle_data(self, mac, msg):
         s = self.slaves.get_by_mac(mac)
         if s is not None:
             s.battery.state.stable = self.protocol.unpack_data_msg(msg, s.battery.meas)
-            if s.battery.state.stable:
-                s.battery.meas.update_mqtt_entities()
-            s.battery.state.ttl = s.battery.conf.ttl
+            s.battery.state.update_ttl(s.battery.conf.ttl)
             self.log.info(f"Received data from {self.log.mac_to_str(mac)}")
         else:
             self.log.warn(f"Data from unknown slave: {self.log.mac_to_str(mac)}")

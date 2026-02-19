@@ -10,6 +10,7 @@ class BaseConfig:
         self.config = config()
         self._section_name = section_name
         self.log = Logger()
+        self.mqtt_enable = False
         self._mqtt_map = {}  # internal name -> MQTT entity
 
     def _load_from_config(self, defaults: dict):
@@ -24,12 +25,13 @@ class BaseConfig:
         self.log.info(f"{self._section_name} saved")
 
     def update(self):
-        """Called automatically by MQTT Number callbacks"""
-        for attr, entity in self._mqtt_map.items():
-            setattr(self, attr, entity.get_state_value())
-        self.save()
-        if hasattr(self, "_post_update"):
-            self._post_update()
+        if self.mqtt_enable:
+            """Called automatically by MQTT Number callbacks"""
+            for attr, entity in self._mqtt_map.items():
+                setattr(self, attr, entity.get_state_value())
+            if hasattr(self, "_post_update"):
+                self._post_update()
+            self.save()
 
 
 # ==============================================================
@@ -54,6 +56,7 @@ class can_config(BaseConfig):
         get_BMSmqtt().add_entity(self._baudrate_select)
         self._baudrate_select.set_value(str(self.baudrate))
         self._mqtt_map["baudrate"] = self._baudrate_select
+        self.mqtt_enable = True
 
     def _post_update(self):
         try:
@@ -94,6 +97,7 @@ class power_config(BaseConfig):
         }
         for e in self._mqtt_map.values():
             mqtt.add_entity(e)
+        self.mqtt_enable = True
 
     def _update_charge_current_table(self):
         self.charge_current_table = [
@@ -215,15 +219,11 @@ class soc_config(BaseConfig):
         }
         for e in self._mqtt_map.values():
             mqtt.add_entity(e)
+        self.mqtt_enable = True
 
-    def update(self):
-        # Call base update first (sets raw values from entities)
-        for attr, entity in self._mqtt_map.items():
-            setattr(self, attr, entity.get_state_value())
-        # Apply scaling for internal storage
+    def _post_update(self):
         self.cell_ir = self._mqtt_map["cell_ir"].get_state_value() / 1000
         self.ir_temp_coeff = self._mqtt_map["ir_temp_coeff"].get_state_value() / 100
-        self.save()
 
 
 # ==============================================================
@@ -297,6 +297,7 @@ class master_data:
         self.soc = 0.0
         self.soh = 0.0
         self.cycle_cnt = 0
+        self.mqtt_enable = False
 
     def init_mqtt_entities(self):
         mqtt = get_BMSmqtt()
@@ -310,15 +311,40 @@ class master_data:
         self._cycle_cnt = Sensor("Cycle Count", unit="cycles")
         for e in (self._current, self._vpack, self._tpack, self._tadc, self._vinv, self._soc, self._soh, self._cycle_cnt):
             mqtt.add_entity(e)
+        self.mqtt_enable = True
 
-    def update_current(self, value: float): self.current = float(value); self._current.set_value(self.current)
-    def update_vpack(self, value: float):   self.vpack   = float(value); self._vpack.set_value(self.vpack)
-    def update_tpack(self, value: float):   self.tpack   = float(value); self._tpack.set_value(self.tpack)
-    def update_tadc(self, value: float):    self.tadc    = float(value); self._tadc.set_value(self.tadc)
-    def update_vinv(self, value: float):    self.vinv    = float(value); self._vinv.set_value(self.vinv)
-    def update_soc(self, value: float):     self.soc     = float(value); self._soc.set_value(self.soc)
-    def update_soh(self, value: float):      self.soh      = float(value); self._soh.set_value(self.soh)
-    def update_cycle_cnt(self, value: float): self.cycle_cnt = float(value); self._cycle_cnt.set_value(self.cycle_cnt)
+    def update_current(self, value: float): 
+        self.current = float(value)
+        if self.mqtt_enable: 
+            self._current.set_value(self.current)
+    def update_vpack(self, value: float):
+        self.vpack = float(value)
+        if self.mqtt_enable:
+            self._vpack.set_value(self.vpack)
+    def update_tpack(self, value: float):
+        self.tpack = float(value)
+        if self.mqtt_enable:
+            self._tpack.set_value(self.tpack)
+    def update_tadc(self, value: float):
+        self.tadc = float(value)
+        if self.mqtt_enable:
+            self._tadc.set_value(self.tadc)
+    def update_vinv(self, value: float):
+        self.vinv = float(value)
+        if self.mqtt_enable:
+            self._vinv.set_value(self.vinv)
+    def update_soc(self, value: float):
+        self.soc = float(value)
+        if self.mqtt_enable:
+            self._soc.set_value(self.soc)
+    def update_soh(self, value: float):
+        self.soh = float(value)
+        if self.mqtt_enable:
+            self._soh.set_value(self.soh)
+    def update_cycle_cnt(self, value: float): 
+        self.cycle_cnt = float(value)
+        if self.mqtt_enable:
+            self._cycle_cnt.set_value(self.cycle_cnt)
 
     def update_all(self, current=0.0, vpack=0.0, tpack=0.0, tadc=0.0, vinv=0.0, soc=0.0, soh=0.0, cycle_cnt=0.0):
         self.update_current(current)
@@ -336,20 +362,21 @@ class battery:
         self.conf  = slave_config()
         self.meas  = None
         self.state = status_data()   # will be per-slave in real code
-        
+        self.mqtt_enable = False
     def create_measurements(self):
         self.meas = meas_data(self)
+        self.meas.init_mqtt_entities(self.info.addr)
 
     def init_mqtt_entities(self):
         self.info.init_mqtt_entities(self.info.addr)
         self.conf.init_mqtt_entities(self.info.addr)
+        self.mqtt_enable = True
         # meas will be initialized after info is set (needs ncell/ntemp)
 
     def is_data_stable(self):
         if self.meas is None:
             return False
         return all(2.0 < v < 4.5 for v in self.meas.vcell)
-
 
 class status_data:
     def __init__(self):
@@ -358,6 +385,7 @@ class status_data:
         self.synced = False
         self.stable = False
         self.ttl = 0
+        self.mqtt_enable = False
 
     def init_mqtt_entities(self, addr: int):
         sub = {"name": f"Slave {addr}", "id": f"slave_{addr}"}
@@ -369,14 +397,35 @@ class status_data:
         mqtt = get_BMSmqtt()
         for e in (self._channel_found, self._com_active, self._synced, self._stable, self._ttl):
             mqtt.add_entity(e)
+        self.mqtt_enable = True
 
-    def update_mqtt_entities(self):
-        self._channel_found.set_value(self.channel_found)
-        self._com_active.set_value(self.com_active)
-        self._synced.set_value(self.synced)
-        self._stable.set_value(self.stable)
-        self._ttl.set_value(self.ttl)
+    def update_channel_found(self, value: bool):
+        self.channel_found = bool(value)
+        if self.mqtt_enable:
+            self._channel_found.set_value(self.channel_found)
 
+    def update_com_active(self, value: bool):
+        self.com_active = bool(value)
+        if self.mqtt_enable:
+            self._com_active.set_value(self.com_active)
+    def update_synced(self, value: bool):
+        self.synced = bool(value)
+        if self.mqtt_enable:
+            self._synced.set_value(self.synced)
+    def update_stable(self, value: bool):
+        self.stable = bool(value)
+        if self.mqtt_enable:
+            self._stable.set_value(self.stable)
+    def update_ttl(self, value: int):
+        self.ttl = int(value)
+        if self.mqtt_enable:
+            self._ttl.set_value(self.ttl)
+    def update_all(self, channel_found: bool, com_active: bool, synced: bool, stable: bool, ttl: int)
+        self.update_channel_found(channel_found)
+        self.update_com_active(com_active)
+        self.update_synced(synced)
+        self.update_stable(stable)
+        self.update_ttl(ttl)
 
 class info_data:
     def __init__(self):
@@ -387,6 +436,7 @@ class info_data:
         self.ntemp = 0
         self.fw_ver = "0.0.0.0"
         self.hw_ver = "0.0.0.0"
+        self.mqtt_enable = False
 
     def init_mqtt_entities(self, addr: int = None):
         if addr is not None:
@@ -402,15 +452,51 @@ class info_data:
         mqtt = get_BMSmqtt()
         for e in (self._mac, self._master_mac, self._addr, self._ncell, self._ntemp, self._fw_ver, self._hw_ver):
             mqtt.add_entity(e)
+        self.mqtt_enable = True
 
-    def update_mqtt_entities(self):
-        self._mac.set_value(self.mac.hex())
-        self._master_mac.set_value(self.master_mac.hex())
-        self._addr.set_value(str(self.addr))
-        self._ncell.set_value(str(self.ncell))
-        self._ntemp.set_value(str(self.ntemp))
-        self._fw_ver.set_value(self.fw_ver)
-        self._hw_ver.set_value(self.hw_ver)
+    def update_mac(self, mac: bytearray):
+        self.mac = mac
+        if self.mqtt_enable:
+            self._mac.set_value(self.mac.hex())
+
+    def update_master_mac(self, master_mac: bytearray):
+        self.master_mac = master_mac
+        if self.mqtt_enable:
+            self._master_mac.set_value(self.master_mac.hex())
+
+    def update_addr(self, addr: int):
+        self.addr = addr
+        if self.mqtt_enable:
+            self._addr.set_value(str(self.addr))
+
+    def update_ncell(self, ncell: int):
+        self.ncell = ncell
+        if self.mqtt_enable:
+            self._ncell.set_value(str(self.ncell))
+
+    def update_ntemp(self, ntemp: int):
+        self.ntemp = ntemp
+        if self.mqtt_enable:
+            self._ntemp.set_value(str(self.ntemp))
+
+    def update_fw_ver(self, fw_ver: str):
+        self.fw_ver = fw_ver
+        if self.mqtt_enable:
+            self._fw_ver.set_value(self.fw_ver)
+
+    def update_hw_ver(self, hw_ver: str):
+        self.hw_ver = hw_ver
+        if self.mqtt_enable:
+            self._hw_ver.set_value(self.hw_ver)
+        
+    def update_all(self, mac: bytearray, master_mac: bytearray, addr: int, ncell: int, ntemp: int, fw_ver: str, hw_ver: str):
+        self.update_mac(mac)
+        self.update_master_mac(master_mac)
+        self.update_addr(addr)
+        self.update_ncell(ncell)
+        self.update_ntemp(ntemp)
+        self.update_fw_ver(fw_ver)
+        self.update_hw_ver(hw_ver)
 
     def set(self, other: 'info_data'):
         if isinstance(other, info_data):
@@ -422,12 +508,12 @@ class info_data:
             self.fw_ver = other.fw_ver
             self.hw_ver = other.hw_ver
 
-
 class meas_data:
     def __init__(self, bat: battery):
         self.vcell = [0.0] * bat.info.ncell
         self.vstr = 0.0
         self.temps = [0.0] * bat.info.ntemp
+        self.mqtt_enable = False
 
     def init_mqtt_entities(self, addr: int):
         sub = {"name": f"Slave {addr}", "id": f"slave_{addr}"}
@@ -444,13 +530,15 @@ class meas_data:
             e = Sensor(f"Temp {i+1}", unit="°C", sub_device=sub)
             mqtt.add_entity(e)
             self._temps.append(e)
+        self.mqtt_enable = True
     
     def update_mqtt_entities(self):
-        for i, v in enumerate(self.vcell):
-            self._vcell[i].set_value(v)
-        self._vstr.set_value(self.vstr)
-        for i, t in enumerate(self.temps):
-            self._temps[i].set_value(t)
+        if self.mqtt_enable:
+            for i, v in enumerate(self.vcell):
+                self._vcell[i].set_value(v)
+            self._vstr.set_value(self.vstr)
+            for i, t in enumerate(self.temps):
+                self._temps[i].set_value(t)
 
     def set_vcell(self, index: int, voltage: float) -> bool:
         if not 0 <= index < len(self.vcell) or not isinstance(voltage, (int, float)) or voltage < 0:
@@ -516,3 +604,4 @@ class slave_config (BaseConfig):
         }
         for e in self._mqtt_map.values():
             mqtt.add_entity(e)
+        self.mqtt_enable = True
