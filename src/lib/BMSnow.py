@@ -12,7 +12,6 @@ from common.credentials import *
 from common.common import *
 from lib.virt_slave import *
 
-
 class BMSnowProtocol:
     # Message types
     SEARCH_MSG    = 10

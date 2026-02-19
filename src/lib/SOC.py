@@ -7,65 +7,13 @@ from collections import deque
 from common.logger import Logger
 from common.common import soc_config
 
-log_soc = Logger()
-# =============================================================================
-# Persistence (extended with SoH data)
-# =============================================================================
-def save_state(estimator, path="soc_state.json"):
-    try:
-        log_soc.info("Saving SOC + SoH state")
-        state = {
-            "soc": estimator.soc,
-            "soh": estimator.soh,
-            "total_throughput_ah": estimator.total_throughput_ah,
-            "last_time": time.time(),
-            "relaxed_start_time": estimator.relaxed_start_time,
-            "voltage_history": list(estimator.voltage_history),
-            "last_voltage": estimator.last_voltage,
-            "last_temp": estimator.last_temp
-        }
-        with open(path, "w") as f:
-            f.write(json.dumps(state))
-    except Exception as e:
-        log_soc.error(f"SOC save failed: {e}")
-
-
-def load_state(estimator, path="soc_state.json"):
-    if path not in os.listdir():
-        return False
-    try:
-        with open(path, "r") as f:
-            state = json.loads(f.read())
-
-        estimator.soc = max(0.0, min(100.0, state.get("soc", estimator.soc)))
-        estimator.soh = max(70.0, min(100.0, state.get("soh", estimator.soh)))
-        estimator.total_throughput_ah = state.get("total_throughput_ah", 0.0)
-        estimator.relaxed_start_time = state.get("relaxed_start_time")
-        estimator.voltage_history = deque(state.get("voltage_history", [])[-10:], 10)
-        estimator.last_voltage = state.get("last_voltage")
-        estimator.last_temp = state.get("last_temp")
-        estimator.last_time = time.time()   # prevent huge dt after reboot
-
-        log_soc.info(f"SOC/SoH restored: {estimator.soc}% | SoH {estimator.soh}%")
-        return True
-    except Exception as e:
-        log_soc.error(f"SOC load failed: {e}")
-        return False
-
-
-async def autosave_task(estimator, interval=300):
-    while True:
-        await asyncio.sleep(interval)
-        save_state(estimator)
-
-
 # =============================================================================
 # BatterySOC - with Coulomb Efficiency + SoH
 # =============================================================================
 class BatterySOC:
     def __init__(self, cfg=None):
         self.cfg = cfg or soc_config()
-
+        self.log = Logger()
         # Voltage-SOC table (per cell)
         self.default_per_cell = [
             (3.60, 100.0), (3.40, 95.0), (3.35, 80.0), (3.325, 60.0),
@@ -85,8 +33,8 @@ class BatterySOC:
         self.voltage_history = deque([], 10)
 
         # Load persisted state
-        if not load_state(self, "soc_state.json"):
-            log_soc.info("No saved state → starting fresh")
+        if not self.load_state(self, "soc_state.json"):
+            self.log.info("No saved state → starting fresh")
 
     def _build_pack_table(self):
         self.pack_table = [(v * self.num_cells, soc) for v, soc in self.default_per_cell]
@@ -174,7 +122,7 @@ class BatterySOC:
         self.last_voltage = voltage
         self.last_temp = temperature
 
-        log_soc.info(f"SOC {self.soc}% | SoH {self.soh}% | Cycles {cycles} | η={self.cfg.charge_efficiency:.2f}/{self.cfg.discharge_efficiency:.2f}")
+        self.log.info(f"SOC {self.soc}% | SoH {self.soh}% | Cycles {cycles} | η={self.cfg.charge_efficiency:.2f}/{self.cfg.discharge_efficiency:.2f}")
         return self.soc
 
     def get_status(self):
@@ -192,7 +140,56 @@ class BatterySOC:
         self.last_time = time.time()
         self.relaxed_start_time = None
         self.voltage_history.clear()
-        save_state(self)
+        self.save_state()
+
+    def save_state(self, path="soc_state.json"):
+        try:
+            self.log.info("Saving SOC + SoH state")
+            state = {
+                "soc": self.soc,
+                "soh": self.soh,
+                "total_throughput_ah": self.total_throughput_ah,
+                "last_time": time.time(),
+                "relaxed_start_time": self.relaxed_start_time,
+                "voltage_history": list(self.voltage_history),
+                "last_voltage": self.last_voltage,
+                "last_temp": self.last_temp
+            }
+            with open(path, "w") as f:
+                f.write(json.dumps(state))
+        except Exception as e:
+            self.log.error(f"SOC save failed: {e}")
+
+
+    def load_state(self, path="soc_state.json"):
+        if path not in os.listdir():
+            return False
+        try:
+            with open(path, "r") as f:
+                state = json.loads(f.read())
+
+            self.soc = max(0.0, min(100.0, state.get("soc", self.soc)))
+            self.soh = max(70.0, min(100.0, state.get("soh", self.soh)))
+            self.total_throughput_ah = state.get("total_throughput_ah", 0.0)
+            self.relaxed_start_time = state.get("relaxed_start_time")
+            self.voltage_history = deque(state.get("voltage_history", [])[-10:], 10)
+            self.last_voltage = state.get("last_voltage")
+            self.last_temp = state.get("last_temp")
+            self.last_time = time.time()   # prevent huge dt after reboot
+
+            self.log.info(f"SOC/SoH restored: {self.soc}% | SoH {self.soh}%")
+            return True
+        except Exception as e:
+            self.log.error(f"SOC load failed: {e}")
+            return False
+
+
+    async def autosave_task(self, interval=300):
+        while True:
+            await asyncio.sleep(interval)
+            self.save_state()
+
+
 
 
 # =============================================================================

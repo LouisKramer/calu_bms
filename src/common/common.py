@@ -365,11 +365,12 @@ class battery:
         self.mqtt_enable = False
     def create_measurements(self):
         self.meas = meas_data(self)
-        self.meas.init_mqtt_entities(self.info.addr)
 
     def init_mqtt_entities(self):
         self.info.init_mqtt_entities(self.info.addr)
         self.conf.init_mqtt_entities(self.info.addr)
+        if self.meas != None:
+            self.meas.init_mqtt_entities(self.info.addr)
         self.mqtt_enable = True
         # meas will be initialized after info is set (needs ncell/ntemp)
 

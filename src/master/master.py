@@ -1,12 +1,11 @@
 # master.py
-import network, espnow, time
+import time
 import asyncio
 from common.HAL import master_hal as HAL
-from machine import RTC, SoftSPI
+from machine import SoftSPI
 from common.credentials import *
 from common.common import *
 from common.logger import *
-Logger.init(syslog_host=SYSLOG_HOST)
 from lib.ACS71240 import *
 from lib.ADS1118 import *
 from lib.DS18B20 import *
@@ -24,11 +23,13 @@ from lib.BMSmqtt import get_BMSmqtt
 # ========================================
 # Config
 # ========================================
+MQTT_ENABLE = False
+Logger.init(syslog_host=SYSLOG_HOST)
 cfg = init_config()
 cfg_prot = protection_config()
 cfg_soc  = soc_config()
 cfg_pow  = power_config()
-
+cfg_can  = can_config()
 # ========================================
 # MAIN
 # ========================================
@@ -45,21 +46,21 @@ async def main():
     log.info("WiFi connected")
 
     log.info("Start NTP client")
-    rtc = RTC()
     ntp = ntp_sync(NTP_HOST, NTP_PORT, NTP_TIMEOUT, NTP_SYNC_INTERVAL)
     asyncio.create_task(ntp.ntp_task())
 
-    log.info("Start mqtt client")
-    mqtt = get_BMSmqtt()
-    mqtt.connect()
-    asyncio.create_task(mqtt.run())
+    if MQTT_ENABLE:
+        log.info("Start mqtt client")
+        mqtt = get_BMSmqtt()
+        asyncio.create_task(mqtt.run())
 
     log.info("Init Protection")
     protector = Protector(cfg_prot)
+    cfg_prot.init_mqtt_entities()
 
     log.info("Init SoC estimator")
     soc_estimator = BatterySOC(cfg_soc)
-    asyncio.create_task(autosave_task(soc_estimator, 60))
+    asyncio.create_task(soc_estimator.autosave_task(interval=60))
 
     log.info("Init Power Manager")
     pow_manager = PowerManager(cfg=cfg_pow)
@@ -68,6 +69,9 @@ async def main():
     meas = master_data()
     slave_handler = BMSnowMaster()
     slave_handler.start()    
+
+    log.info("Init CAN")    
+    #can= BMSCan(cfg_can)
 
     #int_rel0 = Relay(pin=HAL.INT_REL0_PIN, active_high=True)
     #int_rel1 = Relay(pin=HAL.INT_REL1_PIN, active_high=True)
@@ -79,14 +83,14 @@ async def main():
     log.info("Init Current Sensor")
     cur = ACS71240(viout_pin=HAL.ADC_CURRENT_BAT_PIN, fault_pin=HAL.CURRENT_FAULT_PIN)
     cur.calibrate_zero()
+
     log.info("Init Voltage Sensor")
     spi = SoftSPI(baudrate=1000000, polarity=0, phase=0, sck=Pin(HAL.SPI_SCLK_PIN), mosi=Pin(HAL.SPI_MOSI_PIN), miso=Pin(HAL.SPI_MISO_PIN))
     vol = ADS1118(spi=spi, cs_pin = HAL.SPI_CS_PIN, channel_mux={0: 0b000, 1: 0b011},  soft_gain=[249.0, 249.0]) #channel 0 = Bat, channel 1 = inv
+    
     log.info("Init Temperature Sensor")
     tmp = DS18B20(data_pin=HAL.OWM_TEMP_PIN, pullup=False)
     
-    #can= BMSCan(config_can)
-
     state = "discover slaves"
     log.info("Initialization complete, entering main loop.")
     while True:

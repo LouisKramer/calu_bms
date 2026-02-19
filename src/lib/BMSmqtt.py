@@ -326,6 +326,7 @@ class BMSmqtt:
                  device_name=MQTT_DEVICE_NAME,
                  device_id=MQTT_DEVICE_ID,
                  mqtt_broker=MQTT_BROKER,
+                 mqtt_port = MQTT_PORT,
                  mqtt_user=MQTT_USER,
                  mqtt_password=MQTT_PASSWORD,
                  base_topic=None,
@@ -350,6 +351,7 @@ class BMSmqtt:
 
         self.mqtt_client = None
         self.mqtt_broker = mqtt_broker
+        self.mqttport = mqtt_port
         self.mqtt_user = mqtt_user
         self.mqtt_password = mqtt_password
         self.client_id = ubinascii.hexlify(machine.unique_id())
@@ -362,18 +364,19 @@ class BMSmqtt:
         self.mqtt_client = MQTTClient(
             self.client_id,
             self.mqtt_broker,
+            port = self.mqttport,
             user=self.mqtt_user or None,
             password=self.mqtt_password or None,
-            keepalive=120)
+            keepalive=60)
         
-        self.mqtt_client.set_last_will(self.availability_topic, b"offline", retain=True, qos=1)
+        self.mqtt_client.set_last_will(self.availability_topic, b"offline", retain=True, qos=0)
         self.mqtt_client.set_callback(self._on_message)
 
         self.log.info("Connecting MQTT...")
         try:
-            self.mqtt_client.connect()
+            self.mqtt_client.connect(clean_session = False)
             self.log.info("MQTT connected")
-            self.mqtt_client.publish(self.availability_topic, b"online", retain=True, qos=1)
+            self.mqtt_client.publish(self.availability_topic, b"online", retain=True, qos=0)
             self.log.info("MQTT availability published: online")
             # ← NEW: subscribe to all commands once we are really online
             self._subscribe_all_commands()
@@ -389,7 +392,7 @@ class BMSmqtt:
         for entity in self.entities:
             if hasattr(entity, "command_topic") and entity.command_topic:
                 try:
-                    self.mqtt_client.subscribe(entity.command_topic)
+                    self.mqtt_client.subscribe(entity.command_topic, qos = 0)
                     self.log.info(f"Subscribed: {entity.command_topic}")
                 except Exception as e:
                     self.log.warn(f"Subscribe failed for {entity.command_topic}: {e}")
@@ -412,7 +415,7 @@ class BMSmqtt:
         topic = entity.get_discovery_topic(component)
         payload_dict = entity.get_discovery_payload()
         payload = json.dumps(payload_dict)          # FIXED: proper JSON
-        self.mqtt_client.publish(topic, payload, retain=True, qos=0)
+        self.mqtt_client.publish(topic, payload, retain=True, qos=1)
 
     def publish_discovery(self):
         print(f"Publishing discovery for all entities...{self.entities}")
@@ -452,9 +455,7 @@ class BMSmqtt:
         else:
             self.log.warn(f"Cannot publish runtime discovery: unknown entity type {type(entity)}")
             return
-
         self._publish_discovery(entity, component)
-        self.mqtt_client.publish(self.availability_topic, b"online", retain=True, qos=0)
         self.publish_state()                    # refresh full JSON state
         self.log.info(f"Runtime entity discovery published: {entity.name}")
 
@@ -489,11 +490,13 @@ class BMSmqtt:
                     try:
                         self.mqtt_client.check_msg()            # robust handles reconnect internally
                         self.publish_state()
-                        await asyncio.sleep(30)
+                        await asyncio.sleep(self.update_interval)
 
                     except Exception as e:
                         self.log.error(f"MQTT loop error: {e}")
                         await asyncio.sleep(30)
+            else:
+                self._connect_mqtt()
             await asyncio.sleep(60)
 
 BMSmqtt_dev = None
