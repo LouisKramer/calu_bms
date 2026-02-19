@@ -189,6 +189,9 @@ class soc_config(BaseConfig):
             "voltage_stable_threshold": 0.01,
             "relaxed_hold_time": 30.0,
             "sampling_interval": 2.0,
+            "charge_efficiency": 0.97,          # 97% typical for LiFePO4
+            "discharge_efficiency": 1.0,        # 100%
+            "design_cycle_life": 4000,          # for SoH calculation (LFP = 3000-6000) 
         }
         for k, v in defaults.items():
             setattr(self, k, v)
@@ -206,6 +209,9 @@ class soc_config(BaseConfig):
             "voltage_stable_threshold":   Number("Voltage Stable Threshold (V)", 0.001, 0.05, 0.001, self.voltage_stable_threshold, "V", cb=self.update),
             "relaxed_hold_time":          Number("Relaxed Hold Time (s)", 10.0, 200.0, 10.0, self.relaxed_hold_time, "s", cb=self.update),
             "sampling_interval":          Number("Sampling Interval (s)", 0.5, 100.0, 0.5, self.sampling_interval, "s", cb=self.update),
+            "charge_efficiency":          Number("Charge Efficiency", 0.90, 1.0, 0.01, self.charge_efficiency, mode="slider", unit="%", cb=self.update),
+            "discharge_efficiency":       Number("Discharge Efficiency", 0.95, 1.0, 0.01, self.discharge_efficiency, mode="slider", unit="%", cb=self.update),
+            "design_cycle_life":          Number("Design Cycle Life", 500, 8000, 100, self.design_cycle_life, mode="slider", unit="cycles", cb=self.update)
         }
         for e in self._mqtt_map.values():
             mqtt.add_entity(e)
