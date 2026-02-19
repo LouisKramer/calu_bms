@@ -12,7 +12,6 @@ class ntp_sync:
         self.interval = 5 #inital interval
         self.normal_interval = interval
         self.rtc = RTC()
-        asyncio.create_task(self.ntp_task())
 
     async def sync_with_ntp(self):
         log_ntp.info("Syncing with NTP server...")

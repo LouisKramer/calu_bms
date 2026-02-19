@@ -22,40 +22,52 @@ from lib.Power_manager import PowerManager
 from lib.BMSmqtt import get_BMSmqtt
 
 # ========================================
-# INIT
+# Config
 # ========================================
-time.sleep(3)
-log = Logger()
-log.info("Starting wifi manager")
-wifi = WlanManager(ssid=WIFI_SSID, password=WIFI_PASS, hostname=WIFI_HOST, led_pin=HAL.LED_USER_PIN)
-wifi.start()
-rtc = RTC()
-log.info("Startup system")
-init_config()
+cfg = init_config()
+cfg_prot = protection_config()
+cfg_soc  = soc_config()
+cfg_pow  = power_config()
+
 # ========================================
 # MAIN
 # ========================================
 async def main():
-    log.info("Starting main application")
+    time.sleep(3)
+    log = Logger()
+
+    log.info("Starting wifi manager")
+    wifi = WlanManager(ssid=WIFI_SSID, password=WIFI_PASS, hostname=WIFI_HOST, led_pin=HAL.LED_USER_PIN)
+    wifi.start()
     while not wifi.is_connected():
         print("Waiting for WiFi connection...")
         await asyncio.sleep(1)
-    log.info("WiFi connected, starting MQTT")
+    log.info("WiFi connected")
+
+    log.info("Start NTP client")
+    rtc = RTC()
+    ntp = ntp_sync(NTP_HOST, NTP_PORT, NTP_TIMEOUT, NTP_SYNC_INTERVAL)
+    asyncio.create_task(ntp.ntp_task())
+
+    log.info("Start mqtt client")
     mqtt = get_BMSmqtt()
-    await asyncio.sleep(3)
-    log.info("Init protetion")
-    protector = Protector()
-    await asyncio.sleep(1)
-    log.info("Init master data")
+    mqtt.connect()
+    asyncio.create_task(mqtt.run())
+
+    log.info("Init Protection")
+    protector = Protector(cfg_prot)
+
+    log.info("Init SoC estimator")
+    soc_estimator = BatterySOC(cfg_soc)
+    asyncio.create_task(autosave_task(soc_estimator, 60))
+
+    log.info("Init Power Manager")
+    pow_manager = PowerManager(cfg=cfg_pow)
+
+    log.info("Start BMSnow Master AP")
     meas = master_data()
-    await asyncio.sleep(1)
-    meas.init_mqtt_entities()
-    log.info("Init slave handler")
     slave_handler = BMSnowMaster()
-    await asyncio.sleep(1)
-    log.info("Start slave handler")
     slave_handler.start()    
-    await asyncio.sleep(1)
 
     #int_rel0 = Relay(pin=HAL.INT_REL0_PIN, active_high=True)
     #int_rel1 = Relay(pin=HAL.INT_REL1_PIN, active_high=True)
@@ -64,22 +76,16 @@ async def main():
     #int_rel1.test(cycles=3, on_time=0.05, off_time=0.05)
     #ext_rel0.test(cycles=3, on_time=0.05, off_time=0.05)
 
+    log.info("Init Current Sensor")
     cur = ACS71240(viout_pin=HAL.ADC_CURRENT_BAT_PIN, fault_pin=HAL.CURRENT_FAULT_PIN)
     cur.calibrate_zero()
+    log.info("Init Voltage Sensor")
     spi = SoftSPI(baudrate=1000000, polarity=0, phase=0, sck=Pin(HAL.SPI_SCLK_PIN), mosi=Pin(HAL.SPI_MOSI_PIN), miso=Pin(HAL.SPI_MISO_PIN))
     vol = ADS1118(spi=spi, cs_pin = HAL.SPI_CS_PIN, channel_mux={0: 0b000, 1: 0b011},  soft_gain=[249.0, 249.0]) #channel 0 = Bat, channel 1 = inv
+    log.info("Init Temperature Sensor")
     tmp = DS18B20(data_pin=HAL.OWM_TEMP_PIN, pullup=False)
-
-    soc_estimator = BatterySOC()
-    pow_manager = PowerManager(slaves=slave_handler.slaves)
-    asyncio.create_task(autosave_task(soc_estimator, 60))
-    #can= BMSCan(config_can)
     
-
-    ntp = ntp_sync(NTP_HOST, NTP_PORT, NTP_TIMEOUT, NTP_SYNC_INTERVAL)
-
-    #init mqtt
-    asyncio.create_task(mqtt.run())
+    #can= BMSCan(config_can)
 
     state = "discover slaves"
     log.info("Initialization complete, entering main loop.")

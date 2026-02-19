@@ -420,7 +420,7 @@ class status_data:
         self.ttl = int(value)
         if self.mqtt_enable:
             self._ttl.set_value(self.ttl)
-    def update_all(self, channel_found: bool, com_active: bool, synced: bool, stable: bool, ttl: int)
+    def update_all(self, channel_found: bool, com_active: bool, synced: bool, stable: bool, ttl: int):
         self.update_channel_found(channel_found)
         self.update_com_active(com_active)
         self.update_synced(synced)

@@ -12,11 +12,10 @@ class Protector:
     PROT_STAGE_1        = 3 # SiC procection active
     PROT_STAGE_2        = 4 # Stage 1 and external relay acivated.
     
-    def __init__(self, slaves: Slaves = None, data: master_data = None):
+    def __init__(self, cfg: protection_config = None, slaves: Slaves = None, data: master_data = None):
         self.log            = Logger()
         self.wdt            = None
-        self.cfg            = protection_config()
-        self.cfg.init_mqtt_entities()
+        self.cfg            = cfg or protection_config()
         self.slaves         = slaves
         self.data           = data
         self.stage          = self.PROT_STAGE_OFF

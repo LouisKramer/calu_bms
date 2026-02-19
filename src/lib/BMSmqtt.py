@@ -353,7 +353,9 @@ class BMSmqtt:
         self.mqtt_user = mqtt_user
         self.mqtt_password = mqtt_password
         self.client_id = ubinascii.hexlify(machine.unique_id())
+        self.connected = False
 
+    def connect(self):
         self._connect_mqtt()
 
     def _connect_mqtt(self):
@@ -375,6 +377,7 @@ class BMSmqtt:
             self.log.info("MQTT availability published: online")
             # ← NEW: subscribe to all commands once we are really online
             self._subscribe_all_commands()
+            self.connected = True
             
         except Exception as e:
             self.log.warn(f"MQTT connect failed: {e}")
@@ -474,18 +477,24 @@ class BMSmqtt:
 
     async def run(self):
         """Main MQTT loop – fixed timing for all MicroPython ports"""
-        #self._subscribe_all_commands()
-        self.publish_discovery()
-        self.publish_state()
         while True:
-            try:
-                self.mqtt_client.check_msg()            # robust handles reconnect internally
+            if self.connected:
+                self._subscribe_all_commands()
+                await asyncio.sleep(2)
+                self.publish_discovery()
+                await asyncio.sleep(2)
                 self.publish_state()
-                await asyncio.sleep(30)
+                await asyncio.sleep(2)
+                while True :
+                    try:
+                        self.mqtt_client.check_msg()            # robust handles reconnect internally
+                        self.publish_state()
+                        await asyncio.sleep(30)
 
-            except Exception as e:
-                self.log.error(f"MQTT loop error: {e}")
-                await asyncio.sleep(30)
+                    except Exception as e:
+                        self.log.error(f"MQTT loop error: {e}")
+                        await asyncio.sleep(30)
+            await asyncio.sleep(60)
 
 BMSmqtt_dev = None
 
