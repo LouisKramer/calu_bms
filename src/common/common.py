@@ -289,6 +289,8 @@ class master_data:
         self.tadc = 0.0
         self.vinv = 0.0
         self.soc = 0.0
+        self.soh = 0.0
+        self.cycle_cnt = 0
 
     def init_mqtt_entities(self):
         mqtt = get_BMSmqtt()
@@ -298,7 +300,9 @@ class master_data:
         self._tadc    = Sensor("ADC Temperature", unit="°C", device_class="temperature")
         self._vinv    = Sensor("Inverter Voltage", unit="V", device_class="voltage")
         self._soc     = Sensor("State of Charge", unit="%", device_class="battery")
-        for e in (self._current, self._vpack, self._tpack, self._tadc, self._vinv):
+        self._soh     = Sensor("State of Health", unit="%", device_class="battery")
+        self._cycle_cnt = Sensor("Cycle Count", unit="cycles")
+        for e in (self._current, self._vpack, self._tpack, self._tadc, self._vinv, self._soc, self._soh, self._cycle_cnt):
             mqtt.add_entity(e)
 
     def update_current(self, value: float): self.current = float(value); self._current.set_value(self.current)
@@ -307,14 +311,18 @@ class master_data:
     def update_tadc(self, value: float):    self.tadc    = float(value); self._tadc.set_value(self.tadc)
     def update_vinv(self, value: float):    self.vinv    = float(value); self._vinv.set_value(self.vinv)
     def update_soc(self, value: float):     self.soc     = float(value); self._soc.set_value(self.soc)
+    def update_soh(self, value: float):      self.soh      = float(value); self._soh.set_value(self.soh)
+    def update_cycle_cnt(self, value: float): self.cycle_cnt = float(value); self._cycle_cnt.set_value(self.cycle_cnt)
 
-    def update_all(self, current=0.0, vpack=0.0, tpack=0.0, tadc=0.0, vinv=0.0, soc=0.0):
+    def update_all(self, current=0.0, vpack=0.0, tpack=0.0, tadc=0.0, vinv=0.0, soc=0.0, soh=0.0, cycle_cnt=0.0):
         self.update_current(current)
         self.update_vpack(vpack)
         self.update_tpack(tpack)
         self.update_tadc(tadc)
         self.update_vinv(vinv)
         self.update_soc(soc)
+        self.update_soh(soh)
+        self.update_cycle_cnt(cycle_cnt)
 
 class battery:
     def __init__(self):
