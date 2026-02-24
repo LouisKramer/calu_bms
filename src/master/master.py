@@ -26,6 +26,7 @@ from lib.BMSmqtt import get_BMSmqtt
 MQTT_ENABLE = False
 Logger.init(syslog_host=SYSLOG_HOST)
 cfg = init_config()
+cfg_bms  = bms_config()
 cfg_prot = protection_config()
 cfg_soc  = soc_config()
 cfg_pow  = power_config()
@@ -56,17 +57,24 @@ async def main():
 
     log.info("Init Protection")
     protector = Protector(cfg_prot)
-    cfg_prot.init_mqtt_entities()
+    if MQTT_ENABLE:
+        cfg_prot.init_mqtt_entities()
 
     log.info("Init SoC estimator")
     soc_estimator = BatterySOC(cfg_soc)
+    if MQTT_ENABLE:
+        cfg_soc.init_mqtt_entities()
     asyncio.create_task(soc_estimator.autosave_task(interval=60))
 
     log.info("Init Power Manager")
     pow_manager = PowerManager(cfg=cfg_pow)
+    if MQTT_ENABLE:
+        cfg_pow.init_mqtt_entities()
 
     log.info("Start BMSnow Master AP")
     meas = master_data()
+    if MQTT_ENABLE:
+        meas.init_mqtt_entities()
     slave_handler = BMSnowMaster()
     slave_handler.start()    
 

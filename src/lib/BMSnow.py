@@ -79,14 +79,14 @@ class BMSnowProtocol:
         return header + payload
 
     @staticmethod
-    def unpack_data_msg(msg: bytes, data: meas_data):
+    def unpack_data_msg(msg: bytes):
         typ, nc, nt = struct.unpack_from('<BBB', msg)
         payload_fmt = f'<{nc}ff{nt}f'
         payload = struct.unpack_from(payload_fmt, msg, 3)
         vcell = list(payload[:nc])
         vstr  = payload[nc]
         temps = list(payload[nc+1:])
-        return data.update(vcell, vstr, temps)
+        return vcell, vstr, temps
 
 
     @staticmethod
@@ -249,6 +249,7 @@ class BMSnowMaster(BMSnowComm):
             s = self.slaves.push(mac, addr, ncell, ntemp, fw_ver, hw_ver)
             s.battery.state.update_ttl(s.battery.conf.ttl)
             s.battery.state.update_synced(True)
+            s.battery.init_mqtt_entities()
             self.log.info(f"New slave discovered: {self.log.mac_to_str(mac)}")
         else:
             self.log.info(f"Update info from: {self.log.mac_to_str(mac)}")
@@ -259,8 +260,11 @@ class BMSnowMaster(BMSnowComm):
     def _handle_data(self, mac, msg):
         s = self.slaves.get_by_mac(mac)
         if s is not None:
-            s.battery.state.stable = self.protocol.unpack_data_msg(msg, s.battery.meas)
+            vcell, vstr, temps = self.protocol.unpack_data_msg(msg)
+            s.battery.meas.update(vcell, vstr, temps)
             s.battery.state.update_ttl(s.battery.conf.ttl)
+            if s.battery.state.stable == False & s.battery.is_data_stable():
+                s.battery.state.update_stable(True)
             self.log.info(f"Received data from {self.log.mac_to_str(mac)}")
         else:
             self.log.warn(f"Data from unknown slave: {self.log.mac_to_str(mac)}")

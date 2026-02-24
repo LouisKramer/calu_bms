@@ -32,8 +32,25 @@ class BaseConfig:
             if hasattr(self, "_post_update"):
                 self._post_update()
             self.save()
-
-
+# ==============================================================
+# bms_config
+# ==============================================================
+class bms_config(BaseConfig):
+    def __init__(self):
+        super().__init__("bms_config")
+        defaults = {
+            "number_exp_slaves": 0, #if 0 BMS will autodiscover slaves
+        }
+        for k, v in defaults.items():
+            setattr(self, k, v)
+        self._load_from_config(defaults)
+    def init_mqtt_entities(self):
+        mqtt = get_BMSmqtt()
+        self._mqtt_map = {
+            "number_exp_slaves": Number("BMS number of expected Slaves", 0, 16, 1, self.number_exp_slaves, cb=self.update),
+        }
+        for e in self._mqtt_map.values():
+            mqtt.add_entity(e)
 # ==============================================================
 # can_config
 # ==============================================================
