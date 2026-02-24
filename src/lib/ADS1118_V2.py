@@ -82,7 +82,7 @@ class ADS1118:
         return int.from_bytes(rx, 'big', signed=True)
 
     # ====================== SINGLE-SHOT ======================
-    async def read(self, mux=MUX_AIN0_AIN1, pga=None, data_rate=None):
+    async def read(self, mux=MUX_AIN0_AIN1, pga=None, data_rate=None, gain = 1.0):
         """One single conversion (flexible)"""
         if pga is None: pga = self.PGA_2_048V
         if data_rate is None: data_rate = self.DR_128SPS
@@ -96,7 +96,8 @@ class ADS1118:
         raw = await self._read_raw()
         fsr = self._FSR[pga]
         voltage = raw * (fsr / 32768.0)
-        return voltage, raw, fsr
+        voltage = round(voltage * gain, 4)
+        return voltage
 
     # ====================== SINGLE-CHANNEL CONTINUOUS ======================
     async def start_continuous(self, mux=MUX_AIN0_AIN1, pga=None, data_rate=None):
@@ -114,14 +115,15 @@ class ADS1118:
         self._last_pga = pga
         self._last_dr = data_rate
 
-    async def read_continuous(self):
+    async def read_continuous(self, gain = 1.0):
         """Read latest value (fast, no waiting)"""
         if self._mode != 'single_cont':
             raise RuntimeError("Call start_continuous() first")
         raw = await self._read_raw()
         fsr = self._FSR[self._last_pga]
         voltage = raw * (fsr / 32768.0)
-        return voltage, raw, fsr
+        voltage = round(voltage * gain, 4)
+        return voltage
 
     # ====================== MULTI-CHANNEL CONTINUOUS (NEW!) ======================
     async def start_continuous_scan(self, mux_list, pga=None, data_rate=None):
@@ -147,7 +149,7 @@ class ADS1118:
 
         self._mode = 'multi_scan'
 
-    async def read_scan(self):
+    async def read_scan(self, gain = 1.0):
         """Read current channel + immediately start next channel
         Returns: (channel_index, voltage, raw, fsr)"""
         if self._mode != 'multi_scan':
@@ -157,6 +159,7 @@ class ADS1118:
         raw = await self._read_raw()
         fsr = self._FSR[self._last_pga]
         voltage = raw * (fsr / 32768.0)
+        voltage = round(voltage * gain, 4)
         current_idx = self._scan_idx
 
         # 2. Advance and start next channel (continuous mode)
@@ -169,7 +172,7 @@ class ADS1118:
         await self._write_config(config)
         # No sleep here → caller decides rate with asyncio.sleep_ms()
 
-        return current_idx, voltage, raw, fsr
+        return current_idx, voltage
 
     # ====================== TEMPERATURE ======================
     async def read_temperature(self):
@@ -182,7 +185,8 @@ class ADS1118:
 
         raw = await self._read_raw()
         temp = raw * 0.03125
-        return temp, raw
+        temp = round(temp, 2)
+        return temp
 
     def stop(self):
         """Stop any continuous / scan mode"""
@@ -191,34 +195,31 @@ class ADS1118:
 
 
 # ====================== EXAMPLE USAGE ======================
-async def main():
-    from machine import SPI, Pin
-
-    # === Change pins for your board ===
-    spi = SPI(1, baudrate=800_000, polarity=0, phase=1,
-              sck=Pin(18), mosi=Pin(23), miso=Pin(19))
-
-    adc = ADS1118(spi, cs_pin=5)   # or cs_pin=None
-
-    print("=== Multi-channel Continuous Scan (4 single-ended channels) ===")
-
-    mux_list = [
-        ADS1118.MUX_AIN0_GND,   # Ch0
-        ADS1118.MUX_AIN1_GND,   # Ch1
-        ADS1118.MUX_AIN2_GND,   # Ch2
-        ADS1118.MUX_AIN3_GND    # Ch3
-    ]
-
-    await adc.start_continuous_scan(mux_list,
-                                    pga=ADS1118.PGA_4_096V,
-                                    data_rate=ADS1118.DR_475SPS)
-
-    while True:
-        idx, v, raw, fsr = await adc.read_scan()
-        print(f"Ch{idx} (AIN{idx} vs GND): {v:+.6f} V   raw={raw}")
-        await asyncio.sleep_ms(40)   # your desired update rate (safe > conversion time)
-
-    # You can also mix with single-shot / temperature anytime
-
-
-asyncio.run(main())
+#async def main():
+#    from machine import SPI, Pin
+#
+#    # === Change pins for your board ===
+#    spi = SPI(1, baudrate=800_000, polarity=0, phase=1,
+#              sck=Pin(18), mosi=Pin(23), miso=Pin(19))
+#
+#    adc = ADS1118(spi, cs_pin=5)   # or cs_pin=None
+#
+#    print("=== Multi-channel Continuous Scan (4 single-ended channels) ===")
+#
+#    mux_list = [
+#        ADS1118.MUX_AIN0_GND,   # Ch0
+#        ADS1118.MUX_AIN1_GND,   # Ch1
+#        ADS1118.MUX_AIN2_GND,   # Ch2
+#        ADS1118.MUX_AIN3_GND    # Ch3
+#    ]
+#
+#    await adc.start_continuous_scan(mux_list,
+#                                    pga=ADS1118.PGA_4_096V,
+#                                    data_rate=ADS1118.DR_475SPS)
+#
+#    while True:
+#        idx, v, raw, fsr = await adc.read_scan()
+#        print(f"Ch{idx} (AIN{idx} vs GND): {v:+.6f} V   raw={raw}")
+#        await asyncio.sleep_ms(40)   # your desired update rate (safe > conversion time)
+#
+#    # You can also mix with single-shot / temperature anytime

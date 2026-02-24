@@ -7,7 +7,7 @@ from common.credentials import *
 from common.common import *
 from common.logger import *
 from lib.ACS71240 import *
-from lib.ADS1118 import *
+from lib.ADS1118_V2 import ADS1118
 from lib.DS18B20 import *
 from lib.RELAY import *
 from lib.SOC import BatterySOC, autosave_task
@@ -94,7 +94,9 @@ async def main():
 
     log.info("Init Voltage Sensor")
     spi = SoftSPI(baudrate=1000000, polarity=0, phase=0, sck=Pin(HAL.SPI_SCLK_PIN), mosi=Pin(HAL.SPI_MOSI_PIN), miso=Pin(HAL.SPI_MISO_PIN))
-    vol = ADS1118(spi=spi, cs_pin = HAL.SPI_CS_PIN, channel_mux={0: 0b000, 1: 0b011},  soft_gain=[249.0, 249.0]) #channel 0 = Bat, channel 1 = inv
+    vol = ADS1118(spi=spi, cs_pin= HAL.SPI_CS_PIN)
+
+    #vol = ADS1118(spi=spi, cs_pin = HAL.SPI_CS_PIN, channel_mux={0: 0b000, 1: 0b011},  soft_gain=[249.0, 249.0]) #channel 0 = Bat, channel 1 = inv
     
     log.info("Init Temperature Sensor")
     tmp = DS18B20(data_pin=HAL.OWM_TEMP_PIN, pullup=False)
@@ -105,12 +107,14 @@ async def main():
         #TODO: this chan be put in a method/class e.g. master measurements handler
         slave_handler.request_all_data()
         meas.update_current(cur.read_current(samples=10))
-        meas.update_vpack(await vol.read_voltage(channel=0)  * 1.75)
-        meas.update_vinv(await vol.read_voltage(channel=1))
+        meas.update_vpack(await vol.read(mux = ADS1118.MUX_AIN0_AIN1, gain = 249.0))
+        meas.update_vinv(await vol.read(mux = ADS1118.MUX_AIN2_AIN3, gain = 249.0))
         meas.update_tadc(await vol.read_temperature())
         meas.update_tpack(0)#tmp.get_temperatures())
-        soc = soc_estimator.update(meas.current, meas.vpack, meas.tpack, slave_handler.slaves.nr_of_cells())
+        soc, soh, cycles = soc_estimator.update(meas.current, meas.vpack, meas.tpack, slave_handler.slaves.nr_of_cells())
         meas.update_soc(soc)
+        meas.update_soh(soh)
+        meas.update_cycle_cnt(cycles)
         log.info(f"Battery Voltage: {meas.vpack}, Inverter Voltage: {meas.vinv}, ADC Temp: {meas.tadc}")
         log.info(f"Current: {meas.current} A")
         log.info(f"Temperatures: {meas.tpack}")

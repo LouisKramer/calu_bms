@@ -123,7 +123,7 @@ class BatterySOC:
         self.last_temp = temperature
 
         self.log.info(f"SOC {self.soc}% | SoH {self.soh}% | Cycles {cycles} | η={self.cfg.charge_efficiency:.2f}/{self.cfg.discharge_efficiency:.2f}")
-        return self.soc
+        return self.soc, self.soh, cycles
 
     def get_status(self):
         if self.relaxed_start_time and time.time() - self.relaxed_start_time >= self.cfg.relaxed_hold_time:
