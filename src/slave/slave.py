@@ -6,10 +6,7 @@ import asyncio
 from common.logger import Logger
 from common.common import *
 from common.credentials import *
-Logger.init(syslog_host=SYSLOG_HOST)
-from lib.SN74HC154 import SN74HC154
-#from lib.ADS1118 import *
-from lib.ADS1118_V2 import ADS1118
+
 from lib.PCA9685 import *
 from lib.DS18B20 import *
 from lib.BMSnow import BMSnowSlave
@@ -32,55 +29,59 @@ else:
     NR_OF_ADCS = 6
     NR_OF_PCA = 1
     NR_OF_CELLS = 16
-# ========================================
-# INIT
-# ========================================
-time.sleep(2)
-log = Logger()
-log.info("Init System")
-
-str_sel0 = Pin(HAL.STR_SEL0_PIN, Pin.IN, pull = Pin.PULL_DOWN) 
-str_sel1 = Pin(HAL.STR_SEL1_PIN, Pin.IN, pull = Pin.PULL_DOWN)
-str_sel2 = Pin(HAL.STR_SEL2_PIN, Pin.IN, pull = Pin.PULL_DOWN)
-str_sel3 = Pin(HAL.STR_SEL3_PIN, Pin.IN, pull = Pin.PULL_DOWN)
+Logger.init(syslog_host=SYSLOG_HOST)
 # ========================================
 # MAIN
 # ========================================
 async def main():
-    log.info("Starting main application...")
+    time.sleep(3)
+    log = Logger()
+    log.info("Init dataset")
     bat = battery()
-    bat.info.mac = machine.unique_id()
-    bat.info.addr = read_string_address()# TODO: optionally if addrs == 0xF do calibration or some special mode
-    log.info(f"String address set to {bat.info.addr}")
-    tmp = DS18B20(data_pin=HAL.OWM_TEMP_PIN, pullup=False)
-    i2c = SoftI2C(scl=Pin(HAL.I2C_SCL_PIN, pull=Pin.PULL_UP), sda=Pin(HAL.I2C_SDA_PIN, pull=Pin.PULL_UP), freq=400000)
-    spi = SoftSPI(baudrate=1000000, polarity=0, phase=0, sck=Pin(HAL.SPI_SCLK_PIN), mosi=Pin(HAL.SPI_MOSI_PIN), miso=Pin(HAL.SPI_MISO_PIN))
-    adc = BMSadc(spi)
-    await adc.start_all_continuous_scans()
-    adc.start_adc_task(bat,interval_ms=500)
-
-    bat.info.ntemp = tmp.number_of_sensors()
-    bat.info.ncell = bat.meas.get_nr_of_cells() # Place Holder
     bat.info.fw_ver = FW_VERSION
     bat.info.fw_ver = HW_VERSION
+    bat.info.mac = machine.unique_id()
+    bat.info.addr = read_string_address()# TODO: optionally if addrs == 0xF do calibration or some special mode
+    log.info(f"Read address : {bat.info.addr}")
 
+    log.info("Init temp sensors")
+    tmp = DS18B20(data_pin=HAL.OWM_TEMP_PIN, pullup=False)
+    if tmp.number_of_sensors() <= 0:
+        log.warn("No Tempsensor found!")
+    else:
+        log.info(f"Found {tmp.number_of_sensors()} temp sensors")
+        bat.info.ntemp = tmp.number_of_sensors()
+
+    log.info("Init i2c")
+    i2c = SoftI2C(scl=Pin(HAL.I2C_SCL_PIN, pull=Pin.PULL_UP), sda=Pin(HAL.I2C_SDA_PIN, pull=Pin.PULL_UP), freq=400000)
+
+    log.info("Init spi")
+    spi = SoftSPI(baudrate=1000000, polarity=0, phase=0, sck=Pin(HAL.SPI_SCLK_PIN), mosi=Pin(HAL.SPI_MOSI_PIN), miso=Pin(HAL.SPI_MISO_PIN))
+    
+    log.info("Init adc")
+    adc = BMSadc(spi)
+    log.info("Start ADC continous scan")
+    await adc.start_all_continuous_scans()
+    log.info("Start ACD data aquisition task")
+    adc.start_adc_task(bat,interval_ms=500)
+    log.info("Wait 5s for ADC settling")
+    for i in range(5):
+        log.info(f"{i}s")
+        await asyncio.sleep(1)
+    bat.info.ncell = bat.meas.get_nr_of_cells() # Place Holder
+
+    log.info("Init Balancing")
     # Initialize PCA9685
-    #pca1=PCA9685(i2c, address=0x40)
-    #pca1.set_pwm_freq(BAL_PWM_FREQ)  # 100 Hz PWM
-    pca = PCA9685(i2c)
-    pca.freq(BAL_PWM_FREQ)
-
-    #pca1.all_off()
-
-    #pcas = [PCA9685(i2c, address=0x40 + i) for i in range(NR_OF_PCA)]
-    #for pca in pcas:
-    #    pca.set_pwm_freq(BAL_PWM_FREQ)  # 100 Hz PWM
-    #    pca.all_off()
+    pca1=PCA9685(i2c, address=0x40)
+    pca2=PCA9685(i2c, address=0x41)
+    pca1.freq(BAL_PWM_FREQ)
+    pca2.freq(BAL_PWM_FREQ)
             
-    # We are ready to show ourselves to the master
+    log.info("Init BMS Slave")
     slave = BMSnowSlave(bat)
     await slave.start()
-    log.info("main loop")
+
+    log.info("Init done, enter main loop")
     while True:
         log.info(f"Cell Voltages {bat.meas.vcell}")
         log.info(f"String Voltage: {bat.meas.vstr}")
@@ -92,12 +93,16 @@ async def main():
 
         ## Balancing
         for i in range(NR_OF_CELLS):
-            pca.duty(i, 0) #channel i, on=0, off=2048 (50% duty cycle)
+            pca1.duty(i, 0) #channel i, on=0, off=2048 (50% duty cycle)
 
         await asyncio.sleep(1)
 
 def read_string_address():
     """Read 4-bit address from GPIO pins (0-15)"""
+    str_sel0 = Pin(HAL.STR_SEL0_PIN, Pin.IN, pull = Pin.PULL_DOWN) 
+    str_sel1 = Pin(HAL.STR_SEL1_PIN, Pin.IN, pull = Pin.PULL_DOWN)
+    str_sel2 = Pin(HAL.STR_SEL2_PIN, Pin.IN, pull = Pin.PULL_DOWN)
+    str_sel3 = Pin(HAL.STR_SEL3_PIN, Pin.IN, pull = Pin.PULL_DOWN)
     addr = 0
     addr |= (str_sel0.value() << 0)
     addr |= (str_sel1.value() << 1)
