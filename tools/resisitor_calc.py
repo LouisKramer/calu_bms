@@ -169,5 +169,5 @@ if __name__ == "__main__":
         Re24, error, G_act, G_corr = find_e24_resistor(R1, R2, Uin, Ua)
         G_comb = round(G_corr * G_prev,3)
         G_prev = G_corr
-        #print(f"BAT{i:2d}:  Uin = {Uin:4d},  R1 = {R1:8.1f},  R1_e24 = {Re24:20},  error = {error:4.1f}%,  Gain_corr = {G_corr:.3f},  G_combined = {G_comb:.3f}")
-        print(f"{G_corr}")
+        print(f"BAT{i:2d}:  Uin = {Uin:4d},  R1 = {R1:8.1f},  R1_e24 = {Re24:20},  error = {error:4.1f}%,  Gain_corr = {G_corr:.3f},  G_combined = {G_comb:.3f}")
+        #print(f"{G_corr}")

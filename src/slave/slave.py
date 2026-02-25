@@ -13,6 +13,7 @@ from lib.ADS1118_V2 import ADS1118
 from lib.PCA9685 import *
 from lib.DS18B20 import *
 from lib.BMSnow import BMSnowSlave
+from lib.BMSadc import BMSadc
 # ========================================
 # CONFIG
 # ========================================
@@ -54,52 +55,9 @@ async def main():
     tmp = DS18B20(data_pin=HAL.OWM_TEMP_PIN, pullup=False)
     i2c = SoftI2C(scl=Pin(HAL.I2C_SCL_PIN, pull=Pin.PULL_UP), sda=Pin(HAL.I2C_SDA_PIN, pull=Pin.PULL_UP), freq=400000)
     spi = SoftSPI(baudrate=1000000, polarity=0, phase=0, sck=Pin(HAL.SPI_SCLK_PIN), mosi=Pin(HAL.SPI_MOSI_PIN), miso=Pin(HAL.SPI_MISO_PIN))
-    demux = SN74HC154(enable_pin=HAL.CS_EN_PIN, a0_pin=HAL.SPI_CS0_PIN, a1_pin=HAL.SPI_CS1_PIN, a2_pin=HAL.SPI_CS2_PIN, a3_pin=HAL.SPI_CS3_PIN)
-    adc1 = ADS1118(spi=spi)
-    adc2 = ADS1118(spi=spi)
-    adc3 = ADS1118(spi=spi)
-    adc4 = ADS1118(spi=spi)
-    adc5 = ADS1118(spi=spi)
-    adc6 = ADS1118(spi=spi)
-
-    demux.select(0x1)
-    adc1.start_continuous_scan(mux_list=[ADS1118.MUX_AIN0_AIN1,ADS1118.MUX_AIN1_AIN3,ADS1118.MUX_AIN2_AIN3])
-    demux.deselect(0x1)
-
-    demux.select(0x2)
-    adc2.start_continuous_scan(mux_list=[ADS1118.MUX_AIN0_AIN1,ADS1118.MUX_AIN1_AIN3,ADS1118.MUX_AIN2_AIN3])
-    demux.deselect(0x2)
-
-    demux.select(0x3)
-    adc3.start_continuous_scan(mux_list=[ADS1118.MUX_AIN0_AIN1,ADS1118.MUX_AIN1_AIN3,ADS1118.MUX_AIN2_AIN3])
-    demux.deselect(0x3)
-
-    demux.select(0x4)
-    adc4.start_continuous_scan(mux_list=[ADS1118.MUX_AIN0_AIN1,ADS1118.MUX_AIN1_AIN3,ADS1118.MUX_AIN2_AIN3])
-    demux.deselect(0x4)
-
-    demux.select(0x5)
-    adc5.start_continuous_scan(mux_list=[ADS1118.MUX_AIN0_AIN1,ADS1118.MUX_AIN1_AIN3,ADS1118.MUX_AIN2_AIN3])
-    demux.deselect(0x5)
-
-    demux.select(0x6)
-    adc6.start_continuous_scan(mux_list=[ADS1118.MUX_AIN0_AIN1])
-    demux.deselect(0x6)
-
-    demux.select(0x1)
-    idx, voltage = adc1.read_scan(gain = 1.0)
-    bat.meas.set_vcell(idx,voltage)
-    demux.deselect(0x1)
-
-    demux.select(0x2)
-    idx, voltage = adc2.read_scan(gain = 1.0)
-    bat.meas.set_vcell(idx+3,voltage)
-    demux.deselect(0x2)
-
-    demux.select(0x2)
-    idx, voltage = adc2.read_scan(gain = 1.0)
-    bat.meas.set_vcell(idx+6,voltage)
-    demux.deselect(0x2)
+    adc = BMSadc(spi)
+    await adc.start_all_continuous_scans()
+    adc.start_adc_task(bat,interval_ms=120)
 
     bat.info.ntemp = tmp.number_of_sensors()
     bat.info.ncell = bat.meas.get_nr_of_cells() # Place Holder
@@ -119,37 +77,6 @@ async def main():
     #    pca.set_pwm_freq(BAL_PWM_FREQ)  # 100 Hz PWM
     #    pca.all_off()
 
-    # Initialize ADS1118 instances
-    #mux = {0: 0b000, 1: 0b010, 2: 0b011}
-    #adcs = []
-    bat1_3 = ADS1118(spi=spi, demux=demux, demux_output=0x1, pga=2, dr=4,
-                     channel_mux={0: 0b000, 1: 0b010, 2: 0b011},  
-                     soft_gain=[x * 2 for x in [1.0, 1.0, 1.0]]) #channel 0 = Bat, channel 1 = inv
-    bat4_6 = ADS1118(spi=spi, demux=demux, demux_output=0x2, pga=2, dr=4,
-                     channel_mux={0: 0b000, 1: 0b010, 2: 0b011},  
-                     soft_gain=[x * 2 for x in [1.0, 1.0, 1.0]])
-    bat7_9 = ADS1118(spi=spi, demux=demux, demux_output=0x3, pga=2, dr=4,
-                     channel_mux={0: 0b000, 1: 0b010, 2: 0b011},  
-                     soft_gain=[x * 2 for x in [1.0, 1.0, 1.0]])
-    bat10_12 = ADS1118(spi=spi, demux=demux, demux_output=0x4, pga=2, dr=4,
-                     channel_mux={0: 0b000, 1: 0b010, 2: 0b011},  
-                     soft_gain=[x * 2 for x in [1.0, 1.0, 1.0]])
-    bat13_15 = ADS1118(spi=spi, demux=demux, demux_output=0x5, pga=2, dr=4,
-                     channel_mux={0: 0b000, 1: 0b010, 2: 0b011},  
-                     soft_gain=[x * 2 for x in [1.0, 1.0, 1.0]])
-    bat16 = ADS1118(spi=spi, demux=demux, demux_output=0x6, pga=2, dr=4,
-                     channel_mux={0: 0b000},  
-                     soft_gain=[x * 2 for x in [1.0]])
-    # Optional: Calibrate all ADCs once at startup (assuming inputs shorted)
-    #if str_addr == 0:
-    #    log.info(f"Calibrating ADCs...", ctx="boot")
-    #    for adc in adcs:
-    #        for ch in range(adc.nr_of_ch):
-    #            await adc.calibrate(ch)
-    #    log.info(f"ADC Calibration complete.", ctx="boot")
-    #    while True:
-    #        log.info("Calibration done. Slave in standby mode for address 0. Set address via STR_SEL pins and restart.", ctx="boot")
-    #        await asyncio.sleep(10)
             
     # We are ready to show ourselves to the master
     slave = BMSnowSlave(bat)
