@@ -57,7 +57,7 @@ async def main():
     spi = SoftSPI(baudrate=1000000, polarity=0, phase=0, sck=Pin(HAL.SPI_SCLK_PIN), mosi=Pin(HAL.SPI_MOSI_PIN), miso=Pin(HAL.SPI_MISO_PIN))
     adc = BMSadc(spi)
     await adc.start_all_continuous_scans()
-    adc.start_adc_task(bat,interval_ms=120)
+    adc.start_adc_task(bat,interval_ms=500)
 
     bat.info.ntemp = tmp.number_of_sensors()
     bat.info.ncell = bat.meas.get_nr_of_cells() # Place Holder
