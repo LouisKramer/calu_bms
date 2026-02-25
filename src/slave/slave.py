@@ -8,7 +8,8 @@ from common.common import *
 from common.credentials import *
 Logger.init(syslog_host=SYSLOG_HOST)
 from lib.SN74HC154 import SN74HC154
-from lib.ADS1118 import *
+#from lib.ADS1118 import *
+from lib.ADS1118_V2 import ADS1118
 from lib.PCA9685 import *
 from lib.DS18B20 import *
 from lib.BMSnow import BMSnowSlave
@@ -37,10 +38,10 @@ time.sleep(2)
 log = Logger()
 log.info("Init System")
 
-#str_sel0 = Pin(STR_SEL0_PIN, Pin.IN, pull = Pin.PULL_DOWN) 
-#str_sel1 = Pin(STR_SEL1_PIN, Pin.IN, pull = Pin.PULL_DOWN)
-#str_sel2 = Pin(STR_SEL2_PIN, Pin.IN, pull = Pin.PULL_DOWN)
-#str_sel3 = Pin(STR_SEL3_PIN, Pin.IN, pull = Pin.PULL_DOWN)
+str_sel0 = Pin(HAL.STR_SEL0_PIN, Pin.IN, pull = Pin.PULL_DOWN) 
+str_sel1 = Pin(HAL.STR_SEL1_PIN, Pin.IN, pull = Pin.PULL_DOWN)
+str_sel2 = Pin(HAL.STR_SEL2_PIN, Pin.IN, pull = Pin.PULL_DOWN)
+str_sel3 = Pin(HAL.STR_SEL3_PIN, Pin.IN, pull = Pin.PULL_DOWN)
 # ========================================
 # MAIN
 # ========================================
@@ -48,17 +49,63 @@ async def main():
     log.info("Starting main application...")
     bat = battery()
     bat.info.mac = machine.unique_id()
-    bat.info.addr = 1#read_string_address()
+    bat.info.addr = read_string_address()
     log.info(f"String address set to {bat.info.addr}")
     tmp = DS18B20(data_pin=HAL.OWM_TEMP_PIN, pullup=False)
-    bat.info.ntemp = tmp.number_of_sensors()
-    bat.info.ncell = 32 # Place Holder
-    bat.info.fw_ver = FW_VERSION
-    bat.info.fw_ver = HW_VERSION
-    bat.create_measurements()
     i2c = SoftI2C(scl=Pin(HAL.I2C_SCL_PIN, pull=Pin.PULL_UP), sda=Pin(HAL.I2C_SDA_PIN, pull=Pin.PULL_UP), freq=400000)
     spi = SoftSPI(baudrate=1000000, polarity=0, phase=0, sck=Pin(HAL.SPI_SCLK_PIN), mosi=Pin(HAL.SPI_MOSI_PIN), miso=Pin(HAL.SPI_MISO_PIN))
     demux = SN74HC154(enable_pin=HAL.CS_EN_PIN, a0_pin=HAL.SPI_CS0_PIN, a1_pin=HAL.SPI_CS1_PIN, a2_pin=HAL.SPI_CS2_PIN, a3_pin=HAL.SPI_CS3_PIN)
+    adc1 = ADS1118(spi=spi)
+    adc2 = ADS1118(spi=spi)
+    adc3 = ADS1118(spi=spi)
+    adc4 = ADS1118(spi=spi)
+    adc5 = ADS1118(spi=spi)
+    adc6 = ADS1118(spi=spi)
+
+    demux.select(0x1)
+    adc1.start_continuous_scan(mux_list=[ADS1118.MUX_AIN0_AIN1,ADS1118.MUX_AIN1_AIN3,ADS1118.MUX_AIN2_AIN3])
+    demux.deselect(0x1)
+
+    demux.select(0x2)
+    adc2.start_continuous_scan(mux_list=[ADS1118.MUX_AIN0_AIN1,ADS1118.MUX_AIN1_AIN3,ADS1118.MUX_AIN2_AIN3])
+    demux.deselect(0x2)
+
+    demux.select(0x3)
+    adc3.start_continuous_scan(mux_list=[ADS1118.MUX_AIN0_AIN1,ADS1118.MUX_AIN1_AIN3,ADS1118.MUX_AIN2_AIN3])
+    demux.deselect(0x3)
+
+    demux.select(0x4)
+    adc4.start_continuous_scan(mux_list=[ADS1118.MUX_AIN0_AIN1,ADS1118.MUX_AIN1_AIN3,ADS1118.MUX_AIN2_AIN3])
+    demux.deselect(0x4)
+
+    demux.select(0x5)
+    adc5.start_continuous_scan(mux_list=[ADS1118.MUX_AIN0_AIN1,ADS1118.MUX_AIN1_AIN3,ADS1118.MUX_AIN2_AIN3])
+    demux.deselect(0x5)
+
+    demux.select(0x6)
+    adc6.start_continuous_scan(mux_list=[ADS1118.MUX_AIN0_AIN1])
+    demux.deselect(0x6)
+
+    demux.select(0x1)
+    idx, voltage = adc1.read_scan(gain = 1.0)
+    bat.meas.set_vcell(idx,voltage)
+    demux.deselect(0x1)
+
+    demux.select(0x2)
+    idx, voltage = adc2.read_scan(gain = 1.0)
+    bat.meas.set_vcell(idx+3,voltage)
+    demux.deselect(0x2)
+
+    demux.select(0x2)
+    idx, voltage = adc2.read_scan(gain = 1.0)
+    bat.meas.set_vcell(idx+6,voltage)
+    demux.deselect(0x2)
+
+    bat.info.ntemp = tmp.number_of_sensors()
+    bat.info.ncell = bat.meas.get_nr_of_cells() # Place Holder
+    bat.info.fw_ver = FW_VERSION
+    bat.info.fw_ver = HW_VERSION
+
     # Initialize PCA9685
     #pca1=PCA9685(i2c, address=0x40)
     #pca1.set_pwm_freq(BAL_PWM_FREQ)  # 100 Hz PWM
@@ -93,20 +140,6 @@ async def main():
     bat16 = ADS1118(spi=spi, demux=demux, demux_output=0x6, pga=2, dr=4,
                      channel_mux={0: 0b000},  
                      soft_gain=[x * 2 for x in [1.0]])
-    #adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0x1, pga=2, dr=4, channel_mux=mux, soft_gain=[1.0, 1.0, 1.0]))
-    #adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0x2, pga=2, dr=4, channel_mux=mux, soft_gain=[1.0, 1.0, 1.0]))
-    #adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0x3, pga=2, dr=4, channel_mux=mux, soft_gain=[1.0, 1.0, 1.0]))
-    #adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0x4, pga=2, dr=4, channel_mux=mux, soft_gain=[1.0, 1.0, 1.0]))
-    #adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0x5, pga=2, dr=4, channel_mux=mux, soft_gain=[1.0, 1.0, 1.0]))
-    #adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0x6, pga=2, dr=4, channel_mux={0: 0b000, 1: 0b011}, soft_gain=[1.0, 1.0]))
-    #if SLAVE_MAX :
-    #    adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0xF, pga=2, dr=4, channel_mux=mux, gain=[1.0, 1.0, 1.0]))
-    #    adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0xE, pga=2, dr=4, channel_mux=mux, gain=[1.0, 1.0, 1.0]))
-    #    adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0xD, pga=2, dr=4, channel_mux=mux, gain=[1.0, 1.0, 1.0]))
-    #    adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0xC, pga=2, dr=4, channel_mux=mux, gain=[1.0, 1.0, 1.0]))
-    #    adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0xB, pga=2, dr=4, channel_mux=mux, gain=[1.0, 1.0, 1.0]))
-    #    adcs.append(ADS1118(spi=spi, demux=demux, demux_output=0x0, pga=2, dr=4, channel_mux={0: 0b000, 1: 0b011}, gain=[1.0, 1.0]))
-    
     # Optional: Calibrate all ADCs once at startup (assuming inputs shorted)
     #if str_addr == 0:
     #    log.info(f"Calibrating ADCs...", ctx="boot")
@@ -252,27 +285,5 @@ def read_string_address():
 asyncio.run(main())
 
 
-
-async def main2():
-    odd_mask  = [1] * 16
-    even_mask = [1] * 16
-    # TODO: odd and even Balancing must be synced over all slaves!!!!!!
-    while True: 
-        # Enable odd PCA9685 channel Balancing (1, 3, ..., 15)
-        for pca in pcas:
-            pca.enable_odd_channels(50, mask=odd_mask)
-        await asyncio.sleep(0.3)
-        # Enable even PCA9685 channel Balancing (0, 2, ..., 14)
-        for pca in pcas:
-            pca.enable_even_channels(50, mask=even_mask)
-        await asyncio.sleep(0.3)
-
-        for i, v in enumerate(cell_voltages_1): 
-            if v is not None:
-                if v >= 3.4:
-                    odd_mask[i*2+1] = 1
-                elif v <= 3.2:
-                    odd_mask[i*2+1] = 0
-        # build even_mask bal_th = 3.4V ,bal_diff_th = 0.2V
 
 

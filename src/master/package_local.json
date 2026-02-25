@@ -9,6 +9,7 @@
     ["common/HAL.py"        , "../common/HAL.py"    ],
     ["lib/ACS71240.py"      , "../lib/ACS71240.py"  ],
     ["lib/ADS1118.py"       , "../lib/ADS1118.py   "],
+    ["lib/ADS1118_V2.py"    , "../lib/ADS1118_V2.py"],
     ["lib/DS18B20.py"       , "../lib/DS18B20.py   "],
     ["lib/NTP.py"           , "../lib/NTP.py       "],
     ["lib/RELAY.py"         , "../lib/RELAY.py     "],

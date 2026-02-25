@@ -59,6 +59,7 @@ class ADS1118:
         self._last_pga = None
         self._last_dr = None
         self._scan_mux_list = None
+        self._scan_gain_list = None
         self._scan_idx = 0
 
     def _select(self):
@@ -126,16 +127,23 @@ class ADS1118:
         return voltage
 
     # ====================== MULTI-CHANNEL CONTINUOUS (NEW!) ======================
-    async def start_continuous_scan(self, mux_list, pga=None, data_rate=None):
+    async def start_continuous_scan(self, mux_list, gain_list, pga=None, data_rate=None):
         """Start round-robin continuous scanning of multiple channels
         mux_list = [MUX_AIN0_GND, MUX_AIN1_GND, ...]"""
         if not mux_list or not isinstance(mux_list, (list, tuple)):
             raise ValueError("mux_list must be a non-empty list of MUX constants")
 
+        if not gain_list or not isinstance(gain_list, (list, tuple)):
+            raise ValueError("gain_list must be a non-empty list or tuple")
+
+        if len(gain_list) != len(mux_list):
+            raise ValueError(f"gain_list length ({len(gain_list)}) must match mux_list ({len(mux_list)})")
+
         if pga is None: pga = self.PGA_2_048V
         if data_rate is None: data_rate = self.DR_128SPS
 
         self._scan_mux_list = list(mux_list)
+        self._scan_gain_list = list(gain_list)
         self._scan_idx = 0
         self._last_pga = pga
         self._last_dr = data_rate
@@ -149,7 +157,7 @@ class ADS1118:
 
         self._mode = 'multi_scan'
 
-    async def read_scan(self, gain = 1.0):
+    async def read_scan(self):
         """Read current channel + immediately start next channel
         Returns: (channel_index, voltage, raw, fsr)"""
         if self._mode != 'multi_scan':
@@ -159,8 +167,8 @@ class ADS1118:
         raw = await self._read_raw()
         fsr = self._FSR[self._last_pga]
         voltage = raw * (fsr / 32768.0)
-        voltage = round(voltage * gain, 4)
         current_idx = self._scan_idx
+        voltage = round(voltage * self._scan_gain_list[current_idx], 4)
 
         # 2. Advance and start next channel (continuous mode)
         self._scan_idx = (self._scan_idx + 1) % len(self._scan_mux_list)

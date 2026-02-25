@@ -80,7 +80,8 @@ async def main():
 
     log.info("Init CAN")    
     #can= BMSCan(cfg_can)
-
+    #if MQTT_ENABLE:
+    #    cfg_can.init_mqtt_entities()
     #int_rel0 = Relay(pin=HAL.INT_REL0_PIN, active_high=True)
     #int_rel1 = Relay(pin=HAL.INT_REL1_PIN, active_high=True)
     #ext_rel0 = Relay(pin=HAL.EXT_REL0_PIN, active_high=True)

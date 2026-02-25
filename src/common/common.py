@@ -377,11 +377,9 @@ class battery:
     def __init__(self):
         self.info  = info_data()
         self.conf  = slave_config()
-        self.meas  = None
+        self.meas  = meas_data()
         self.state = status_data()   # will be per-slave in real code
         self.mqtt_enable = False
-    def create_measurements(self):
-        self.meas = meas_data(self)
 
     def init_mqtt_entities(self):
         self.info.init_mqtt_entities(self.info.addr)
@@ -527,24 +525,30 @@ class info_data:
             self.hw_ver = other.hw_ver
 
 class meas_data:
-    def __init__(self, bat: battery):
-        self.vcell = [0.0] * bat.info.ncell
+    def __init__(self, bat: battery, max_cells = 32, max_temps = 16):
+        #self.vcell = [0.0] * bat.info.ncell
+        self.vcell: list[float] = [-1.0] * max_cells
+        self._ncell = 0
         self.vstr = 0.0
-        self.temps = [0.0] * bat.info.ntemp
+        #self.temps = [0.0] * bat.info.ntemp
+        self.temps : list[float] = [-1.0] * max_temps
+        self._ntemp = 0
+        #mqtt
         self.mqtt_enable = False
+        self._vcell = [] 
+        self._temps = []
+        self._vstr = None
 
     def init_mqtt_entities(self, addr: int):
         sub = {"name": f"Slave {addr}", "id": f"slave_{addr}"}
-        self._vcell = []
         mqtt = get_BMSmqtt()
-        for i in range(len(self.vcell)):
+        for i in range(self.get_nr_of_cells()):
             e = Sensor(f"Cell {i+1} Voltage", unit="V", sub_device=sub)
             mqtt.add_entity(e)
             self._vcell.append(e)
         self._vstr = Sensor("String Voltage", unit="V", sub_device=sub)
         mqtt.add_entity(self._vstr)
-        self._temps = []
-        for i in range(len(self.temps)):
+        for i in range(self.get_nr_of_temps()):
             e = Sensor(f"Temp {i+1}", unit="°C", sub_device=sub)
             mqtt.add_entity(e)
             self._temps.append(e)
@@ -557,6 +561,12 @@ class meas_data:
             self._vstr.set_value(self.vstr)
             for i, t in enumerate(self.temps):
                 self._temps[i].set_value(t)
+
+    def get_nr_of_cells(self) -> int:
+        return sum(1 for v in self.vcell if v is not None and v > 1.0)
+    
+    def get_nr_of_temps(self) -> int:
+        return sum(1 for t in self.temps if t is not None and t > 1.0)
 
     def set_vcell(self, index: int, voltage: float) -> bool:
         if not 0 <= index < len(self.vcell) or not isinstance(voltage, (int, float)) or voltage < 0:

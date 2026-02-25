@@ -83,6 +83,5 @@ class virt_slave(Slaves):
     def __init__(self, mac, addr, ncell, ntemp, fw_ver, hw_ver):
         self.battery = battery()
         self.battery.info.update_all(mac=mac, addr=addr, ncell=ncell, ntemp=ntemp, fw_ver=fw_ver, hw_ver=hw_ver)
-        self.battery.create_measurements()
 
     
