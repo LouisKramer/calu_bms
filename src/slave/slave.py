@@ -50,7 +50,7 @@ async def main():
     log.info("Starting main application...")
     bat = battery()
     bat.info.mac = machine.unique_id()
-    bat.info.addr = read_string_address()
+    bat.info.addr = read_string_address()# TODO: optionally if addrs == 0xF do calibration or some special mode
     log.info(f"String address set to {bat.info.addr}")
     tmp = DS18B20(data_pin=HAL.OWM_TEMP_PIN, pullup=False)
     i2c = SoftI2C(scl=Pin(HAL.I2C_SCL_PIN, pull=Pin.PULL_UP), sda=Pin(HAL.I2C_SDA_PIN, pull=Pin.PULL_UP), freq=400000)
@@ -76,53 +76,15 @@ async def main():
     #for pca in pcas:
     #    pca.set_pwm_freq(BAL_PWM_FREQ)  # 100 Hz PWM
     #    pca.all_off()
-
             
     # We are ready to show ourselves to the master
     slave = BMSnowSlave(bat)
     await slave.start()
-
-    even_odd_flag = False
+    log.info("main loop")
     while True:
-        log.info("main loop")
-        bat.meas.vcell = [round(random.uniform(3.0, 4.2), 3) for _ in range(bat.info.ncell)]
-        bat.meas.vstr = 48.5
-        # Read voltages
-        #voltages = await read_all_adc(adcs=adcs)
-        #demux.select(0x0)
-        b1 = await bat1_3.read_voltage(channel=0)
-        b2 = await bat1_3.read_voltage(channel=1)
-        b3 = await bat1_3.read_voltage(channel=2)
+        log.info(f"Cell Voltages {bat.meas.vcell}")
+        log.info(f"String Voltage: {bat.meas.vstr}")
 
-        b4 = await bat4_6.read_voltage(channel=0)
-        b5 = await bat4_6.read_voltage(channel=1)
-        b6 = await bat4_6.read_voltage(channel=2)
-
-        b7 = await bat7_9.read_voltage(channel=0)
-        b8 = await bat7_9.read_voltage(channel=1)
-        b9 = await bat7_9.read_voltage(channel=2)
-
-        b10 = await bat10_12.read_voltage(channel=0)
-        b11 = await bat10_12.read_voltage(channel=1)
-        b12 = await bat10_12.read_voltage(channel=2)
-
-        b13 = await bat13_15.read_voltage(channel=0)
-        b14 = await bat13_15.read_voltage(channel=1)
-        b15 = await bat13_15.read_voltage(channel=2)
-
-        b16 = await bat16.read_voltage(channel=0)
-        #demux.deselect()
-        log.info(f"Cell Voltages: {b1}, {b2}, {b3}")
-        log.info(f"Cell Voltages: {b4}, {b5}, {b6}")
-        log.info(f"Cell Voltages: {b7}, {b8}, {b9}")
-        log.info(f"Cell Voltages: {b10}, {b11}, {b12}")
-        log.info(f"Cell Voltages: {b13}, {b14}, {b15}")
-        log.info(f"Cell Voltage: {b16}")
-        #cell_voltages_1 = voltages[0:15]
-        #string_voltage_1 = voltages[16]
-        #if SLAVE_MAX :
-        #    cell_voltages_2 = voltages[17:32]
-        #    string_voltage_2 = voltages[33]
         temps = tmp.get_temperatures()
         temps[0] = 33.3
         bat.meas.temps = [temps[0]]
@@ -132,68 +94,7 @@ async def main():
         for i in range(NR_OF_CELLS):
             pca.duty(i, 0) #channel i, on=0, off=2048 (50% duty cycle)
 
-        ## TODO: odd and even Balancing must be synced over all slaves!!!!!!
-        #even_odd_flag = not even_odd_flag
-        #if bal_en == True and ext_bal_en == False:
-        #    for i, v in enumerate(voltages[cell_voltages_1]): 
-        #        if v is not None:
-        #            if v >= bal_start_voltage:
-        #                pcas[0].set_duty(i, 50)
-        #            elif v <= bal_start_voltage - bal_threshold:
-        #                pcas[0].off(i)
-        #    await asyncio.sleep(0.3)
-        #    for i, v in enumerate(voltages[cell_voltages_2]): 
-        #        if v is not None:
-        #            if v >= bal_start_voltage:
-        #                pcas[1].set_duty(i, 50)
-        #            elif v <= bal_start_voltage - bal_threshold:
-        #                pcas[1].off(i)
-        #    for pca in pcas:
-        #        pca.all_off()
         await asyncio.sleep(1)
-
-async def read_all_adc(adcs):
-    """
-    Asynchronously reads all ADC channels from all ADS1118 instances and returns their voltages as a list.
-    """
-    num_adcs = len(adcs)
-    total_channels = 0
-    max_channels = 0
-    for adc in adcs:
-        total_channels = total_channels + adc.nr_of_ch
-        max_channels = adc.nr_of_ch if adc.nr_of_ch > max_channels else max_channels
-    vol = [0] * total_channels
-    
-    # Initialize pipeline
-    for adc in adcs:
-        try:
-            await adc.start_conversions_all(channel=0, ret=False)
-        except Exception as e:
-            print(f"Error initializing ADC: {e}")
-
-    # Read all channels
-    for j in range(max_channels):
-        prev_nr_of_ch = 0
-        for i, adc in enumerate(adcs):
-            if j <= adc.nr_of_ch - 1:
-                try:
-                    vol[j + i * prev_nr_of_ch] = await adc.start_conversions_all(channel=j, ret=True)
-                except Exception as e:
-                    print(f"Error reading ADC {i} channel {j}: {e}")
-                    vol[j + i * prev_nr_of_ch] = None
-            else:
-                pass
-            prev_nr_of_ch = adc.nr_of_ch
-
-        #wait to complete conversion.
-        # SPI @1MHz and 2 bytes takes adc_read_time = ~100us (16us for 2 bytes, rest overhead)
-        # @ 128 SPS every ~8ms a new value
-        # --> one round trip should at least last: 10ms
-        # whitout delay: nr_of_adcs * adc_read_time
-        await asyncio.sleep(adc.get_conversion_delay() - (num_adcs * 0.0001))
-    # total roundtrip time = num_channels * (conversion_delay - (nr_of_adcs * adc_read_time))
-    # trt = ~70ms
-    return vol
 
 def read_string_address():
     """Read 4-bit address from GPIO pins (0-15)"""
@@ -202,14 +103,15 @@ def read_string_address():
     addr |= (str_sel1.value() << 1)
     addr |= (str_sel2.value() << 2)
     addr |= (str_sel3.value() << 3)
-    
     # Optional: clamp to valid range (in case of noise)
     if addr > 15:
         addr = 0  # or raise an error, or return None, depending on your needs
-    
     return addr
 
-asyncio.run(main())
+try:
+    asyncio.run(main())
+except KeyboardInterrupt:
+    print("Stopped by user")
 
 
 
