@@ -533,12 +533,10 @@ class info_data:
             self.hw_ver = other.hw_ver
 
 class meas_data:
-    def __init__(self, bat: battery, max_cells = 32, max_temps = 16):
-        #self.vcell = [0.0] * bat.info.ncell
+    def __init__(self, max_cells = 32, max_temps = 16):
         self.vcell: list[float] = [-1.0] * max_cells
         self._ncell = 0
         self.vstr = 0.0
-        #self.temps = [0.0] * bat.info.ntemp
         self.temps : list[float] = [-1.0] * max_temps
         self._ntemp = 0
         #mqtt

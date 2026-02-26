@@ -11,6 +11,7 @@ from lib.PCA9685 import *
 from lib.DS18B20 import *
 from lib.BMSnow import BMSnowSlave
 from lib.BMSadc import BMSadc
+from lib.BMSbal import BMSbal
 # ========================================
 # CONFIG
 # ========================================
@@ -74,8 +75,10 @@ async def main():
     # Initialize PCA9685
     pca1=PCA9685(i2c, address=0x40)
     pca2=PCA9685(i2c, address=0x41)
-    pca1.freq(BAL_PWM_FREQ)
-    pca2.freq(BAL_PWM_FREQ)
+    bal = BMSbal([pca1, pca2])
+    await bal.start(phase_duration_ms=250)
+    bal.enable_auto()
+
             
     log.info("Init BMS Slave")
     slave = BMSnowSlave(bat)
@@ -90,10 +93,6 @@ async def main():
         temps[0] = 33.3
         bat.meas.temps = [temps[0]]
         log.info(f"Temperatures: {temps}")
-
-        ## Balancing
-        for i in range(NR_OF_CELLS):
-            pca1.duty(i, 0) #channel i, on=0, off=2048 (50% duty cycle)
 
         await asyncio.sleep(1)
 
