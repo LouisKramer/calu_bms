@@ -150,6 +150,10 @@ class protection_config(BaseConfig):
             "prot_min_str_vol": 30.0,
             "prot_max_cell_vol": 4.2,
             "prot_min_cell_vol": 2.5,
+            "prot_stable_delay_seconds" : 20,       # seconds to wait for measurements to stabilise
+            "prot_precharge_vinv_threshold": 50.0,  # if vinv < this → do pre-charge
+            "prot_connect_delta_warn": 80.0,        # warn if |vinv - vpack| > this
+            "prot_connect_delta_critical": 150.0,   # refuse connection if delta > this
         }
         for k, v in defaults.items():
             setattr(self, k, v)
@@ -170,6 +174,10 @@ class protection_config(BaseConfig):
             "prot_min_str_vol":       Number("Protection Min String Voltage", 20, 80, 10, self.prot_min_str_vol, "V", cb=self.update),
             "prot_max_cell_vol":      Number("Protection Max Cell Voltage", 3.4, 4.25, 0.05, self.prot_max_cell_vol, "V", cb=self.update),
             "prot_min_cell_vol":      Number("Protection Min Cell Voltage", 2.3, 3.0, 0.05, self.prot_min_cell_vol, "V", cb=self.update),
+            "prot_stable_delay_seconds":        Number("Protection Mesurements stable delay", 1, 100, 1, self.prot_stable_delay_seconds, "s", cb=self.update),
+            "prot_precharge_vinv_threshold":    Number("Protection Inverter voltage threshold for precharge", 0.0, 100.0, 5.0, self.prot_precharge_vinv_threshold, "V", cb=self.update),
+            "prot_connect_delta_warn":          Number("Protection Inverter Contact delta Waring threshold", 0.0, 100.0, 5.0, self.prot_connect_delta_warn, "V", cb=self.update),
+            "prot_connect_delta_critical":      Number("Protection Inverter Contact refuse threshold", 50.0, 500.0, 5.0, self.prot_connect_delta_critical, "V", cb=self.update),
         }
         for e in self._mqtt_map.values():
             mqtt.add_entity(e)

@@ -6,7 +6,7 @@
     ["common/logger.py"     , "github:LouisKramer/calu_bms/src/common/logger.py" ],
     ["common/common.py"     , "github:LouisKramer/calu_bms/src/common/common.py" ],
     ["common/HAL.py"        , "github:LouisKramer/calu_bms/src/common/HAL.py"    ],
-    ["lib/ADS1118_V2.py"       , "github:LouisKramer/calu_bms/src/lib/ADS1118_V2.py   "],
+    ["lib/ADS1118_V2.py"    , "github:LouisKramer/calu_bms/src/lib/ADS1118_V2.py   "],
     ["lib/DS18B20.py"       , "github:LouisKramer/calu_bms/src/lib/DS18B20.py   "],
     ["lib/PCA9685.py"       , "github:LouisKramer/calu_bms/src/lib/PCA9685.py   "],
     ["lib/SN74HC154.py"     , "github:LouisKramer/calu_bms/src/lib/SN74HC154.py "],

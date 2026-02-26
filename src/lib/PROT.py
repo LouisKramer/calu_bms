@@ -19,24 +19,30 @@ class Protector:
         self.slaves         = slaves
         self.data           = data
         self.stage          = self.PROT_STAGE_OFF
-        self.stage_stable_delay = 20 #TODO: find proper number
+        self.stage_stable_delay = 0
         self.stage_2_delay  = self.cfg.prot_rel_trigger_delay
-        self.sic_driver     = Pin(HAL.BAT_FAULT_PIN, Pin.OUT)
-        self.rel_main       = Pin(HAL.INT_REL1_PIN, Pin.OUT)
-        self.rel_pre_charge = Pin(HAL.INT_REL0_PIN, Pin.OUT)
+        self.sic_driver     = Pin(HAL.BAT_FAULT_PIN, Pin.OUT, value=0)
+        self.rel_main       = Pin(HAL.INT_REL1_PIN, Pin.OUT, value=0)
+        self.rel_pre_charge = Pin(HAL.INT_REL0_PIN, Pin.OUT, value=0)
         self.oc_in          = Pin(HAL.CURRENT_FAULT_PIN, Pin.IN)
         self._last_logged_msg = ""   # prevent log spam
-        self.rel_main.off()
-        self.sic_driver.off()
-        self.rel_pre_charge.off()
         
     def start(self, slaves: Slaves, data: master_data):
         if self.stage != self.PROT_STAGE_OFF:
             self.log.warn("Protection already started")
             return False
-        self.log.info("Start protection")
+
+        if slaves is None or data is None:
+            self.log.error("Cannot start protector – missing slaves or data object")
+            return False
+
+        self.log.info("Starting protection system")
         self.slaves = slaves
         self.data = data
+
+        self.stage_stable_delay = self.cfg.prot_stable_delay_seconds
+        self.stage_2_delay = self.cfg.prot_rel_trigger_delay
+
         self.oc_in.irq(handler = self._oc_trigger, trigger = Pin.IRQ_FALLING)
         self.wdt = WDT(timeout = 8000)
         self.stage = self.PROT_STAGE_STABLE
@@ -44,71 +50,76 @@ class Protector:
         return True
 
     async def connect_to_inv(self):
+        """Safe connection to inverter with pre-charge logic – all thresholds from config"""
         if self.stage != self.PROT_STAGE_0:
-            self.log.warn("Protection NOT ready to connect!")
+            self.log.warn("Protection not ready for connection (stage != 0)")
             return False
+
         delta = abs(self.data.vinv - self.data.vpack)
-        # DC-Link precharge if large voltage difference → reduces risk of high inrush current. 
-        if self.data.vinv < 50 : #TODO: find proper value
-            #DC-Link precharge from battery
+
+        # Pre-charge if inverter voltage is very low
+        if self.data.vinv < self.cfg.prot_precharge_vinv_threshold:
+            self.log.info(f"DC-Link voltage low (< {self.cfg.prot_precharge_vinv_threshold} V) → starting pre-charge")
             await self._precharge()
-        # if voltage diff to DC-Link ist too high → wait or refuse connection to avoid high inrush current
-        elif delta > 80:        #TODO: find proper value
-            self.log.warn(f"Large voltage delta detected: vinv={self.data.vinv:.1f} V > vpack={self.data.vpack:.1f} V")
-            if delta > 150:     #TODO: find proper value
-                self.log.error("Voltage difference too large - risk of high inrush to battery. Waiting or aborting.")
-                # Option: wait for sun to drop / load to consume, or refuse connection
+
+        # Large voltage difference → warn / refuse
+        elif delta > self.cfg.prot_connect_delta_warn:
+            self.log.warn(f"Large voltage delta: vinv={self.data.vinv:.1f}V, vpack={self.data.vpack:.1f}V "
+                          f"(warn threshold = {self.cfg.prot_connect_delta_warn} V)")
+            if delta > self.cfg.prot_connect_delta_critical:
+                self.log.error(f"Voltage difference too large (> {self.cfg.prot_connect_delta_critical} V) – refusing connection")
                 return False
+
         await self._connect_main()
         return True
 
     async def _connect_main(self):
-        self.rel_main.on()
+        self.rel_main.value(1)
         await asyncio.sleep(1)
-        self.sic_driver.on()
+        self.sic_driver.value(1)
         await asyncio.sleep(1)
     
     async def _precharge(self):
-            self.rel_pre_charge.on()
+            self.rel_pre_charge.value(1)
             await asyncio.sleep(2)
-            self.rel_main.on()
-            self.rel_pre_charge.off()
+            self.rel_main.value(1)
+            self.rel_pre_charge.value(0)
 
     def protect(self):
         self.wdt.feed()
         check_message = self._check()
-        #inital settling state
+
         if self.stage == self.PROT_STAGE_STABLE:
             self.stage_stable_delay -= 1
             if self.stage_stable_delay <= 0:
                 self.stage = self.PROT_STAGE_0
+                self.log.info("Protection stage STABLE → 0 (normal operation)")
 
         elif self.stage == self.PROT_STAGE_0:
-            if check_message is not None:
+            if check_message:
                 self.trigger_stage_1()
                 self.log.warn(check_message)
                 self._last_logged_msg = check_message
 
         elif self.stage == self.PROT_STAGE_1:
-            if check_message is not None:
-                # Only log if message changed → reduces spam
+            if check_message:
                 if check_message != self._last_logged_msg:
                     self.log.warn(check_message)
                     self._last_logged_msg = check_message
                 self.stage_2_delay -= 1
                 if self.stage_2_delay <= 0:
                     self.trigger_stage_2()
-                    self.log.warn("Entering protection stage 2 - relay opened")
+                    self.log.warn("Entering protection stage 2 – main relay opened")
             else:
-                # Fault cleared → reset delay counter
+                # Fault cleared
                 self.stage_2_delay = self.cfg.prot_rel_trigger_delay
                 self.stage = self.PROT_STAGE_0
-                self.log.info("Fault cleared in stage 1 - returning to stage 0")
+                self.log.info("Fault cleared in stage 1 → returning to stage 0")
+                self._last_logged_msg = ""
 
         elif self.stage == self.PROT_STAGE_2:
-            # In many BMS designs: continue monitoring, but no automatic recovery
-            if check_message is not None and check_message != self._last_logged_msg:
-                self.log.warn(f"Stage 2 active - still detecting: {check_message}")
+            if check_message and check_message != self._last_logged_msg:
+                self.log.warn(f"Stage 2 active – still detecting: {check_message}")
                 self._last_logged_msg = check_message
 
         else:
@@ -116,42 +127,54 @@ class Protector:
 
 
     def _check(self):
-        if self.slaves.slave_lost_flag == True:
+        """Returns error message or None if everything is OK"""
+        if self.slaves is None or self.data is None:
+            return "Protector not fully initialized"
+
+        if getattr(self.slaves, 'slave_lost_flag', False):
             return "Slave lost detected!"
-        if not(self.cfg.prot_min_pack_vol <= self.data.vpack <= self.cfg.prot_max_pack_vol):
-            return f"Battery Pack over/under Voltage {self.data.vpack}V detected!"
-        if self.data.tpack >= self.cfg.prot_max_temp:
-            return f"Battery Pack over Temperature {self.data.tpack}°C detected!"
 
-        if not(self.cfg.prot_min_current <= self.data.current <= self.cfg.prot_max_current):
-            return f"Battery Pack over/under Current {self.data.current}A detected!"
+        # Pack level checks
+        if not (self.cfg.prot_min_pack_vol <= self.data.vpack <= self.cfg.prot_max_pack_vol):
+            return f"Pack voltage {self.data.vpack:.2f}V out of limits!"
 
+        if self.data.tpack > self.cfg.prot_max_temp:
+            return f"Pack temperature {self.data.tpack:.1f}°C too high!"
+
+        if not (self.cfg.prot_min_current <= self.data.current <= self.cfg.prot_max_current):
+            return f"Current {self.data.current:.1f}A out of limits!"
+
+        # Per-slave checks
         for s in self.slaves:
-            #check cell voltages
+            # Cell voltages – ignore unmeasured cells (-1.0)
             for i, vc in enumerate(s.battery.meas.vcell):
-                if not (self.cfg.prot_min_cell_vol <= vc <= self.cfg.prot_max_cell_vol):
-                    return f"Cell {i} on slave {s.battery.info.addr} over/under Voltage {vc}V detected!"
-            #check string temps
+                if vc > 0.5 and not (self.cfg.prot_min_cell_vol <= vc <= self.cfg.prot_max_cell_vol):
+                    return f"Cell {i} on slave {s.battery.info.addr} → {vc:.3f}V out of limits!"
+
+            # Temperatures – ignore unmeasured (0.0 or negative)
             for i, t in enumerate(s.battery.meas.temps):
-                if t > self.cfg.prot_max_temp:
-                    return f"Temp {i} on slave {s.battery.info.addr} over Temperature {t}°C detected!"
-            #check string voltage
+                if t > 0.0 and t > self.cfg.prot_max_temp:
+                    return f"Temp sensor {i} on slave {s.battery.info.addr} → {t:.1f}°C too high!"
+
+            # String voltage check
             if not (self.cfg.prot_min_str_vol <= s.battery.meas.vstr <= self.cfg.prot_max_str_vol):
-                return f"Slave {s.battery.info.addr} string over/under Voltage {s.battery.meas.vstr}V detected!"
+                return f"String voltage on slave {s.battery.info.addr} → {s.battery.meas.vstr:.2f}V out of limits!"
+
         return None
     
     def trigger_stage_1(self):
-        self.sic_driver.off()
+        self.sic_driver.value(0)
         self.stage = self.PROT_STAGE_1
     
     def trigger_stage_2(self):
-        self.rel_main.off()
+        self.rel_main.value(0)
         self.stage = self.PROT_STAGE_2
 
-    # External IRQ trigger
     def _oc_trigger(self, pin):
-        self.log.warn(f"External oc trigger!")
-        pass
+        """Hardware over-current – immediate full disconnect"""
+        self.log.error("!!! HARDWARE OVER-CURRENT TRIGGERED !!!")
+        self.trigger_stage_2()
+        pin.irq(handler=None)   # disable further interrupts to prevent flooding
 
     async def _worker(self):
         while True:
