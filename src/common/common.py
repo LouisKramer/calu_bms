@@ -154,6 +154,10 @@ class protection_config(BaseConfig):
             "prot_precharge_vinv_threshold": 50.0,  # if vinv < this → do pre-charge
             "prot_connect_delta_warn": 80.0,        # warn if |vinv - vpack| > this
             "prot_connect_delta_critical": 150.0,   # refuse connection if delta > this
+            "prot_max_cell_delta_vol" : 0.20,       
+            "prot_max_temp_delta" : 8.0,   
+            "prot_max_invalid_cells" : 4,   
+            "prot_max_str_delta_vol" : 2.0,   
         }
         for k, v in defaults.items():
             setattr(self, k, v)
@@ -174,10 +178,13 @@ class protection_config(BaseConfig):
             "prot_min_str_vol":       Number("Protection Min String Voltage", 20, 80, 10, self.prot_min_str_vol, "V", cb=self.update),
             "prot_max_cell_vol":      Number("Protection Max Cell Voltage", 3.4, 4.25, 0.05, self.prot_max_cell_vol, "V", cb=self.update),
             "prot_min_cell_vol":      Number("Protection Min Cell Voltage", 2.3, 3.0, 0.05, self.prot_min_cell_vol, "V", cb=self.update),
-            "prot_stable_delay_seconds":        Number("Protection Mesurements stable delay", 1, 100, 1, self.prot_stable_delay_seconds, "s", cb=self.update),
-            "prot_precharge_vinv_threshold":    Number("Protection Inverter voltage threshold for precharge", 0.0, 100.0, 5.0, self.prot_precharge_vinv_threshold, "V", cb=self.update),
-            "prot_connect_delta_warn":          Number("Protection Inverter Contact delta Waring threshold", 0.0, 100.0, 5.0, self.prot_connect_delta_warn, "V", cb=self.update),
-            "prot_connect_delta_critical":      Number("Protection Inverter Contact refuse threshold", 50.0, 500.0, 5.0, self.prot_connect_delta_critical, "V", cb=self.update),
+            "prot_stable_delay_seconds":      Number("Protection Mesurements stable delay", 1, 100, 1, self.prot_stable_delay_seconds, "s", cb=self.update),
+            "prot_precharge_vinv_threshold":  Number("Protection Inverter voltage threshold for precharge", 0.0, 100.0, 5.0, self.prot_precharge_vinv_threshold, "V", cb=self.update),
+            "prot_connect_delta_warn":        Number("Protection Inverter Contact delta Waring threshold", 0.0, 100.0, 5.0, self.prot_connect_delta_warn, "V", cb=self.update),
+            "prot_max_cell_delta_vol":        Number("Protection Max Cell Voltage delta", 0.01, 0.01, 0.5, self.prot_max_cell_delta_vol, "V", cb=self.update),
+            "prot_max_temp_delta":            Number("Protection Max Temp delta", 1.0, 10.0, 1.0, self.prot_max_temp_delta, "°C", cb=self.update),
+            "prot_max_invalid_cells":         Number("Protection Max Nr. invalid cells", 0, 128, 1, self.prot_max_invalid_cells, cb=self.update),
+            "prot_max_str_delta_vol":         Number("Protection Max String Voltage delta", 0.0, 100.0, 1.0, self.prot_max_str_delta_vol, "V", cb=self.update),
         }
         for e in self._mqtt_map.values():
             mqtt.add_entity(e)
@@ -187,36 +194,17 @@ class protection_config(BaseConfig):
 # soc_config (with scaled values handling)
 # ==============================================================
 class soc_config(BaseConfig):
-    """
-    Initialize the SOC estimator with battery and algorithm parameters.
-    Args:
-        config (dict): Configuration dictionary. Required keys:
-            - 'capacity_ah': Battery capacity in Amp-hours
-            - 'num_cells': Number of cells in series
-            - 'cell_ir': Cell internal resistance in Ohms (at ref temp)
-            Optional keys:
-            - 'initial_soc': Starting SOC (%) [default: 50.0]
-            - 'initial_temp': Starting temperature (°C) [default: 25.0]
-            - 'ir_ref_temp': Reference temperature for IR (°C) [default: 25.0]
-            - 'ir_temp_coeff': IR temp coefficient (%/°C) [default: 0.004]
-            - 'current_threshold': Current below which battery is "relaxed" (A)
-            - 'voltage_stable_threshold': Max voltage change for stability (V)
-            - 'relaxed_hold_time': Time to confirm relaxed state (s)
-            - 'per_cell_voltage_soc_table': Custom voltage-SOC curve
-    Raises:
-        ValueError: If num_cells or capacity_ah are invalid.
-    """
     def __init__(self):
         super().__init__("soc_config")
         defaults = {
             "capacity_ah": 100.0,
             "initial_soc": 80.0,
-            "cell_ir": 0.004,
-            "ir_ref_temp": 25.0,
-            "ir_temp_coeff": 0.004,
-            "current_threshold": 1.0,
-            "voltage_stable_threshold": 0.01,
-            "relaxed_hold_time": 30.0,
+            "cell_ir": 0.004,                   # Cell internal resistance in Ohms (at ref temp)
+            "ir_ref_temp": 25.0,                # Reference temperature for Internal Resistor (°C)
+            "ir_temp_coeff": 0.004,             # Internal Resistor temp coefficient (%/°C)
+            "current_threshold": 1.0,           # Current below which battery is "relaxed"
+            "voltage_stable_threshold": 0.01,   # Max voltage change for stabilit
+            "relaxed_hold_time": 30.0,          # Time to confirm relaxed state (s)
             "sampling_interval": 2.0,
             "charge_efficiency": 0.97,          # 97% typical for LiFePO4
             "discharge_efficiency": 1.0,        # 100%

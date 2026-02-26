@@ -78,7 +78,6 @@ async def main():
     bal = BMSbal([pca1, pca2])
     await bal.start(phase_duration_ms=250)
     bal.enable_auto()
-
             
     log.info("Init BMS Slave")
     slave = BMSnowSlave(bat)

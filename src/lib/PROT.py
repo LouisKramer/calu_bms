@@ -127,38 +127,65 @@ class Protector:
 
 
     def _check(self):
-        """Returns error message or None if everything is OK"""
         if self.slaves is None or self.data is None:
-            return "Protector not fully initialized"
+            return "Protector not initialized"
 
         if getattr(self.slaves, 'slave_lost_flag', False):
             return "Slave lost detected!"
 
-        # Pack level checks
+        # === Pack level ===
         if not (self.cfg.prot_min_pack_vol <= self.data.vpack <= self.cfg.prot_max_pack_vol):
             return f"Pack voltage {self.data.vpack:.2f}V out of limits!"
 
         if self.data.tpack > self.cfg.prot_max_temp:
-            return f"Pack temperature {self.data.tpack:.1f}°C too high!"
+            return f"Pack temp {self.data.tpack:.1f}°C too high!"
 
         if not (self.cfg.prot_min_current <= self.data.current <= self.cfg.prot_max_current):
             return f"Current {self.data.current:.1f}A out of limits!"
 
-        # Per-slave checks
+        # === Per-slave checks ===
+        invalid_count = 0
+        all_cells = []
+        all_temps = []
+        all_strings = []
+
         for s in self.slaves:
-            # Cell voltages – ignore unmeasured cells (-1.0)
+            # Cell voltages
             for i, vc in enumerate(s.battery.meas.vcell):
-                if vc > 0.5 and not (self.cfg.prot_min_cell_vol <= vc <= self.cfg.prot_max_cell_vol):
-                    return f"Cell {i} on slave {s.battery.info.addr} → {vc:.3f}V out of limits!"
+                if vc <= 0.5:
+                    invalid_count += 1
+                else:
+                    all_cells.append(vc)
+                    if not (self.cfg.prot_min_cell_vol <= vc <= self.cfg.prot_max_cell_vol):
+                        return f"Cell {i} on slave {s.battery.info.addr} → {vc:.3f}V out of limits!"
 
-            # Temperatures – ignore unmeasured (0.0 or negative)
+            # Temperatures
             for i, t in enumerate(s.battery.meas.temps):
-                if t > 0.0 and t > self.cfg.prot_max_temp:
-                    return f"Temp sensor {i} on slave {s.battery.info.addr} → {t:.1f}°C too high!"
+                if t > 0.0:
+                    all_temps.append(t)
+                    if t > self.cfg.prot_max_temp:
+                        return f"Temp {i} on slave {s.battery.info.addr} → {t:.1f}°C too high!"
 
-            # String voltage check
+            # String voltage
+            all_strings.append(s.battery.meas.vstr)
             if not (self.cfg.prot_min_str_vol <= s.battery.meas.vstr <= self.cfg.prot_max_str_vol):
-                return f"String voltage on slave {s.battery.info.addr} → {s.battery.meas.vstr:.2f}V out of limits!"
+                return f"String voltage slave {s.battery.info.addr} → {s.battery.meas.vstr:.2f}V out of limits!"
+
+        # === Additional global checks ===
+        if invalid_count > self.cfg.prot_max_invalid_cells:
+            return f"Too many invalid cell readings ({invalid_count})!"
+
+        if len(all_cells) >= 2:
+            if max(all_cells) - min(all_cells) > self.cfg.prot_max_cell_delta_vol:
+                return f"Cell voltage imbalance: {max(all_cells)-min(all_cells):.3f}V > limit"
+
+        if len(all_temps) >= 2:
+            if max(all_temps) - min(all_temps) > self.cfg.prot_max_temp_delta:
+                return f"Temperature spread: {max(all_temps)-min(all_temps):.1f}°C > limit"
+
+        if len(all_strings) >=2:
+            if max(all_strings) - min(all_strings) > self.cfg.prot_max_str_delta_vol:
+                return f"String imbalance: {max(all_cells)-min(all_cells):.3f}V > limit"
 
         return None
     
