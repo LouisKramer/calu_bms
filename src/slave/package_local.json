@@ -13,7 +13,8 @@
     ["lib/SN74HC154.py"     , "../lib/SN74HC154.py "],
     ["lib/virt_slave.py"    , "../lib/virt_slave.py"],
     ["lib/BMSnow.py"        , "../lib/BMSnow.py    "],
-    ["lib/BMSadc.py"        , "../lib/BMSadc.py"]
+    ["lib/BMSadc.py"        , "../lib/BMSadc.py"    ],
+    ["lib/BMSbal.py"        , "../lib/BMSbal.py"    ]
 
   ],
   "version": "0.1"
