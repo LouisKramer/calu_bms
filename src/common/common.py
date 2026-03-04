@@ -1,4 +1,7 @@
-from lib.BMSmqtt import *
+try:
+    from lib.BMSmqtt import *
+except:
+    pass
 from common.logger import Logger
 import ujson as json   # faster & smaller than json on MicroPython
 
@@ -104,13 +107,14 @@ class power_config(BaseConfig):
 
     def init_mqtt_entities(self):
         mqtt = get_BMSmqtt()
+        sub_device={"name":"Power Manager", "id": "pow0"}
         self._mqtt_map = {
-            "max_current":        Number("Max Charge Current",       0, 100, 0.5, self.max_current,        "A",  cb=self.update),
-            "under_voltage_cell": Number("Under Voltage Cell",       2.0, 3.0, 0.1, self.under_voltage_cell, "V",  cb=self.update),
-            "over_voltage_cell":  Number("Over Voltage Cell",        3.0, 4.5, 0.1, self.over_voltage_cell,  "V",  cb=self.update),
-            "charge_settle_time": Number("Charge Settle Time",       10, 3600, 10, self.charge_settle_time,  "s",  cb=self.update),
-            "soc_low_cutoff":     Number("SOC Low Cutoff",           0, 100, 1,   self.soc_low_cutoff,     "%",  cb=self.update),
-            "max_temp":           Number("Max Temperature",          0, 100, 1,   self.max_temp,           "°C", cb=self.update),
+            "max_current":        Number("Max Charge Current",       0, 100, 0.5, self.max_current,        "A",  cb=self.update  , sub_device = sub_device),
+            "under_voltage_cell": Number("Under Voltage Cell",       2.0, 3.0, 0.1, self.under_voltage_cell, "V",  cb=self.update, sub_device = sub_device),
+            "over_voltage_cell":  Number("Over Voltage Cell",        3.0, 4.5, 0.1, self.over_voltage_cell,  "V",  cb=self.update, sub_device = sub_device),
+            "charge_settle_time": Number("Charge Settle Time",       10, 3600, 10, self.charge_settle_time,  "s",  cb=self.update, sub_device = sub_device),
+            "soc_low_cutoff":     Number("SOC Low Cutoff",           0, 100, 1,   self.soc_low_cutoff,     "%",  cb=self.update  , sub_device = sub_device),
+            "max_temp":           Number("Max Temperature",          0, 100, 1,   self.max_temp,           "°C", cb=self.update  , sub_device = sub_device),
         }
         for e in self._mqtt_map.values():
             mqtt.add_entity(e)
@@ -165,26 +169,27 @@ class protection_config(BaseConfig):
 
     def init_mqtt_entities(self):
         mqtt = get_BMSmqtt()
+        sub_device={"name":"Protection Manager", "id": "prot0"}
         self._mqtt_map = {
-            "prot_rel_trigger_delay": Number("Protection Relay Trigger Delay", 5, 300, 1, self.prot_rel_trigger_delay, "s", cb=self.update),
-            "prot_max_inv_vol":       Number("Protection Max Inverter Voltage", 200, 1500, 10, self.prot_max_inv_vol, "V", cb=self.update),
-            "prot_min_inv_vol":       Number("Protection Min Inverter Voltage", 100, 800, 10, self.prot_min_inv_vol, "V", cb=self.update),
-            "prot_max_current":       Number("Protection Max Current", 10, 400, 1, self.prot_max_current, "A", cb=self.update),
-            "prot_min_current":       Number("Protection Min Current", -400, 10, 1, self.prot_min_current, "A", cb=self.update),
-            "prot_max_temp":          Number("Protection Max Temperature", 40, 100, 1, self.prot_max_temp, "°C", cb=self.update),
-            "prot_max_pack_vol":      Number("Protection Max Pack Voltage", 200, 1500, 10, self.prot_max_pack_vol, "V", cb=self.update),
-            "prot_min_pack_vol":      Number("Protection Min Pack Voltage", 100, 800, 10, self.prot_min_pack_vol, "V", cb=self.update),
-            "prot_max_str_vol":       Number("Protection Max String Voltage", 80, 200, 10, self.prot_max_str_vol, "V", cb=self.update),
-            "prot_min_str_vol":       Number("Protection Min String Voltage", 20, 80, 10, self.prot_min_str_vol, "V", cb=self.update),
-            "prot_max_cell_vol":      Number("Protection Max Cell Voltage", 3.4, 4.25, 0.05, self.prot_max_cell_vol, "V", cb=self.update),
-            "prot_min_cell_vol":      Number("Protection Min Cell Voltage", 2.3, 3.0, 0.05, self.prot_min_cell_vol, "V", cb=self.update),
-            "prot_stable_delay_seconds":      Number("Protection Mesurements stable delay", 1, 100, 1, self.prot_stable_delay_seconds, "s", cb=self.update),
-            "prot_precharge_vinv_threshold":  Number("Protection Inverter voltage threshold for precharge", 0.0, 100.0, 5.0, self.prot_precharge_vinv_threshold, "V", cb=self.update),
-            "prot_connect_delta_warn":        Number("Protection Inverter Contact delta Waring threshold", 0.0, 100.0, 5.0, self.prot_connect_delta_warn, "V", cb=self.update),
-            "prot_max_cell_delta_vol":        Number("Protection Max Cell Voltage delta", 0.01, 0.01, 0.5, self.prot_max_cell_delta_vol, "V", cb=self.update),
-            "prot_max_temp_delta":            Number("Protection Max Temp delta", 1.0, 10.0, 1.0, self.prot_max_temp_delta, "°C", cb=self.update),
-            "prot_max_invalid_cells":         Number("Protection Max Nr. invalid cells", 0, 128, 1, self.prot_max_invalid_cells, cb=self.update),
-            "prot_max_str_delta_vol":         Number("Protection Max String Voltage delta", 0.0, 100.0, 1.0, self.prot_max_str_delta_vol, "V", cb=self.update),
+            "prot_rel_trigger_delay": Number("Relay Trigger Delay", 5, 300, 1, self.prot_rel_trigger_delay, "s", cb=self.update, sub_device=sub_device),
+            "prot_max_inv_vol":       Number("Max Inverter Voltage", 200, 1500, 10, self.prot_max_inv_vol, "V", cb=self.update, sub_device=sub_device),
+            "prot_min_inv_vol":       Number("Min Inverter Voltage", 0, 800, 10, self.prot_min_inv_vol, "V", cb=self.update, sub_device=sub_device),
+            "prot_max_current":       Number("Max Current", 10, 400, 1, self.prot_max_current, "A", cb=self.update, sub_device=sub_device),
+            "prot_min_current":       Number("Min Current", -400, 10, 1, self.prot_min_current, "A", cb=self.update, sub_device=sub_device),
+            "prot_max_temp":          Number("Max Temperature", 40, 100, 1, self.prot_max_temp, "°C", cb=self.update, sub_device=sub_device),
+            "prot_max_pack_vol":      Number("Max Pack Voltage", 200, 1500, 10, self.prot_max_pack_vol, "V", cb=self.update, sub_device=sub_device),
+            "prot_min_pack_vol":      Number("Min Pack Voltage", 30, 800, 10, self.prot_min_pack_vol, "V", cb=self.update, sub_device=sub_device),
+            "prot_max_str_vol":       Number("Max String Voltage", 80, 200, 10, self.prot_max_str_vol, "V", cb=self.update, sub_device=sub_device),
+            "prot_min_str_vol":       Number("Min String Voltage", 20, 80, 10, self.prot_min_str_vol, "V", cb=self.update, sub_device=sub_device),
+            "prot_max_cell_vol":      Number("Max Cell Voltage", 3.4, 4.25, 0.05, self.prot_max_cell_vol, "V", cb=self.update, sub_device=sub_device),
+            "prot_min_cell_vol":      Number("Min Cell Voltage", 2.3, 3.0, 0.05, self.prot_min_cell_vol, "V", cb=self.update, sub_device=sub_device),
+            "prot_stable_delay_seconds":      Number("Mesurements stable delay", 1, 100, 1, self.prot_stable_delay_seconds, "s", cb=self.update, sub_device=sub_device),
+            "prot_precharge_vinv_threshold":  Number("Inverter voltage threshold for precharge", 0.0, 100.0, 5.0, self.prot_precharge_vinv_threshold, "V", cb=self.update, sub_device=sub_device),
+            "prot_connect_delta_warn":        Number("Inverter Contact delta Waring threshold", 0.0, 100.0, 5.0, self.prot_connect_delta_warn, "V", cb=self.update, sub_device=sub_device),
+            "prot_max_cell_delta_vol":        Number("Max Cell Voltage delta", 0.01, 0.5, 0.01, self.prot_max_cell_delta_vol, "V", cb=self.update, sub_device=sub_device),
+            "prot_max_temp_delta":            Number("Max Temp delta", 1.0, 10.0, 1.0, self.prot_max_temp_delta, "°C", cb=self.update, sub_device=sub_device),
+            "prot_max_invalid_cells":         Number("Max Nr invalid cells", 0, 128, 1, self.prot_max_invalid_cells, cb=self.update, sub_device=sub_device),
+            "prot_max_str_delta_vol":         Number("Max String Voltage delta", 0.0, 100.0, 1.0, self.prot_max_str_delta_vol, "V", cb=self.update, sub_device=sub_device),
         }
         for e in self._mqtt_map.values():
             mqtt.add_entity(e)
@@ -216,19 +221,20 @@ class soc_config(BaseConfig):
 
     def init_mqtt_entities(self):
         mqtt = get_BMSmqtt()
+        soc_device={"name":"SOC Manager", "id": "soc0"}
         self._mqtt_map = {
-            "capacity_ah":                Number("Battery Capacity (Ah)", 10.0, 1000.0, 10.0, self.capacity_ah, "Ah", cb=self.update),
-            "initial_soc":                Number("Initial SOC (%)", 0.0, 100.0, 1.0, self.initial_soc, "%", cb=self.update),
-            "cell_ir":                    Number("Cell Internal Resistance (mΩ)", 1, 10, 1, self.cell_ir*1000, "mΩ", cb=self.update),
-            "ir_ref_temp":                Number("IR Reference Temperature (°C)", 15.0, 35.0, 1.0, self.ir_ref_temp, "°C", cb=self.update),
-            "ir_temp_coeff":              Number("IR Temperature Coefficient (%/°C)", 0.0, 2, 0.1, self.ir_temp_coeff*100, "%/°C", cb=self.update),
-            "current_threshold":          Number("Current Threshold (A)", 0.0, 2.0, 0.1, self.current_threshold, "A", cb=self.update),
-            "voltage_stable_threshold":   Number("Voltage Stable Threshold (V)", 0.001, 0.05, 0.001, self.voltage_stable_threshold, "V", cb=self.update),
-            "relaxed_hold_time":          Number("Relaxed Hold Time (s)", 10.0, 200.0, 10.0, self.relaxed_hold_time, "s", cb=self.update),
-            "sampling_interval":          Number("Sampling Interval (s)", 0.5, 100.0, 0.5, self.sampling_interval, "s", cb=self.update),
-            "charge_efficiency":          Number("Charge Efficiency", 0.90, 1.0, 0.01, self.charge_efficiency, mode="slider", unit="%", cb=self.update),
-            "discharge_efficiency":       Number("Discharge Efficiency", 0.95, 1.0, 0.01, self.discharge_efficiency, mode="slider", unit="%", cb=self.update),
-            "design_cycle_life":          Number("Design Cycle Life", 500, 8000, 100, self.design_cycle_life, mode="slider", unit="cycles", cb=self.update)
+            "capacity_ah":                Number("Battery Capacity", 10.0, 1000.0, 10.0, self.capacity_ah, "Ah", cb=self.update, sub_device = soc_device),
+            "initial_soc":                Number("Initial SOC", 0.0, 100.0, 1.0, self.initial_soc, "%", cb=self.update, sub_device = soc_device),
+            "cell_ir":                    Number("Cell Internal Resistance", 1, 10, 1, self.cell_ir*1000, "mΩ", cb=self.update, sub_device = soc_device),
+            "ir_ref_temp":                Number("IR Reference Temperature", 15.0, 35.0, 1.0, self.ir_ref_temp, "°C", cb=self.update, sub_device = soc_device),
+            "ir_temp_coeff":              Number("IR Temperature Coefficient", 0.0, 2, 0.1, self.ir_temp_coeff*100, "%/°C", cb=self.update, sub_device = soc_device),
+            "current_threshold":          Number("Current Threshold", 0.0, 2.0, 0.1, self.current_threshold, "A", cb=self.update, sub_device = soc_device),
+            "voltage_stable_threshold":   Number("Voltage Stable Threshold", 0.001, 0.05, 0.001, self.voltage_stable_threshold, "V", cb=self.update, sub_device = soc_device),
+            "relaxed_hold_time":          Number("Relaxed Hold Time", 10.0, 200.0, 10.0, self.relaxed_hold_time, "s", cb=self.update, sub_device = soc_device),
+            "sampling_interval":          Number("Sampling Interval", 0.5, 100.0, 0.5, self.sampling_interval, "s", cb=self.update, sub_device = soc_device),
+            "charge_efficiency":          Number("Charge Efficiency", 0.90, 1.0, 0.01, self.charge_efficiency, unit="%", cb=self.update, sub_device = soc_device),
+            "discharge_efficiency":       Number("Discharge Efficiency", 0.95, 1.0, 0.01, self.discharge_efficiency, unit="%", cb=self.update, sub_device = soc_device),
+            "design_cycle_life":          Number("Design Cycle Life", 500, 8000, 100, self.design_cycle_life, unit="cycles", cb=self.update, sub_device = soc_device)
         }
         for e in self._mqtt_map.values():
             mqtt.add_entity(e)

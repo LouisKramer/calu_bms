@@ -33,7 +33,7 @@ class BatterySOC:
         self.voltage_history = deque([], 10)
 
         # Load persisted state
-        if not self.load_state(self, "soc_state.json"):
+        if not self.load_state("soc_state.json"):
             self.log.info("No saved state → starting fresh")
 
     def _build_pack_table(self):

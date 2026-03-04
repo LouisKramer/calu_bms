@@ -12,7 +12,8 @@
     ["lib/SN74HC154.py"     , "github:LouisKramer/calu_bms/src/lib/SN74HC154.py "],
     ["lib/virt_slave.py"    , "github:LouisKramer/calu_bms/src/lib/virt_slave.py"],
     ["lib/BMSnow.py"        , "github:LouisKramer/calu_bms/src/lib/BMSnow.py    "],
-    ["lib/BMSadc.py"        , "github:LouisKramer/calu_bms/src/lib/BMSadc.py"]
+    ["lib/BMSadc.py"        , "github:LouisKramer/calu_bms/src/lib/BMSadc.py"],
+    ["lib/BMSbal.py"        , "github:LouisKramer/calu_bms/src/lib/BMSbal.py"]
   ],
   "version": "0.1"
 }

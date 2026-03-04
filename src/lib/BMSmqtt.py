@@ -11,12 +11,13 @@ from umqtt.robust import MQTTClient
 #          Base Entity Class
 # ───────────────────────────────────────────────
 class Entity:
-    def __init__(self, name, entity_id=None):
+    def __init__(self, name, entity_id=None, icon=None):
         self.name = name
         self.entity_id = entity_id or name.lower().replace(" ", "_")
         self.unique_id = None
         self.state_topic = None
         self.device_info = None
+        self.icon = icon
         self.bmsmqtt_dev = get_BMSmqtt()
         
         # NEW: Flag to prevent state publishing until discovery config has been sent
@@ -38,10 +39,9 @@ class Entity:
 # ───────────────────────────────────────────────
 class Sensor(Entity):
     def __init__(self, name, unit=None, device_class=None, icon=None, sub_device=None):
-        super().__init__(name)
+        super().__init__(name, icon=None)
         self.unit = unit
         self.device_class = device_class
-        self.icon = icon
         self.value = 0.0
         self.sub_device = sub_device # e.g.{"name": "Slave", "id": "slave_x"}
     
@@ -65,7 +65,7 @@ class Sensor(Entity):
                 "identifiers": [f"{self.bmsmqtt_dev.device_id}_{self.sub_device['id']}"],
                 "via_device": self.bmsmqtt_dev.device_id,
                 "model": "BMS Submodule",
-                "manufacturer": "DIY",
+                "manufacturer": "CALU",
             }
         else:
             payload["device"] = self.device_info
@@ -84,8 +84,8 @@ class Sensor(Entity):
 # ───────────────────────────────────────────────
 class Number(Entity):
     def __init__(self, name, min_val=0, max_val=100, step=1, default=None, unit=None,
-                 mode="slider", sub_device=None, cb=None):
-        super().__init__(name)
+                 mode="box", sub_device=None, cb=None, icon=None):
+        super().__init__(name, icon=None)
         self.min_val = min_val
         self.max_val = max_val
         self.step = step
@@ -111,13 +111,16 @@ class Number(Entity):
         if self.unit:
             payload["unit_of_measurement"] = self.unit
 
+        if self.icon:
+            payload["icon"] = self.icon
+
         if self.sub_device:
             payload["device"] = {
                 "name": self.sub_device["name"],
                 "identifiers": [f"{self.bmsmqtt_dev.device_id}_{self.sub_device['id']}"],
                 "via_device": self.bmsmqtt_dev.device_id,
                 "model": "BMS Submodule",
-                "manufacturer": "DIY",
+                "manufacturer": "CALU",
             }
         else:
             payload["device"] = self.device_info
@@ -143,10 +146,11 @@ class Number(Entity):
 class Switch(Entity):
     """Home Assistant Switch entity (controllable ON/OFF)"""
     
-    def __init__(self, name):
-        super().__init__(name)
+    def __init__(self, name, icon=None, sub_device = None):
+        super().__init__(name, icon=None)
         self.value = False
         self.command_topic = None
+        self.sub_device = sub_device
     
     def get_discovery_payload(self):
         payload = {
@@ -161,6 +165,19 @@ class Switch(Entity):
             "state_off": "OFF",
             "device": self.device_info
         }
+        if self.icon:
+            payload["icon"] = self.icon
+
+        if self.sub_device:
+            payload["device"] = {
+                "name": self.sub_device["name"],
+                "identifiers": [f"{self.bmsmqtt_dev.device_id}_{self.sub_device['id']}"],
+                "via_device": self.bmsmqtt_dev.device_id,
+                "model": "BMS Submodule",
+                "manufacturer": "CALU",
+            }
+        else:
+            payload["device"] = self.device_info
         return payload
     
     def get_state_value(self):
@@ -183,10 +200,9 @@ class BinarySensor(Entity):
     """Home Assistant Binary Sensor (read-only ON/OFF state)"""
     
     def __init__(self, name, device_class=None, icon=None, sub_device=None):
-        super().__init__(name)
+        super().__init__(name, icon=None)
         self.value = False
         self.device_class = device_class
-        self.icon = icon
         self.sub_device = sub_device
     
     def get_discovery_payload(self):
@@ -209,7 +225,7 @@ class BinarySensor(Entity):
                 "identifiers": [f"{self.bmsmqtt_dev.device_id}_{self.sub_device['id']}"],
                 "via_device": self.bmsmqtt_dev.device_id,
                 "model": "BMS Submodule",
-                "manufacturer": "DIY",
+                "manufacturer": "CALU",
             }
         else:
             payload["device"] = self.device_info
@@ -232,11 +248,12 @@ class BinarySensor(Entity):
 class Select(Entity):
     """Home Assistant Select entity (dropdown with options)"""
     
-    def __init__(self, name, options, default=None):
-        super().__init__(name)
+    def __init__(self, name, options, default=None, icon=None, sub_device=None):
+        super().__init__(name, icon=None)
         self.options = options
         self.value = default if default in options else options[0]
         self.command_topic = None
+        self.sub_device = sub_device
     
     def get_discovery_payload(self):
         payload = {
@@ -248,6 +265,19 @@ class Select(Entity):
             "options": self.options,
             "device": self.device_info
         }
+        if self.icon:
+            payload["icon"] = self.icon
+        if self.sub_device:
+            payload["device"] = {
+                "name": self.sub_device["name"],
+                "identifiers": [f"{self.bmsmqtt_dev.device_id}_{self.sub_device['id']}"],
+                "via_device": self.bmsmqtt_dev.device_id,
+                "model": "BMS Submodule",
+                "manufacturer": "CALU",
+            }
+        else:
+            payload["device"] = self.device_info
+        payload["device"] = self.device_info
         return payload
     
     def get_state_value(self):
@@ -279,8 +309,8 @@ class Text(Entity):
     Home Assistant Text entity (free-form text input/output)
     """
     
-    def __init__(self, name, default="", max_length=255, sub_device=None):
-        super().__init__(name)
+    def __init__(self, name, default="", max_length=255, icon=None, sub_device=None):
+        super().__init__(name, icon=None)
         self.value = default
         self.max_length = max_length
         self.command_topic = None
@@ -296,13 +326,16 @@ class Text(Entity):
             "max": self.max_length,
             "mode": "text",
         }
+        if self.icon:
+            payload["icon"] = self.icon
+
         if self.sub_device:
             payload["device"] = {
                 "name": self.sub_device["name"],
                 "identifiers": [f"{self.bmsmqtt_dev.device_id}_{self.sub_device['id']}"],
                 "via_device": self.bmsmqtt_dev.device_id,
                 "model": "BMS Submodule",
-                "manufacturer": "DIY",
+                "manufacturer": "CALU",
             }
         else:
             payload["device"] = self.device_info
@@ -347,7 +380,7 @@ class BMSmqtt:
         self.device_info = {
             "identifiers": [device_id],
             "name": device_name,
-            "manufacturer": "DIY",
+            "manufacturer": "CALU",
             "model": "ESP32 MicroPython"
         }
 
@@ -374,17 +407,18 @@ class BMSmqtt:
             self.mqtt_client.connect(clean_session=False)
             self.log.info("MQTT connected")
             self.mqtt_client.publish(self.availability_topic, b"online", retain=True, qos=0)
-            self._subscribe_all_commands()
+            #await self._subscribe_all_commands()
             self.connected = True
         except Exception as e:
             self.log.warn(f"MQTT connect failed: {e}")
 
-    def _subscribe_all_commands(self):
+    async def _subscribe_all_commands(self):
         if not self.mqtt_client: return
         for entity in self.entities:
             if hasattr(entity, "command_topic") and entity.command_topic:
                 try:
-                    self.mqtt_client.subscribe(entity.command_topic, qos=0)
+                    self.log.info(f"MQTT subscribe: {entity.name}")
+                    self.mqtt_client.subscribe(entity.command_topic, qos=1)
                 except Exception as e:
                     self.log.warn(f"Subscribe failed: {e}")
 
@@ -398,17 +432,29 @@ class BMSmqtt:
 
         self.entities.append(entity)
         self.has_undiscovered_entities = True 
-        self.log.info(f"Entity added: {entity.name} (auto-discovery enabled)")
+        self.log.info(f"Entity added: {entity.name}")
         return entity
 
-    def _publish_discovery(self, entity, component):
+    async def _publish_discovery(self, entity, component):
+        """Publish discovery config with qos=1 + immediate ACK processing"""
         topic = entity.get_discovery_topic(component)
-        payload = json.dumps(entity.get_discovery_payload())
-        self.mqtt_client.publish(topic, payload, retain=True, qos=1)
-        entity.discovered = True
-        self.log.info(f"Discovery published: {entity.name}")
+        payload_str = json.dumps(entity.get_discovery_payload())
+        payload = payload_str.encode('utf-8')
 
-    def publish_discovery(self):
+        try:
+            self.log.info(f"Discovery published (qos=1): {entity.name}, size={len(payload)} bytes, topic= {topic}")
+            self.mqtt_client.publish(topic, payload, retain=True, qos=1)
+            entity.discovered = True
+            for _ in range(3):      
+                self.mqtt_client.check_msg()
+                await asyncio.sleep_ms(1)
+
+        except Exception as e:
+            self.log.error(f"Discovery publish failed for {entity.name}: {e}")
+            entity.discovered = False
+        
+
+    async def publish_discovery(self):
         self.log.info(f"Initial discovery for {len(self.entities)} entities...")
         for entity in self.entities:
             if   isinstance(entity, Sensor):       component = "sensor"
@@ -418,9 +464,10 @@ class BMSmqtt:
             elif isinstance(entity, Select):       component = "select"
             elif isinstance(entity, Text):         component = "text"
             else: continue
-            self._publish_discovery(entity, component)
+            await self._publish_discovery(entity, component)
 
-    def publish_pending_discoveries(self):
+
+    async def publish_pending_discoveries(self):
         pending = [e for e in self.entities if not e.discovered]
         if not pending:
             self.has_undiscovered_entities = False
@@ -436,13 +483,13 @@ class BMSmqtt:
             elif isinstance(entity, Select):       component = "select"
             elif isinstance(entity, Text):         component = "text"
             else: continue
-            self._publish_discovery(entity, component)
+            await self._publish_discovery(entity, component)
             count += 1
 
         self.has_undiscovered_entities = any(not e.discovered for e in self.entities)
         return count
 
-    def publish_runtime_entity(self, entity: Entity):
+    async def publish_runtime_entity(self, entity: Entity):
         if isinstance(entity, Sensor):       component = "sensor"
         elif isinstance(entity, Number):     component = "number"
         elif isinstance(entity, Switch):     component = "switch"
@@ -450,7 +497,7 @@ class BMSmqtt:
         elif isinstance(entity, Select):     component = "select"
         elif isinstance(entity, Text):       component = "text"
         else: return
-        self._publish_discovery(entity, component)
+        await self._publish_discovery(entity, component)
         self.publish_state()
 
     def _on_message(self, topic, msg):
@@ -476,15 +523,14 @@ class BMSmqtt:
         """Optimized main loop – decoupled timers + smart flag"""
         while True:
             if self.connected:
-                self._subscribe_all_commands()
-                await asyncio.sleep(2)
-                self.publish_discovery()
-                await asyncio.sleep(2)
+                await self._subscribe_all_commands()
+                await asyncio.sleep(1)
+                await self.publish_discovery()
+                await asyncio.sleep(1)
                 self.publish_state()
                 await asyncio.sleep(1)
 
                 # Initialize independent timers
-                self.last_discovery_scan = utime.ticks_ms()
                 self.has_undiscovered_entities = False   # initial discovery complete
 
                 while True:
@@ -494,24 +540,22 @@ class BMSmqtt:
                         now = utime.ticks_ms()
 
                         # ───── OPTIMIZED DISCOVERY SCAN (exactly every 30s when needed) ─────
-                        if (self.has_undiscovered_entities and
-                            utime.ticks_diff(now, self.last_discovery_scan) >= self.discovery_scan_interval * 1000):
-                            count = self.publish_pending_discoveries()
+                        if (self.has_undiscovered_entities):
+                            count = await self.publish_pending_discoveries()
                             if count > 0:
-                                await asyncio.sleep(2)      # HA needs to process new config
+                                await asyncio.sleep(1)      # HA needs to process new config
                                 self.publish_state()
-                            self.last_discovery_scan = now
                         # ────────────────────────────────────────────────────────────────
 
                         self.publish_state()
-                        await asyncio.sleep(2)   # short sleep = responsive MQTT + accurate timers
+                        await asyncio.sleep(1)   # short sleep = responsive MQTT + accurate timers
 
                     except Exception as e:
                         self.log.error(f"MQTT loop error: {e}")
                         await asyncio.sleep(30)
             else:
                 self._connect_mqtt()
-            await asyncio.sleep(60)
+            await asyncio.sleep(5)
 
 BMSmqtt_dev = None
 

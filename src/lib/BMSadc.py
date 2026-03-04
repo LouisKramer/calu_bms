@@ -85,7 +85,7 @@ class BMSadc:
                 pga=pga,
                 data_rate=data_rate
             )
-            self.decoder.deselect(i + 1)
+            self.decoder.deselect()
             await asyncio.sleep_ms(1)
 
     async def read_one_round(self, bat: battery):
@@ -106,7 +106,7 @@ class BMSadc:
             elif i == 11 and idx == 1:   # ADC11 second channel → Vstr2
                 self.v_str2 = vol if vol is not None else 0.0
 
-            self.decoder.deselect(i + 1)
+            self.decoder.deselect()
 
         # Update total string voltage once per round and store it
         self.v_str = self.v_str1 + self.v_str2
