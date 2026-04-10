@@ -45,7 +45,7 @@ class BMSbal:
             self._task.cancel()
 
         self.phase_duration_ms = phase_duration_ms
-        self._task = asyncio.create_task(self._main_task(), name="CellBalancer")
+        self._task = asyncio.create_task(self._main_task())
         self.log.info(f"CellBalancer started (phase = {phase_duration_ms} ms)")
 
     async def stop(self):

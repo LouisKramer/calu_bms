@@ -4,7 +4,7 @@ from machine import Pin, SoftSPI, SoftI2C, RTC
 from common.HAL import slave_hal as HAL
 import asyncio
 from common.logger import Logger
-from common.common import *
+from common.common import battery
 from common.credentials import *
 
 from lib.PCA9685 import *
@@ -74,10 +74,10 @@ async def main():
     log.info("Init Balancing")
     # Initialize PCA9685
     pca1=PCA9685(i2c, address=0x40)
-    pca2=PCA9685(i2c, address=0x41)
-    bal = BMSbal([pca1, pca2])
+    #pca2=PCA9685(i2c, address=0x41)
+    bal = BMSbal([pca1])
     await bal.start(phase_duration_ms=250)
-    bal.enable_auto()
+    bal.enable_auto(bat=bat)
             
     log.info("Init BMS Slave")
     slave = BMSnowSlave(bat)

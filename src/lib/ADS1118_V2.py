@@ -80,7 +80,7 @@ class ADS1118:
         rx = bytearray(2)
         self.spi.write_readinto(b'\x00\x00', rx)
         self._deselect()
-        return int.from_bytes(rx, 'big', signed=True)
+        return int.from_bytes(rx, 'big', True)
 
     # ====================== SINGLE-SHOT ======================
     async def read(self, mux=MUX_AIN0_AIN1, pga=None, data_rate=None, gain = 1.0):
@@ -192,6 +192,9 @@ class ADS1118:
         await asyncio.sleep_ms(5)
 
         raw = await self._read_raw()
+        if raw & 0x8000:  # Check MSB for negative values
+            raw =  raw - 0x10000  # Convert to signed (-32768 to 32767)
+        raw = raw >> 2
         temp = raw * 0.03125
         temp = round(temp, 2)
         return temp

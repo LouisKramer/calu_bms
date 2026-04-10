@@ -2,10 +2,9 @@ import network
 import uasyncio as asyncio
 import time
 from machine import Pin
-from enum import Enum
 
 
-class WlanState(Enum):
+class WlanState():
     DISCONNECTED = 0
     CONNECTING   = 1
     CONNECTED    = 2

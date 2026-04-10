@@ -10,7 +10,7 @@ from lib.ACS71240 import *
 from lib.ADS1118_V2 import ADS1118
 from lib.DS18B20 import *
 from lib.RELAY import *
-from lib.SOC import BatterySOC, autosave_task
+from lib.SOC import BatterySOC
 from lib.NTP import *
 from lib.virt_slave import *
 from lib.BMSnow import BMSnowMaster
@@ -23,7 +23,7 @@ from lib.BMSmqtt import get_BMSmqtt
 # ========================================
 # Config
 # ========================================
-MQTT_ENABLE = False
+MQTT_ENABLE = True
 Logger.init(syslog_host=SYSLOG_HOST)
 cfg = init_config()
 cfg_bms  = bms_config()
