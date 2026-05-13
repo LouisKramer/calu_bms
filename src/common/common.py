@@ -27,7 +27,7 @@ class BaseConfig:
         self.config.save()
         self.log.info(f"{self._section_name} saved")
 
-    def update(self):
+    def update(self, _value=None):
         if self.mqtt_enable:
             """Called automatically by MQTT Number callbacks"""
             for attr, entity in self._mqtt_map.items():
@@ -54,6 +54,7 @@ class bms_config(BaseConfig):
         }
         for e in self._mqtt_map.values():
             mqtt.add_entity(e)
+        self.mqtt_enable = True
 # ==============================================================
 # can_config
 # ==============================================================
