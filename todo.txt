@@ -1,18 +1,22 @@
 TODO:
-- update folder struct
-- script for data deploymetent to target over USB 
-- HW Slave 1.3.0.0:
-    - Add dip-switch (4bit --> max. 16 strings) to set string position.
-    - 
+- HW Slave 2.0.1.x:
+    - I2C pull-ups go to 3V3 but PCA9685 runs at 5V (VIH = 3.5V) -> out of spec
+    - Bleed resistors 5.1R/2512: ~2.5W at 100% duty -> cooling or higher R
+    - Unequal cell load (divider currents, buck from BA16+ only)
+    - USB GND = pack negative -> isolation needed when cells are connected
 - HW Master 1.x.x.x:
-    - 
+    - provide schematic for SW restart
 - HW Active Balancer 1.0.0.0:
     - Routing PCB
 - HW Teststand 1.x.x.x
     - develop concept
 
-- SW Slave 1.0.0.0:
-    - Remove magic numbers.
-    - Develop "FSM" --> DONE
-    - Error handling HAL
-    - FTP server for OTA updates
+- SW Slave (clean restart on branch slave-hw-2.0.1.0):
+    - HW bring-up on USB only (make bringup)
+    - Cell measurement + divider calibration with real cells
+    - Balancing test (single channel, then duty limit)
+    - Slave application (state machine, config, string address from DIP)
+    - Master <-> slave protocol (ESP-NOW), re-implemented
+    - FTP server / OTA updates
+- SW Master:
+    - re-implement on new HW (old code on main)

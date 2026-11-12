@@ -10,7 +10,6 @@ PORT     ?=
 ESPPORT  ?=
 
 FW_BINARY := bin/ESP32_GENERIC_S3-SPIRAM_OCT-20250911-v1.26.1.bin
-REQUIREMENTS_MASTER := src/master/requirements.txt
 REQUIREMENTS_SLAVE  := src/slave/requirements.txt
 UPLOAD := $(PYTHON) tools/upload.py $(if $(PORT),--port $(PORT))
 
@@ -26,20 +25,10 @@ all_slave: check
 	$(UPLOAD) $(REQUIREMENTS_SLAVE) --clean
 	$(MPREMOTE) reset
 
-.PHONY: all_master
-all_master: check
-	@echo === DEPLOYING MASTER ===
-	$(UPLOAD) $(REQUIREMENTS_MASTER) --clean
-	$(MPREMOTE) reset
-
 # Upload without wiping the device
 .PHONY: appl_slave
 appl_slave:
 	$(UPLOAD) $(REQUIREMENTS_SLAVE)
-
-.PHONY: appl_master
-appl_master:
-	$(UPLOAD) $(REQUIREMENTS_MASTER)
 
 # Program MicroPython firmware (erases the whole flash, including /data)
 .PHONY: fw
@@ -73,12 +62,7 @@ repl:
 ls:
 	$(MPREMOTE) tree :
 
-# Run the uploaded application in the foreground with live output (Ctrl+C to stop)
-.PHONY: run
-run:
-	$(MPREMOTE) exec "import main"
-
-# Slave hardware bring-up checks (needs appl_slave first for the libraries)
+# Slave hardware bring-up checks (runs local script; libraries come from appl_slave/all_slave)
 .PHONY: bringup
 bringup:
 	$(MPREMOTE) run src/slave/bringup.py
@@ -97,16 +81,13 @@ tools:
 help:
 	@echo Available targets:
 	@echo   make all_slave      check, wipe device (keeps /data), upload slave, reset
-	@echo   make all_master     same for master
 	@echo   make appl_slave     upload slave files without wiping
-	@echo   make appl_master    upload master files without wiping
 	@echo   make fw             flash MicroPython firmware (erases everything)
-	@echo   make reset          hard reset (starts main.py)
+	@echo   make reset          hard reset (starts main.py if present)
 	@echo   make soft_reset     restart interpreter into raw REPL (main.py not run)
 	@echo   make clean          delete all files on device except /data
 	@echo   make repl           interactive REPL
 	@echo   make ls             list files on device
-	@echo   make run            run main.py in foreground with live output
 	@echo   make bringup        slave hardware bring-up checks
 	@echo   make check          MicroPython syntax check of src/
 	@echo   make tools          pip install mpremote, esptool, mpy-cross
