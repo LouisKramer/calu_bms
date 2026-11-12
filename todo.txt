@@ -1,9 +1,8 @@
 TODO:
-- HW Slave 2.0.1.x:
-    - I2C pull-ups go to 3V3 but PCA9685 runs at 5V (VIH = 3.5V) -> out of spec
-    - Bleed resistors 5.1R/2512: ~2.5W at 100% duty -> cooling or higher R
-    - Unequal cell load (divider currents, buck from BA16+ only)
-    - USB GND = pack negative -> isolation needed when cells are connected
+- HW Slave 3.0.0.0 (flying capacitor, see hw/CALU_BMS_Slave_3_0_0_0_schematic.md):
+    - enter schematic in EasyEDA, verify PhotoMOS ratings, LM5164 values (WEBENCH)
+    - layout with HV clearance >= 1 mm, prototype with 4 cells
+- HW Slave 2.0.1.x: skipped (divider drift, uneven cell load)
 - HW Master 1.x.x.x:
     - provide schematic for SW restart
 - HW Active Balancer 1.0.0.0:
