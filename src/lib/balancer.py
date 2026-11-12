@@ -3,30 +3,36 @@ import asyncio
 import time
 from lib.PCA9685 import PCA9685
 
-CELL_V_MAX = 3.65   # worst-case cell voltage used for the resistor power estimate
+CELL_V_MAX = 3.65   # worst-case cell voltage for the resistor power estimate
 
 
 class Balancer:
     """
     Physical cell n (1..32) is PCA9685 #((n-1)//16), channel (n-1)%16.
-    All outputs are forced off at start-up. Any active command expires after
-    `timeout_s` unless refreshed, so a hung control loop cannot keep bleeding cells.
+
+    Every PCA9685 on the board is forced off at start-up, including one whose cells are
+    not configured: it keeps its outputs across an ESP32 reset. An active command expires
+    after `timeout_s` unless refreshed by apply(), so a hung control loop cannot keep
+    bleeding cells (a crashed interpreter needs the hardware WDT on top of this).
     """
 
     def __init__(self, i2c, addrs, allowed_cells, max_duty=38, pwm_freq=100,
-                 resistor_ohm=5.1, resistor_rated_w=1.0, timeout_s=30, log=None):
-        self.log = log
+                 resistor_ohm=5.1, resistor_rated_w=1.0, timeout_s=30, warn=None):
+        self._warn = warn or (lambda msg: print("[W] balancer |", msg))
         self.allowed = set(allowed_cells)
         self.resistor_ohm = resistor_ohm
         self.resistor_rated_w = resistor_rated_w
         self.timeout_ms = int(timeout_s * 1000)
-        nr_pca = 2 if any(c > 16 for c in self.allowed) else 1
         self.pcas = []
-        for a in addrs[:nr_pca]:
-            p = PCA9685(i2c, address=a)
-            p.set_pwm_freq(pwm_freq)
-            p.all_off()
-            self.pcas.append(p)
+        for i, a in enumerate(addrs):
+            needed = any((c - 1) // 16 == i for c in self.allowed)
+            try:
+                self.pcas.append(PCA9685(i2c, address=a, freq=pwm_freq))
+            except OSError:
+                if needed:
+                    raise OSError(f"PCA9685 0x{a:02x} for configured cells not responding")
+                self._warn(f"PCA9685 0x{a:02x} not responding (no configured cells)")
+                self.pcas.append(None)
         self.max_duty = 0
         self.set_max_duty(max_duty)
         self._active = {}            # cell -> duty
@@ -49,33 +55,29 @@ class Balancer:
         self.max_duty = duty
         if duty > self.cooling_threshold:
             self._warn(
-                f"Balancing max duty {duty}% -> ~{self.resistor_power(duty):.1f} W per resistor "
+                f"max duty {duty}% -> ~{self.resistor_power(duty):.1f} W per resistor "
                 f"(rated {self.resistor_rated_w} W, limit {self.cooling_threshold}%): "
                 "bleed resistors need passive cooling (heatsink/airflow)!")
 
     # ------------------------------------------------------------------
-    def _warn(self, msg):
-        if self.log:
-            self.log.warn(msg, ctx="balancer")
-        else:
-            print("[W] balancer |", msg)
-
     def _write(self, cell, duty):
-        pca = self.pcas[(cell - 1) // 16]
-        pca.set_duty((cell - 1) % 16, duty)
+        self.pcas[(cell - 1) // 16].set_duty((cell - 1) % 16, duty)
+
+    def _all_pcas_off(self):
+        for p in self.pcas:
+            if p:
+                p.all_off()
 
     def apply(self, cells, duty=None):
         """
-        Balance exactly the given physical cells (others off).
+        Balance exactly the given physical cells (all others off) and refresh the timeout.
         duty defaults to max_duty and is clamped to it.
         """
         duty = self.max_duty if duty is None else min(duty, self.max_duty)
-        wanted = {}
         for c in cells:
             if c not in self.allowed:
                 raise ValueError(f"cell {c} not configured for balancing")
-            if duty > 0:
-                wanted[c] = duty
+        wanted = {c: duty for c in cells} if duty > 0 else {}
         if not self._paused:
             for c in self._active:
                 if c not in wanted:
@@ -87,8 +89,7 @@ class Balancer:
         self._last_cmd = time.ticks_ms()
 
     def all_off(self):
-        for p in self.pcas:
-            p.all_off()
+        self._all_pcas_off()
         self._active = {}
 
     @property
@@ -96,12 +97,11 @@ class Balancer:
         return sorted(self._active)
 
     # ------------------------------------------------------------------
-    # Measurement window: tap wires carry bleed current, which falsifies readings
+    # Measurement window: bleed current flows through the tap wires and falsifies readings
     # ------------------------------------------------------------------
     def pause(self):
         if not self._paused:
-            for p in self.pcas:
-                p.all_off()
+            self._all_pcas_off()
             self._paused = True
 
     def resume(self):
@@ -114,6 +114,6 @@ class Balancer:
     async def watchdog_task(self, period_s=1):
         while True:
             if self._active and time.ticks_diff(time.ticks_ms(), self._last_cmd) > self.timeout_ms:
-                self._warn("No balancing command within timeout -> all off")
+                self._warn("no balancing command within timeout -> all off")
                 self.all_off()
             await asyncio.sleep(period_s)

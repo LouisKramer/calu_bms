@@ -7,9 +7,8 @@ The previous code (master, ADES1830 slave, SOC, protection, CAN, ...) is still a
 
 ## Layout
 
-    src/common/   shared code (logger)
     src/lib/      drivers (ADS1118, PCA9685, SN74HC154) and modules (cell_monitor, balancer)
-    src/slave/    slave HW map, boot.py, bring-up script, requirements.txt (upload mapping)
+    src/slave/    slave HW map (hw.py), boot.py, bring-up script, requirements.txt (upload mapping)
     tools/        upload.py, check.py
     hw/           EasyEDA slave project and datasheets
 

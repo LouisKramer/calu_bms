@@ -1,5 +1,4 @@
 # local path     destination path
-../common/logger.py         ./common/logger.py
 ../slave/boot.py            ./boot.py
 ../slave/hw.py              ./hw.py
 ../slave/bringup.py         ./bringup.py
