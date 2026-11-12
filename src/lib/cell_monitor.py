@@ -1,6 +1,7 @@
 # cell_monitor.py - Cell voltage acquisition for CALU BMS slave (12x ADS1118 behind SN74HC154)
 import asyncio
 import json
+import os
 from lib.ADS1118 import ADS1118
 
 TAP_GND = 0
@@ -20,7 +21,7 @@ class CellMonitor:
     """
 
     def __init__(self, spi, demux, adc_map, cells_a, cells_b, nr_adc_a=6, pga=2, dr=4,
-                 cal_file="tap_cal.json", tap_tolerance=0.05, log=None):
+                 cal_file="/data/tap_cal.json", tap_tolerance=0.05, log=None):
         self.cells_a = cells_a
         self.cells_b = cells_b
         self.log = log
@@ -52,6 +53,11 @@ class CellMonitor:
             self.gain = {}
 
     def _save_cal(self):
+        if "/" in self.cal_file.lstrip("/"):
+            try:
+                os.mkdir(self.cal_file.rsplit("/", 1)[0])
+            except OSError:
+                pass
         with open(self.cal_file, "w") as f:
             json.dump({"gain": self.gain}, f)
 

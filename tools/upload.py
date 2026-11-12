@@ -1,125 +1,133 @@
+"""
+Upload files listed in a requirements.txt-like mapping to a MicroPython device
+using a single mpremote session.
+
+Each non-comment line: <local path relative to the requirements file> <device path>
+Local paths may contain glob patterns; then the device path must end with '/'
+(directory) or contain '*' (replaced by the file name).
+"""
 import argparse
-import os
+import glob
 import subprocess
 import sys
 from pathlib import Path
 
-def run_mpremote(cmd_args):
-    """Run mpremote command and handle non-fatal errors gracefully."""
-    full_cmd = ["mpremote"] + cmd_args
-    print(f"Running: {' '.join(full_cmd)}")
-    result = subprocess.run(full_cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        err = result.stderr.strip()
-        # Ignore "file exists" errors for mkdir (directory already there)
-        if "EEXIST" in err or "File exists" in err:
-            print("  (directory already exists, continuing)")
-            return
-        print(f"Error: {err}")
-        sys.exit(1)
+CLEAN_CODE = """
+import os
+KEEP = {keep!r}
+def _rm(p):
+    if os.stat(p)[0] & 0x4000:
+        for n in os.listdir(p):
+            _rm(p + '/' + n)
+        os.rmdir(p)
     else:
-        if result.stdout.strip():
-            print(result.stdout.strip())
+        os.remove(p)
+for n in os.listdir('/'):
+    if n not in KEEP:
+        _rm('/' + n)
+print('device cleaned, kept:', [n for n in os.listdir('/')])
+"""
 
-def create_remote_dir(remote_dir: str):
-    """Create remote directories level by level, skipping root."""
-    # Normalize and skip if empty or just root
-    remote_dir = remote_dir.rstrip("/").lstrip("/")
-    if not remote_dir:
-        return
+MKDIR_CODE = """
+import os
+for d in {dirs!r}:
+    try:
+        os.mkdir(d)
+    except OSError:
+        pass
+"""
 
-    parts = remote_dir.split("/")
-    current = ""
 
-    for part in parts:
-        if part:
-            current += "/" + part
-            print(f"Ensuring remote directory: {current}")
-            run_mpremote(["mkdir", f":{current}"])
-
-def upload_file(local_path: Path, remote_path: str):
-    """Upload a single file, creating necessary remote directories."""
-    # Normalize remote path: remove leading ./ and ensure no double slashes
-    remote_path = remote_path.lstrip("./")
-    if remote_path.startswith("/"):
-        remote_path = remote_path[1:]
-
-    remote_dir = os.path.dirname(remote_path)
-    if remote_dir:
-        create_remote_dir(remote_dir)
-    
-    print(f"Uploading to: /{remote_path}")
-    run_mpremote(["cp", str(local_path), f":{remote_path}"])
-
-def main(req_file: Path, port: str | None = None):
-    if not req_file.exists():
-        print(f"Error: {req_file} not found.")
-        sys.exit(1)
-
+def parse_requirements(req_file: Path):
     base_dir = req_file.parent
-    print(f"Parsing {req_file} (base directory: {base_dir})")
-
+    pairs = []
     with open(req_file, "r", encoding="utf-8") as f:
-        lines = [line.strip() for line in f if line.strip() and not line.startswith("#")]
-
-    print(f"Found {len(lines)} entries to upload.\n")
-
-    connect_args = ["connect", port] if port else []
-
-    for line in lines:
-        parts = line.split(maxsplit=1)
-        if len(parts) != 2:
-            print(f"Skipping invalid line: {line}")
-            continue
-
-        raw_local, raw_dest = parts
-        # Resolve local path relative to requirements.txt location
-        local_pattern = (base_dir / raw_local.replace("/", os.sep)).resolve()
-
-        # Find matching files (handles globs like *.py)
-        matching_locals = list(Path(base_dir).rglob(raw_local.lstrip("/\\")))
-        if not matching_locals:
-            print(f"Warning: No files matched pattern '{raw_local}'")
-            continue
-
-        for local_path in matching_locals:
-            if not local_path.is_file():
-                print(f"Skipping non-file: {local_path}")
+        for lineno, line in enumerate(f, 1):
+            line = line.strip()
+            if not line or line.startswith("#"):
                 continue
-
-            # Compute destination path
-            if "*" in raw_dest:
-                dest_path = raw_dest.replace("*", local_path.name)
+            parts = line.split()
+            if len(parts) != 2:
+                sys.exit(f"{req_file}:{lineno}: expected '<local> <dest>', got: {line}")
+            raw_local, raw_dest = parts
+            dest = raw_dest[2:] if raw_dest.startswith("./") else raw_dest.lstrip("/")
+            pattern = str(base_dir / raw_local)
+            if glob.has_magic(raw_local):
+                matches = sorted(Path(p) for p in glob.glob(pattern) if Path(p).is_file())
+                if not matches:
+                    print(f"Warning: no files matched '{raw_local}'")
+                for m in matches:
+                    if "*" in dest:
+                        pairs.append((m.resolve(), dest.replace("*", m.name)))
+                    else:
+                        pairs.append((m.resolve(), dest.rstrip("/") + "/" + m.name))
             else:
-                dest_path = raw_dest
+                local = Path(pattern).resolve()
+                if not local.is_file():
+                    print(f"Warning: '{raw_local}' not found, skipped")
+                    continue
+                pairs.append((local, dest))
+    return pairs
 
-            # Clean destination path
-            dest_path = dest_path.lstrip("./")
 
-            print(f"Uploading {local_path} → /{dest_path}")
+def remote_dirs(pairs):
+    dirs = set()
+    for _, dest in pairs:
+        parts = dest.split("/")[:-1]
+        for i in range(1, len(parts) + 1):
+            dirs.add("/" + "/".join(parts[:i]))
+    return sorted(dirs, key=lambda d: d.count("/"))
 
-            # Upload (with or without explicit port)
-            if port:
-                run_mpremote(connect_args + ["cp", str(local_path), f":{dest_path}"])
-            else:
-                upload_file(local_path, dest_path)
 
-    print("\nUpload complete!")
+def build_command(pairs, port=None, clean=False, keep=("data",)):
+    cmd = [sys.executable, "-m", "mpremote"]
+    if port:
+        cmd += ["connect", port]
+    chain = []
+    if clean:
+        chain.append(["exec", CLEAN_CODE.format(keep=list(keep))])
+    dirs = remote_dirs(pairs)
+    if dirs:
+        chain.append(["exec", MKDIR_CODE.format(dirs=dirs)])
+    for local, dest in pairs:
+        chain.append(["cp", str(local), ":" + dest])
+    for i, part in enumerate(chain):
+        if i:
+            cmd.append("+")
+        cmd += part
+    return cmd
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Upload files to ESP32 MicroPython based on a requirements.txt-like file."
-    )
-    parser.add_argument(
-        "requirements_file",
-        nargs="?",
-        default="requirements.txt",
-        help="Path to the requirements file",
-    )
-    parser.add_argument(
-        "--port",
-        help="Serial port (e.g. COM3 or /dev/ttyUSB0)",
-    )
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("requirements_file", type=Path, nargs="?",
+                        help="File mapping; omit together with --clean to only wipe the device")
+    parser.add_argument("--port", help="Serial port (e.g. COM5 or /dev/ttyACM0); auto-detect if omitted")
+    parser.add_argument("--clean", action="store_true", help="Delete everything on the device first (except --keep)")
+    parser.add_argument("--keep", nargs="*", default=["data"], help="Top-level device entries kept by --clean")
+    parser.add_argument("--dry-run", action="store_true", help="Print the mpremote command without running it")
     args = parser.parse_args()
 
-    main(Path(args.requirements_file), args.port)
+    if args.requirements_file is None:
+        if not args.clean:
+            parser.error("requirements_file is required unless --clean is given")
+        pairs = []
+    elif not args.requirements_file.is_file():
+        sys.exit(f"Error: {args.requirements_file} not found.")
+    else:
+        pairs = parse_requirements(args.requirements_file)
+    for local, dest in pairs:
+        print(f"  {local} -> :{dest}")
+    cmd = build_command(pairs, args.port, args.clean, args.keep)
+    if args.dry_run:
+        print(" ".join(f'"{c}"' if (" " in c or "\n" in c) else c for c in cmd))
+        return
+    print(f"Running mpremote ({len(pairs)} file(s){', clean first' if args.clean else ''})...")
+    result = subprocess.run(cmd)
+    if result.returncode != 0:
+        sys.exit(f"mpremote failed with exit code {result.returncode}")
+    print("Done!")
+
+
+if __name__ == "__main__":
+    main()

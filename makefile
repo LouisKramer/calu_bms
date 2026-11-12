@@ -1,102 +1,113 @@
-# Makefile for ESP32 MicroPython project deployment
+# Makefile for CALU BMS (ESP32-S3, MicroPython) deployment
+#
+# Usage: make <target> [PORT=COM5]
+#   PORT     serial port of the running MicroPython device (auto-detect if empty)
+#   ESPPORT  serial port for esptool (auto-detect if empty; the ROM bootloader
+#            may enumerate on a different port than MicroPython)
 
-# Path to fw binary
+PYTHON   ?= python
+PORT     ?=
+ESPPORT  ?=
+
 FW_BINARY := bin/ESP32_GENERIC_S3-SPIRAM_OCT-20250911-v1.26.1.bin
-
-# Path to your requirements.txt (adjust if needed)
 REQUIREMENTS_MASTER := src/master/requirements.txt
-REQUIREMENTS_SLAVE := src/slave/requirements.txt
-# Optional: specify your serial port here, or pass via command line: make PORT=/dev/ttyUSB0
-PORT ?=
+REQUIREMENTS_SLAVE  := src/slave/requirements.txt
+UPLOAD := $(PYTHON) tools/upload.py $(if $(PORT),--port $(PORT))
 
-# Python command (use python3 if needed)
-PYTHON := python
+MPREMOTE := $(PYTHON) -m mpremote $(if $(PORT),connect $(PORT))
+ESPTOOL  := $(PYTHON) -m esptool --chip esp32s3 $(if $(ESPPORT),--port $(ESPPORT))
 
-# Scripts (place these in the same directory as the Makefile)
-UPLOAD_SCRIPT := tools/upload.py
+.DEFAULT_GOAL := help
 
-# Default target: clean + upload
+# Full fresh deploy: wipe device (keeps /data with calibration), upload, restart app
 .PHONY: all_slave
-all_slave: clean appl_slave soft_reset
+all_slave: check
+	@echo === DEPLOYING SLAVE ===
+	$(UPLOAD) $(REQUIREMENTS_SLAVE) --clean
+	$(MPREMOTE) reset
 
 .PHONY: all_master
-all_master: clean appl_master soft_reset
+all_master: check
+	@echo === DEPLOYING MASTER ===
+	$(UPLOAD) $(REQUIREMENTS_MASTER) --clean
+	$(MPREMOTE) reset
 
-# Program firmware (upload only)
-.PHONY: fw
-fw:
-	@echo "=== Programming firmware ==="
-	mpremote $(if $(PORT),connect $(PORT)) soft-reset
-	mpremote $(if $(PORT),connect $(PORT)) bootloader
-	esptool erase-flash
-	esptool --baud 460800 write_flash 0 $(FW_BINARY)
-	@echo "Firmware programming complete!"
-
-# Hard reset
-.PHONY: reset
-reset:
-	@echo "=== PERFORMING RESET ==="
-	mpremote $(if $(PORT),connect $(PORT)) reset
-	@echo "Reset done."
-
-# Soft reset the MicroPython interpreter (equivalent to Ctrl+D)
-.PHONY: soft_reset
-soft_reset:
-	@echo "=== PERFORMING SOFT RESET (Ctrl+D) ==="
-	mpremote $(if $(PORT),connect $(PORT)) soft-reset
-	@echo "Soft reset done."
-
-# Delete everything on the device
-.PHONY: clean
-clean:
-	@echo "=== RESETTING ESP32 FILESYSTEM ==="
-	mpremote fs rm -r ./
-	@echo ""
-
-# Upload all files from requirements.txt
-.PHONY: appl_master
-appl_master:
-	@echo "=== UPLOADING MASTER FILES ==="
-	$(PYTHON) $(UPLOAD_SCRIPT) $(REQUIREMENTS_MASTER) $(if $(PORT),--port $(PORT))
-	@echo "Deployment complete!"
-
-# Upload slave files
+# Upload without wiping the device
 .PHONY: appl_slave
 appl_slave:
-	@echo "=== UPLOADING SLAVE FILES ==="
-	$(PYTHON) $(UPLOAD_SCRIPT) $(REQUIREMENTS_SLAVE) $(if $(PORT),--port $(PORT))
-	@echo "Slave deployment complete!"
+	$(UPLOAD) $(REQUIREMENTS_SLAVE)
 
-# Connect to REPL (interactive console)
+.PHONY: appl_master
+appl_master:
+	$(UPLOAD) $(REQUIREMENTS_MASTER)
+
+# Program MicroPython firmware (erases the whole flash, including /data)
+.PHONY: fw
+fw:
+	@echo === PROGRAMMING FIRMWARE ===
+	-$(MPREMOTE) bootloader
+	$(PYTHON) -c "import time; time.sleep(3)"
+	$(ESPTOOL) --baud 460800 write-flash --erase-all 0 $(FW_BINARY)
+	@echo Firmware programming complete!
+
+# Hard reset (runs boot.py and main.py)
+.PHONY: reset
+reset:
+	$(MPREMOTE) reset
+
+# Restart interpreter into raw REPL (does NOT run main.py)
+.PHONY: soft_reset
+soft_reset:
+	$(MPREMOTE) soft-reset
+
+# Delete everything on the device except /data
+.PHONY: clean
+clean:
+	$(UPLOAD) --clean
+
 .PHONY: repl
 repl:
-	mpremote $(if $(PORT),connect $(PORT)) repl
+	$(MPREMOTE) repl
 
-# List files on device
 .PHONY: ls
 ls:
-	mpremote $(if $(PORT),connect $(PORT)) fs ls :
+	$(MPREMOTE) tree :
 
-# Run main.py on device after upload
+# Run the uploaded application in the foreground with live output (Ctrl+C to stop)
 .PHONY: run
 run:
-	mpremote $(if $(PORT),connect $(PORT)) run :main.py
+	$(MPREMOTE) exec "import main"
 
-# Help
+# Slave hardware bring-up checks (needs appl_slave first for the libraries)
+.PHONY: bringup
+bringup:
+	$(MPREMOTE) run src/slave/bringup.py
+
+# MicroPython syntax check of all sources (no device needed)
+.PHONY: check
+check:
+	$(PYTHON) tools/check.py
+
+# Install host tools
+.PHONY: tools
+tools:
+	$(PYTHON) -m pip install --user mpremote esptool mpy-cross==1.26.*
+
 .PHONY: help
 help:
-	@echo "Available targets:"
-	@echo "  make                # Clean + upload (full fresh deploy)"
-	@echo "  make all_master     # Same as above for master"
-	@echo "  make all_slave      # Same as above for slave"
-	@echo "  make fw             # Program firmware"
-	@echo "  make reset          # Hard reset"
-	@echo "  make soft_reset     # Restart MicroPython interpreter (Ctrl+D)"
-	@echo "  make clean          # Delete all files on device"
-	@echo "  make appl_master    # Upload master files without cleaning"
-	@echo "  make appl_slave     # Upload slave files without cleaning"
-	@echo "  make repl           # Open interactive REPL"
-	@echo "  make ls             # List files on device"
-	@echo "  make run            # Execute main.py"
-	@echo ""
-	@echo "Optional: PORT=/dev/ttyUSB0 make <target>   (or COM3 on Windows)"
+	@echo Available targets:
+	@echo   make all_slave      check, wipe device (keeps /data), upload slave, reset
+	@echo   make all_master     same for master
+	@echo   make appl_slave     upload slave files without wiping
+	@echo   make appl_master    upload master files without wiping
+	@echo   make fw             flash MicroPython firmware (erases everything)
+	@echo   make reset          hard reset (starts main.py)
+	@echo   make soft_reset     restart interpreter into raw REPL (main.py not run)
+	@echo   make clean          delete all files on device except /data
+	@echo   make repl           interactive REPL
+	@echo   make ls             list files on device
+	@echo   make run            run main.py in foreground with live output
+	@echo   make bringup        slave hardware bring-up checks
+	@echo   make check          MicroPython syntax check of src/
+	@echo   make tools          pip install mpremote, esptool, mpy-cross
+	@echo Options: PORT=COM5 (device), ESPPORT=COM6 (esptool), PYTHON=python3

@@ -2,24 +2,35 @@
 BMS diy for ESP32 S3 WROOM N8R8
 Micropython: https://docs.micropython.org/en/latest/index.html
 
-    - ESP32_GENERIC_S3-SPIRAM_OCT-20250911-v1.26.1 
-    - esptool.exe erase_flash
-    - esptool.exe --baud 460800 write_flash 0 ESP32_GENERIC_S3-SPIRAM_OCT-20250911-v1.26.1.bin
-    - https://micropython.org/download/ESP32_GENERIC_S3/
+## Layout
 
-Transfer data to esp:
+    src/common/   shared code (protocol, logger, master boot.py)
+    src/lib/      drivers and modules
+    src/master/   master application + requirements.txt (upload mapping)
+    src/slave/    slave application (HW 2.0.1.0) + requirements.txt (upload mapping)
+    tools/        upload.py, check.py, syslog server, resistor calculator
+    hw/           EasyEDA projects and datasheets
 
-    1. pip install adafruit-ampy
-    2. ampy --port COM4 get boot.py boot.py
-    3. --port COM4 put boot.py
+## Setup
 
-Put esp32 s3 into bootloader mode:  
+    make tools      # pip install mpremote, esptool, mpy-cross
 
-    1. Pull Pin0 to low and press reset button
-    2. Release the BOOT button after a second.
+`src/common/credentials.py` (WIFI_SSID, WIFI_PASS) is not versioned and must be created locally for the master.
 
-After start:
+## Deploy
 
-    1. boot.py is executed.
-    2. main.py is executed.
+    make fw PORT=COM5          # flash MicroPython (bin/), erases everything
+    make all_slave PORT=COM5   # syntax check, wipe device (keeps /data), upload, reset
+    make all_master PORT=COM5
+    make run                   # run main.py in foreground with live output
+    make help                  # all targets
 
+The `requirements.txt` files map `<local path relative to the file> <device path>`.
+Calibration data lives in `/data` on the device and survives `make clean`/`all_*`, but not `make fw`.
+
+If the device does not respond, put the ESP32-S3 into bootloader mode manually:
+
+    1. Pull IO0 to low (jumper H1) and press the reset button
+    2. Release after a second.
+
+After start: boot.py is executed, then main.py.
