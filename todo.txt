@@ -15,7 +15,4 @@ TODO:
     - Remove magic numbers.
     - Develop "FSM" --> DONE
     - Error handling HAL
-    - HAL shall support read all commands --> DONE
-    - ADES1830.py add func to read all voltages --> DONE
-    - ADES1830.py add Discharge functionalities
     - FTP server for OTA updates
