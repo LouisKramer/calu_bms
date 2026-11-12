@@ -1,14 +1,28 @@
 TODO:
+- System: high-voltage stack, 128+ LFP cells = 8+ series modules of 16S (~410 V nom., up to ~470 V)
+    - every slave/balancer floats at its module potential (up to ~470 V vs. pack negative / chassis)
+    - slaves only via ESP-NOW (wireless = isolation); USB only through a >= 1 kV isolator, never in the stack
+    - master: main contactors + precharge, pack fuse, HV measurement, current sensor, isolation monitoring
+    - module balancing: phase 1 global target from master (all slaves bleed to the lowest cell),
+      equal slave consumption; phase 2 option: isolated module -> 12 V aux converter (load sharing)
+
 - HW Slave 3.0.0.0 (flying capacitor, hw/slave_3_0, KiCad 10 + SKiDL):
     - schematic + initial PCB generated, ERC clean, netlist verified --> DONE
-    - LM5164 values (WEBENCH), replace placeholder cell/balancer connector footprints
+    - LM5164 values (WEBENCH), replace placeholder cell connector footprint
     - placement + routing in KiCad, HV clearance, star ground, heat spreading
+    - creepage/clearance to enclosure and mounting (board floats at module potential)
     - JLCPCB BOM/CPL (LCSC part numbers), prototype with 4 cells
 - HW Slave 2.0.1.x: skipped (divider drift, uneven cell load)
 - HW Master 1.x.x.x:
-    - provide schematic for SW restart
-- HW Active Balancer 1.0.0.0 (own design, up to 5 A/cell):
-    - define topology, control interface (EN + PWM from slave J302), own cell harness + fuses
+    - provide schematic for SW restart, redesign for HV (see System)
+- HW Active Balancer 1.0.0.0 (hw/Active_Balancer_1_0_0_0.epro2, common-bus switched capacitor, 5 A):
+    - keep topology, redo in SKiDL after the slave 3.0 layout
+    - control via slave J302: ACT_BAL_PWM = switching clock (useful range ~100 Hz..5 kHz), EN high = run
+    - fixes: bootstrap diodes >= 100 V (1N5819W is 40 V), MOSFETs 80..100 V (40N06 is 60 V),
+      100 V supply instead of LM2596HVS (60 V), 74LVC1G126 + pull-down on BAL_SIG (off by default),
+      5 V level for the IR2103 inputs, low-ESR/polymer caps, soft-start/precharge for inrush
+    - drop BATT_PREV/BATT_NEXT stages (bus referenced to module B- can't reach neighbour modules)
+    - verify MOSFET orientation (body diodes) and C- tied to B-
     - must stop within ~1 ms when ACT_BAL_EN goes low (measurement windows)
 - HW Teststand 1.x.x.x
     - develop concept
