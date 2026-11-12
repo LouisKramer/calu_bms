@@ -23,7 +23,9 @@ make pcb        # first time only: initial PCB with all footprints, nets and net
 make drc        # KiCad DRC incl. schematic <-> PCB parity
 ```
 
-After a circuit change: `make sch`, then in the KiCad PCB editor **Tools → Update PCB from Schematic (F8)**.
+After a circuit change: `make sch`, then in KiCad **reload the schematic** (schematic editor: File → Revert, or
+close it), then in the PCB editor **Tools → Update PCB from Schematic (F8)** and save (Ctrl+S).
+F8 uses the schematic editor's data in memory: without the reload it applies the old circuit.
 Footprints stay linked to their symbols (deterministic UUIDs), so the layout is kept.
 
 Do not edit the generated `.kicad_sch` files in KiCad; change the Python source instead.
