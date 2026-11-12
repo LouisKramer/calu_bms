@@ -7,8 +7,9 @@ TODO:
 - HW Slave 2.0.1.x: skipped (divider drift, uneven cell load)
 - HW Master 1.x.x.x:
     - provide schematic for SW restart
-- HW Active Balancer 1.0.0.0:
-    - Routing PCB
+- HW Active Balancer 1.0.0.0 (own design, up to 5 A/cell):
+    - define topology, control interface (EN + PWM from slave J302), own cell harness + fuses
+    - must stop within ~1 ms when ACT_BAL_EN goes low (measurement windows)
 - HW Teststand 1.x.x.x
     - develop concept
 

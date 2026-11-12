@@ -128,9 +128,10 @@ USB-C: CC1/CC2 5.1 kΩ to GND, VBUS → D3. Shield via 1 MΩ ∥ 4.7 nF to GND.
 
 1-Wire: CN2..CN5 3-pin (1 = ONEWIRE, 2 = +3V3, 3 = GND), as in 2.0.1.0.
 
-J3 active balancer (20-pin, same pinout as 2.0.1.0 U18): 1 = T0_F, 2..17 = T1_F..T16_F,
-18 = nc, 19 = ACT_BAL_EN, 20 = ACT_BAL_PWM. The tap fuses F0..F16 are sized for 1 A; increase them
-if the active balancer moves more than ~0.8 A per cell.
+J3 active balancer control (JST-XH 4-pin): 1 = GND, 2 = +3V3 (logic reference), 3 = ACT_BAL_EN, 4 = ACT_BAL_PWM
+(100 Ω series resistors, 100 kΩ pull-downs → balancer off while the ESP32 is in reset).
+The active balancer (own design, up to 5 A per cell) is wired **directly to the cells** with its own harness
+and fuses; its current never flows through the slave's tap fuses or sense wires.
 
 ---
 
@@ -334,7 +335,8 @@ All 16 on: ~13 W → spread the resistors over the board and keep the NTC in the
 
 ## 9. Measurement sequence (firmware) and expected accuracy
 
-Per scan (balancing paused with BAL_OE_n = 1, wait 5 ms for the tap wires to settle):
+Per scan (passive balancing paused with BAL_OE_n = 1, active balancer stopped with ACT_BAL_EN = 0,
+wait 5 ms for the tap wires and cell interconnects to settle):
 
 Order: **odd cells first, then even cells** – the capacitor keeps the same polarity, so dielectric
 absorption has no effect.
