@@ -1,0 +1,708 @@
+(kicad_sch
+	(version 20250114)
+	(generator "calu_sch_writer")
+	(generator_version "1.0")
+	(uuid ad35d873-3153-5243-93d9-e26666095d51)
+	(paper "A3")
+	(title_block
+		(title "CALU BMS Slave 3.0.0.0")
+		(rev "3.0.0.0")
+		(comment 1 "Generated from hw/slave_3_0/*.py (SKiDL) - edit the Python source, not this file"))
+	(lib_symbols
+		(symbol "Mechanical:MountingHole"
+			(pin_names
+				(offset 1.016))
+			(exclude_from_sim no)
+			(in_bom no)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "H"
+				(at 0 5.08 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27))))
+			(property "Value" "MountingHole"
+				(at 0 3.175 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27))))
+			(property "Footprint" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27))))
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27))))
+			(property "Description" "Mounting Hole without connection"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27))))
+			(property "ki_keywords" "mounting hole"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27))))
+			(property "ki_fp_filters" "MountingHole*"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27))))
+			(symbol "MountingHole_0_1"
+				(circle
+					(center 0 0)
+					(radius 1.27)
+					(stroke
+						(width 1.27)
+						(type default))
+					(fill
+						(type none))))
+			(embedded_fonts no))
+		(symbol "power:PWR_FLAG"
+			(power global)
+			(pin_numbers
+				(hide yes))
+			(pin_names
+				(offset 0)
+				(hide yes))
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "#FLG"
+				(at 0 1.905 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27))))
+			(property "Value" "PWR_FLAG"
+				(at 0 3.81 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27))))
+			(property "Footprint" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27))))
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27))))
+			(property "Description" "Special symbol for telling ERC where power comes from"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27))))
+			(property "ki_keywords" "flag power"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27))))
+			(symbol "PWR_FLAG_0_0"
+				(pin power_out line
+					(at 0 0 90)
+					(length 0)
+					(name ""
+						(effects
+							(font
+								(size 1.27 1.27))))
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27))))))
+			(symbol "PWR_FLAG_0_1"
+				(polyline
+					(pts
+						(xy 0 0)
+						(xy 0 1.27)
+						(xy -1.016 1.905)
+						(xy 0 2.54)
+						(xy 1.016 1.905)
+						(xy 0 1.27))
+					(stroke
+						(width 0)
+						(type default))
+					(fill
+						(type none))))
+			(embedded_fonts no)))
+	(text "CALU BMS Slave 3.0.0.0 - flying-capacitor cell measurement\nSource: hw/slave_3_0/*.py (SKiDL), specification: hw/CALU_BMS_Slave_3_0_0_0_schematic.md\nConnections are made by global labels (net names), every sheet is generated."
+		(exclude_from_sim no)
+		(at 25.4 20.32 0)
+		(effects
+			(font
+				(size 2.54 2.54))
+			(justify left top))
+		(uuid eb1331f3-f7fb-5d03-af0f-7221d33847f6))
+	(symbol
+		(lib_id "Mechanical:MountingHole")
+		(at 30.48 99.06 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board yes)
+		(dnp no)
+		(uuid c11b8f51-2cf4-5bc2-8e90-b2fa356c4b0e)
+		(property "Reference" "H901"
+			(at 33.02 93.98 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(property "Value" "M3"
+			(at 33.02 96.52 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(property "Footprint" "MountingHole:MountingHole_3.2mm_M3"
+			(at 30.48 99.06 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(hide yes)))
+		(property "Datasheet" "~"
+			(at 30.48 99.06 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(hide yes)))
+		(instances
+			(project "slave_3_0"
+				(path "/ad35d873-3153-5243-93d9-e26666095d51"
+					(reference "H901")
+					(unit 1)))))
+	(symbol
+		(lib_id "Mechanical:MountingHole")
+		(at 45.72 99.06 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board yes)
+		(dnp no)
+		(uuid fb9f87ae-fa33-59ee-abe2-c2ad2bd66ffb)
+		(property "Reference" "H902"
+			(at 48.26 93.98 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(property "Value" "M3"
+			(at 48.26 96.52 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(property "Footprint" "MountingHole:MountingHole_3.2mm_M3"
+			(at 45.72 99.06 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(hide yes)))
+		(property "Datasheet" "~"
+			(at 45.72 99.06 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(hide yes)))
+		(instances
+			(project "slave_3_0"
+				(path "/ad35d873-3153-5243-93d9-e26666095d51"
+					(reference "H902")
+					(unit 1)))))
+	(symbol
+		(lib_id "Mechanical:MountingHole")
+		(at 66.04 99.06 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board yes)
+		(dnp no)
+		(uuid 102461f6-7b6d-5ad3-aa10-15e7caba68ba)
+		(property "Reference" "H903"
+			(at 68.58 93.98 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(property "Value" "M3"
+			(at 68.58 96.52 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(property "Footprint" "MountingHole:MountingHole_3.2mm_M3"
+			(at 66.04 99.06 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(hide yes)))
+		(property "Datasheet" "~"
+			(at 66.04 99.06 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(hide yes)))
+		(instances
+			(project "slave_3_0"
+				(path "/ad35d873-3153-5243-93d9-e26666095d51"
+					(reference "H903")
+					(unit 1)))))
+	(symbol
+		(lib_id "Mechanical:MountingHole")
+		(at 83.82 99.06 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board yes)
+		(dnp no)
+		(uuid 24acbfc0-91c0-501d-ad3c-6acb61aed739)
+		(property "Reference" "H904"
+			(at 86.36 93.98 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(property "Value" "M3"
+			(at 86.36 96.52 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(property "Footprint" "MountingHole:MountingHole_3.2mm_M3"
+			(at 83.82 99.06 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(hide yes)))
+		(property "Datasheet" "~"
+			(at 83.82 99.06 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(hide yes)))
+		(instances
+			(project "slave_3_0"
+				(path "/ad35d873-3153-5243-93d9-e26666095d51"
+					(reference "H904")
+					(unit 1)))))
+	(symbol
+		(lib_id "power:PWR_FLAG")
+		(at 25.4 160.02 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board no)
+		(dnp no)
+		(uuid e275dcbe-9505-5b89-847a-b6f7c682d058)
+		(property "Reference" "#FLG01"
+			(at 25.4 157.48 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(property "Value" "PWR_FLAG"
+			(at 25.4 162.56 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(property "Footprint" ""
+			(at 25.4 160.02 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(hide yes)))
+		(property "Datasheet" "~"
+			(at 25.4 160.02 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(hide yes)))
+		(pin "1"
+			(uuid c525b926-369a-5fe7-b9c2-464a0f5c1007))
+		(instances
+			(project "slave_3_0"
+				(path "/ad35d873-3153-5243-93d9-e26666095d51"
+					(reference "#FLG01")
+					(unit 1)))))
+	(global_label "+5V"
+		(shape passive)
+		(at 25.4 160.02 270)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27))
+			(justify right))
+		(uuid 76e4bef2-a692-55c2-9088-f2229eaa37b5))
+	(symbol
+		(lib_id "power:PWR_FLAG")
+		(at 50.8 160.02 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board no)
+		(dnp no)
+		(uuid a1a5656a-2206-5a77-b967-d4c5ce399999)
+		(property "Reference" "#FLG02"
+			(at 50.8 157.48 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(property "Value" "PWR_FLAG"
+			(at 50.8 162.56 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(property "Footprint" ""
+			(at 50.8 160.02 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(hide yes)))
+		(property "Datasheet" "~"
+			(at 50.8 160.02 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(hide yes)))
+		(pin "1"
+			(uuid c61c2f2e-02fa-5e3a-aced-dfd5172cbb16))
+		(instances
+			(project "slave_3_0"
+				(path "/ad35d873-3153-5243-93d9-e26666095d51"
+					(reference "#FLG02")
+					(unit 1)))))
+	(global_label "+5VA"
+		(shape passive)
+		(at 50.8 160.02 270)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27))
+			(justify right))
+		(uuid c6f4e253-7831-506b-8cd1-e9dfc1a8b4cf))
+	(symbol
+		(lib_id "power:PWR_FLAG")
+		(at 76.2 160.02 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board no)
+		(dnp no)
+		(uuid 0c2dee0a-09df-56b2-a33e-487939f3a6df)
+		(property "Reference" "#FLG03"
+			(at 76.2 157.48 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(property "Value" "PWR_FLAG"
+			(at 76.2 162.56 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(property "Footprint" ""
+			(at 76.2 160.02 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(hide yes)))
+		(property "Datasheet" "~"
+			(at 76.2 160.02 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(hide yes)))
+		(pin "1"
+			(uuid 844a6b3b-0d4e-5375-9ad5-aebc6fe37c9e))
+		(instances
+			(project "slave_3_0"
+				(path "/ad35d873-3153-5243-93d9-e26666095d51"
+					(reference "#FLG03")
+					(unit 1)))))
+	(global_label "GND"
+		(shape passive)
+		(at 76.2 160.02 270)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27))
+			(justify right))
+		(uuid 739e4325-6f2c-5a03-b0ba-f601e5e1af92))
+	(symbol
+		(lib_id "power:PWR_FLAG")
+		(at 101.6 160.02 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board no)
+		(dnp no)
+		(uuid 95464f59-2a48-5d29-9fd4-1945622f1ece)
+		(property "Reference" "#FLG04"
+			(at 101.6 157.48 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(property "Value" "PWR_FLAG"
+			(at 101.6 162.56 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(property "Footprint" ""
+			(at 101.6 160.02 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(hide yes)))
+		(property "Datasheet" "~"
+			(at 101.6 160.02 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(hide yes)))
+		(pin "1"
+			(uuid 92c38f28-6398-573f-8af0-611977e397e0))
+		(instances
+			(project "slave_3_0"
+				(path "/ad35d873-3153-5243-93d9-e26666095d51"
+					(reference "#FLG04")
+					(unit 1)))))
+	(global_label "VIN_HV"
+		(shape passive)
+		(at 101.6 160.02 270)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27))
+			(justify right))
+		(uuid e54c51c1-b4fe-5f56-a7e7-372cfbc24640))
+	(sheet
+		(at 25.4 50.8)
+		(size 38.1 20.32)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid))
+		(fill
+			(color 0 0 0 0))
+		(uuid e8efdd7b-cd0a-5d9b-ab59-43df494e6dfe)
+		(property "Sheetname" "power"
+			(at 25.4 50.1 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(property "Sheetfile" "slave_3_0_power.kicad_sch"
+			(at 25.4 71.8 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(instances
+			(project "slave_3_0"
+				(path "/ad35d873-3153-5243-93d9-e26666095d51"
+					(page "2")))))
+	(sheet
+		(at 71.12 50.8)
+		(size 38.1 20.32)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid))
+		(fill
+			(color 0 0 0 0))
+		(uuid f9caa47c-8b1c-5930-a7c4-c685cb9405da)
+		(property "Sheetname" "mcu"
+			(at 71.12 50.1 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(property "Sheetfile" "slave_3_0_mcu.kicad_sch"
+			(at 71.12 71.8 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(instances
+			(project "slave_3_0"
+				(path "/ad35d873-3153-5243-93d9-e26666095d51"
+					(page "3")))))
+	(sheet
+		(at 116.84 50.8)
+		(size 38.1 20.32)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid))
+		(fill
+			(color 0 0 0 0))
+		(uuid c63d45e3-ec7c-529c-a27f-66019912159c)
+		(property "Sheetname" "cells"
+			(at 116.84 50.1 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(property "Sheetfile" "slave_3_0_cells.kicad_sch"
+			(at 116.84 71.8 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(instances
+			(project "slave_3_0"
+				(path "/ad35d873-3153-5243-93d9-e26666095d51"
+					(page "4")))))
+	(sheet
+		(at 162.56 50.8)
+		(size 38.1 20.32)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid))
+		(fill
+			(color 0 0 0 0))
+		(uuid 725696d1-f561-507c-9930-dcfcbefbb663)
+		(property "Sheetname" "meas_mux"
+			(at 162.56 50.1 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(property "Sheetfile" "slave_3_0_meas_mux.kicad_sch"
+			(at 162.56 71.8 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(instances
+			(project "slave_3_0"
+				(path "/ad35d873-3153-5243-93d9-e26666095d51"
+					(page "5")))))
+	(sheet
+		(at 208.28 50.8)
+		(size 38.1 20.32)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid))
+		(fill
+			(color 0 0 0 0))
+		(uuid 0dbe4087-8791-57c7-a722-95cd4c52f2e1)
+		(property "Sheetname" "adc"
+			(at 208.28 50.1 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(property "Sheetfile" "slave_3_0_adc.kicad_sch"
+			(at 208.28 71.8 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(instances
+			(project "slave_3_0"
+				(path "/ad35d873-3153-5243-93d9-e26666095d51"
+					(page "6")))))
+	(sheet
+		(at 254 50.8)
+		(size 38.1 20.32)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid))
+		(fill
+			(color 0 0 0 0))
+		(uuid 43969f10-a73e-568a-9924-5fbb3b15f942)
+		(property "Sheetname" "balancing"
+			(at 254 50.1 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(property "Sheetfile" "slave_3_0_balancing.kicad_sch"
+			(at 254 71.8 0)
+			(effects
+				(font
+					(size 1.27 1.27))
+				(justify left)))
+		(instances
+			(project "slave_3_0"
+				(path "/ad35d873-3153-5243-93d9-e26666095d51"
+					(page "7")))))
+	(sheet_instances
+		(path "/"
+			(page "1"))))

@@ -1,3 +1,15 @@
 *.log
+*.erc
 __pycache__/
 src/common/credentials.py
+
+# KiCad / SKiDL generated or user-local files
+hw/slave_3_0/kicad/*_sklib.py
+hw/slave_3_0/kicad/*.kicad_prl
+hw/slave_3_0/kicad/*-backups/
+hw/slave_3_0/kicad/fp-info-cache
+hw/slave_3_0/kicad/*.rpt
+hw/slave_3_0/kicad/*_from_sch.net
+hw/slave_3_0/kicad/svg/
+hw/slave_3_0/kicad/.history/
+hw/slave_3_0/kicad/~*.lck

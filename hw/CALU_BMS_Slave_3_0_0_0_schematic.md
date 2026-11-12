@@ -13,7 +13,14 @@ Flying-capacitor cell measurement, no cell-monitor IC. Design inputs:
 | Other | 4x DS18B20, 4-bit address DIP, 2 LEDs, USB-C (programming), 20-pin active balancer header (pin-compatible with 2.0.1.0 U18) |
 
 Net naming: `T0..T16` = cell taps at the connector (`T0` = B−, `Tn` = + of cell n).
-`Tn_F` = after the tap fuse. `GND` = board ground, connected to `T0_F` at **one** point (star, next to the ADC).
+`Tn_F` = after the tap fuse. `GND` = board ground, comes **only** from the power connector (B−).
+`T0` is not connected to GND on the board: the flying capacitor measures each cell floating, and the
+supply current must not flow through the T0 sense wire.
+
+> **Source of truth is now the SKiDL design in `hw/slave_3_0/`** (generated KiCad project in
+> `hw/slave_3_0/kicad/`, `make sch` / `make pcb`). Reference designators there use one hundred block per
+> sheet (R1xx power, 2xx MCU, 3xx cells, 4xx meas_mux, 5xx ADC, 6xx balancing) and differ from the
+> short names in this document.
 
 ---
 
@@ -138,7 +145,7 @@ Per tap j = 0..16:
 | Fj | Tj (J1) | Tj_F | 1 A fast fuse 1206 (protects traces if a board part fails short) |
 | RMj | Tj_F | Tj_M | 1 kΩ 1206, pulse-proof (anti-surge) |
 
-`T0_F` → star point to GND (single connection, next to C_FC / ADC ground).
+`T0_F` is only a sense/balancing tap, **not** connected to GND (see net naming above).
 
 String divider (plausibility check, AIN2):
 `T16_F` – R10 510 kΩ – R11 510 kΩ – R12 510 kΩ – **VSTR_DIV** – R13 100 kΩ 0.1 % – GND, C10 100 nF on VSTR_DIV.
@@ -208,7 +215,8 @@ U5 74HCT138 (supply +5V, 100 nF):
 | Y2 | discharge: A_G + B_G |
 | Y3..Y7 | nc |
 
-`FC_GND` is a separate trace to the star point (GND sense for ADC AIN1).
+`FC_GND` is a separate trace to the star point (GND sense for ADC AIN1), joined to GND by a net tie
+next to the ADC.
 
 Overlap safety (firmware waits ≥ 1 ms between switching off and on): if tap and transfer switches
 overlapped anyway, the current is limited by the 1 kΩ tap resistors (≤ 60 mA for < 1 ms) and the
@@ -295,8 +303,8 @@ All 16 on: ~13 W → spread the resistors over the board and keep the NTC in the
 | U7 | 1 | REF5040 (A or I grade) | |
 | U8 | 1 | OPA333AIDBV | zero-drift buffer |
 | U9 | 1 | PCA9685PW | |
-| K1..K21 | 21 | PhotoMOS, load voltage ≥ 100 V, SOP-4, low leakage (e.g. Panasonic AQY210/AQY214 family or equivalent) | measurement matrix |
-| KB1..KB16 | 16 | PhotoMOS ≥ 0.5 A, low R_on (GAQY211G2EH as before) | balancing |
+| K1..K21 | 21 | AQY280S (350 V, 25 Ω, SO-4) | measurement matrix |
+| KB1..KB16 | 16 | AQY282GS (60 V, 0.8 A, 0.8 Ω, SO-4) | balancing |
 | DT1..DT15, DX1, DX2 | 17 | BAT54A (SOT-23, common anode) | diode-OR |
 | C_FC | 1 | 1 µF MKP polypropylene ≥ 63 V | flying capacitor |
 | RM0..RM16 | 17 | 1 kΩ 1206 pulse-proof | tap series |
@@ -311,10 +319,11 @@ All 16 on: ~13 W → spread the resistors over the board and keep the NTC in the
 
 ## 8. Layout rules
 
-1. Clearance ≥ 1 mm between tap nets, buses and everything else (max. 60 V, IPC-2221 needs 0.6 mm).
+1. Net classes `HV` / `BAL` (all tap, bus, string and bleed nets): DRC clearance 0.6 mm (IPC-2221 B2,
+   ≤ 150 V, uncoated). Keep ≥ 1 mm between tap traces wherever the layout allows.
 2. Keep the measurement matrix, C_FC, buffer and ADC in one compact area. Guard ring (GND) around
    BUS_A/BUS_B/C_FC/BUF_IN to keep leakage currents away.
-3. Star ground: T0_F, FC_GND, ADC AVSS/REFN0, REF5040 GND meet at one point. Power return (J2.2)
+3. Star ground: FC_GND (net tie), ADC AVSS/REFN0, REF5040 GND meet at one point. Power return (J2.2)
    and the buck current loop must not flow through it.
 4. Balancing current (0.2 A per cell) only on the T_F → KB → RBL path, never through the 1 kΩ / matrix path.
 5. Bleed resistors on the board edge with copper pours for heat spreading, NTC in between.
@@ -365,10 +374,11 @@ Compared to 2.0.1.0: no divider drift (10–40 mV on the top cells), no quiescen
 
 ## 10. Check before ordering
 
-- [ ] PhotoMOS for K1..K21: load voltage ≥ 100 V, off-state leakage spec, LED trigger current ≤ 3 mA.
+- [x] PhotoMOS for K1..K21: AQY280S (350 V). Still check off-state leakage and LED trigger current (≤ 3 mA).
 - [ ] LM5164 values (R1–R3, L1) with WEBENCH for 10–60 V in, 5 V / 0.6 A out.
-- [ ] EasyEDA library symbols: check pin names against this document (it uses pin **names**, not numbers),
-      especially BAT54A (pins 1/2 = cathodes, pin 3 = common anode) and the PhotoMOS LED pins.
+- [x] Symbols and pins: verified automatically (KiCad ERC clean, schematic netlist == SKiDL netlist).
+- [ ] Cell connector J1 / balancer header J3: placeholder Degson screw-terminal footprints, replace with the
+      pluggable 3.5 mm header (15EDGRC-3.5) via easyeda2kicad.
 - [ ] Footprints: C_FC (film capacitor size), 2512 bleed resistors, SOP-4 PhotoMOS.
-- [ ] DRC clearance rule ≥ 1 mm for net class HV (T*, BUS_A, BUS_B, VIN_HV).
+- [x] DRC net classes HV/BAL (0.6 mm) and 0.2 mm minimum hole are set in the KiCad project.
 - [ ] Prototype first with 4 cells and a bench supply.

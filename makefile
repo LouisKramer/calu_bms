@@ -16,6 +16,13 @@ UPLOAD := $(PYTHON) tools/upload.py $(if $(PORT),--port $(PORT))
 MPREMOTE := $(PYTHON) -m mpremote $(if $(PORT),connect $(PORT))
 ESPTOOL  := $(PYTHON) -m esptool --chip esp32s3 $(if $(ESPPORT),--port $(ESPPORT))
 
+# KiCad 10 (hardware design in hw/slave_3_0, run with KiCad's own Python)
+KICAD_DIR ?= C:/Program Files/KiCad/10.0
+KICAD_PY  := "$(KICAD_DIR)/bin/python.exe"
+KICAD_CLI := "$(KICAD_DIR)/bin/kicad-cli.exe"
+HW_DIR    := hw/slave_3_0
+HW_OUT    := $(HW_DIR)/kicad
+
 .DEFAULT_GOAL := help
 
 # Full fresh deploy: wipe device (keeps /data with calibration), upload, restart app
@@ -72,6 +79,30 @@ bringup:
 check:
 	$(PYTHON) tools/check.py
 
+# ---------------------------------------------------------------- hardware (KiCad 10 + SKiDL)
+# Netlist + verified schematic from the SKiDL source (hw/slave_3_0/*.py)
+.PHONY: sch
+sch:
+	$(KICAD_PY) $(HW_DIR)/slave_3_0.py
+
+# Same, plus the initial PCB if it does not exist yet (never overwrites a layout)
+.PHONY: pcb
+pcb:
+	$(KICAD_PY) $(HW_DIR)/slave_3_0.py --pcb
+
+.PHONY: erc
+erc:
+	$(KICAD_CLI) sch erc --severity-all --exit-code-violations -o $(HW_OUT)/erc.rpt $(HW_OUT)/slave_3_0.kicad_sch
+
+.PHONY: drc
+drc:
+	$(KICAD_CLI) pcb drc --schematic-parity --severity-error -o $(HW_OUT)/drc.rpt $(HW_OUT)/slave_3_0.kicad_pcb
+
+# Install SKiDL into KiCad's Python
+.PHONY: hw_tools
+hw_tools:
+	$(KICAD_PY) -m pip install --user skidl
+
 # Install host tools
 .PHONY: tools
 tools:
@@ -91,4 +122,8 @@ help:
 	@echo   make bringup        slave hardware bring-up checks
 	@echo   make check          MicroPython syntax check of src/
 	@echo   make tools          pip install mpremote, esptool, mpy-cross
-	@echo Options: PORT=COM5 (device), ESPPORT=COM6 (esptool), PYTHON=python3
+	@echo   make sch            hardware: netlist + verified KiCad schematic from SKiDL
+	@echo   make pcb            hardware: same + initial PCB (only if none exists)
+	@echo   make erc / drc      hardware: KiCad ERC / DRC (incl. schematic parity)
+	@echo   make hw_tools       install SKiDL into KiCad's Python
+	@echo Options: PORT=COM5 (device), ESPPORT=COM6 (esptool), PYTHON=python3, KICAD_DIR=...

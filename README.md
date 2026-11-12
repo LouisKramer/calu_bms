@@ -10,7 +10,7 @@ The previous code (master, ADES1830 slave, SOC, protection, CAN, ...) is still a
     src/lib/      drivers (ADS1118, PCA9685, SN74HC154) and modules (cell_monitor, balancer)
     src/slave/    slave HW map (hw.py), boot.py, bring-up script, requirements.txt (upload mapping)
     tools/        upload.py, check.py
-    hw/           EasyEDA slave project and datasheets
+    hw/           slave 3.0 design (hw/slave_3_0: SKiDL + generated KiCad project), datasheets
 
 ## Setup
 

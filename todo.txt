@@ -1,7 +1,9 @@
 TODO:
-- HW Slave 3.0.0.0 (flying capacitor, see hw/CALU_BMS_Slave_3_0_0_0_schematic.md):
-    - enter schematic in EasyEDA, verify PhotoMOS ratings, LM5164 values (WEBENCH)
-    - layout with HV clearance >= 1 mm, prototype with 4 cells
+- HW Slave 3.0.0.0 (flying capacitor, hw/slave_3_0, KiCad 10 + SKiDL):
+    - schematic + initial PCB generated, ERC clean, netlist verified --> DONE
+    - LM5164 values (WEBENCH), replace placeholder cell/balancer connector footprints
+    - placement + routing in KiCad, HV clearance, star ground, heat spreading
+    - JLCPCB BOM/CPL (LCSC part numbers), prototype with 4 cells
 - HW Slave 2.0.1.x: skipped (divider drift, uneven cell load)
 - HW Master 1.x.x.x:
     - provide schematic for SW restart
