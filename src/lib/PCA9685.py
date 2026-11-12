@@ -8,17 +8,33 @@ class PCA9685:
     PRESCALE = 0xFE
     LED0_ON_L = 0x06
     ALL_LED_ON_L = 0xFA
-    
+
+    MODE1_SLEEP = 0x10
+    MODE1_AI = 0x20
+    MODE2_OUTDRV = 0x04   # totem-pole outputs
+    FULL_BIT = 0x10       # bit 4 of LEDn_ON_H / LEDn_OFF_H
+
     def __init__(self, i2c, address=0x40):
         """Initialize PCA9685 with I2C interface and address."""
         self.i2c = i2c
         self.address = address
         self.reset()
-    
+
+    def probe(self):
+        """Return True if the device ACKs on the bus."""
+        try:
+            self.i2c.readfrom_mem(self.address, self.MODE1, 1)
+            return True
+        except OSError:
+            return False
+
     def reset(self):
-        """Reset the PCA9685 to default settings."""
-        self.i2c.writeto_mem(self.address, self.MODE1, bytearray([0x00]))
-        time.sleep_ms(10)
+        """Force all outputs off, totem-pole drive, auto-increment, oscillator running."""
+        self.i2c.writeto_mem(self.address, self.MODE1, bytearray([self.MODE1_SLEEP | self.MODE1_AI]))
+        self.i2c.writeto_mem(self.address, self.MODE2, bytearray([self.MODE2_OUTDRV]))
+        self.all_off()
+        self.i2c.writeto_mem(self.address, self.MODE1, bytearray([self.MODE1_AI]))
+        time.sleep_ms(1)
     
     def set_pwm_freq(self, freq_hz):
         """Set PWM frequency in Hz (25 to 1526 Hz)."""
@@ -66,24 +82,34 @@ class PCA9685:
         """Set duty cycle (0-100%) for a specific channel."""
         if duty < 0 or duty > 100:
             raise ValueError("Duty cycle must be 0-100%")
-        # Convert percentage to 12-bit value (0-4095)
-        off = int(duty * 4095 / 100)
-        self.set_pwm(channel, 0, off)
+        if duty == 0:
+            self.off(channel)
+        elif duty == 100:
+            self.i2c.writeto_mem(self.address, self.LED0_ON_L + 4 * channel,
+                                 bytearray([0, self.FULL_BIT, 0, 0]))
+        else:
+            self.set_pwm(channel, 0, int(duty * 4095 / 100))
     
     def set_all_duty(self, duty):
         """Set duty cycle (0-100%) for all channels."""
         if duty < 0 or duty > 100:
             raise ValueError("Duty cycle must be 0-100%")
+        if duty == 0:
+            self.all_off()
+            return
         off = int(duty * 4095 / 100)
         self.set_all_pwm(0, off)
     
     def off(self, channel):
-        """Turn off a specific channel."""
-        self.set_pwm(channel, 0, 0)
+        """Turn off a specific channel (full-OFF bit, output guaranteed low)."""
+        if channel < 0 or channel > 15:
+            raise ValueError("Channel must be 0-15")
+        self.i2c.writeto_mem(self.address, self.LED0_ON_L + 4 * channel,
+                             bytearray([0, 0, 0, self.FULL_BIT]))
     
     def all_off(self):
-        """Turn off all channels."""
-        self.set_all_pwm(0, 0)
+        """Turn off all channels (full-OFF bit)."""
+        self.i2c.writeto_mem(self.address, self.ALL_LED_ON_L, bytearray([0, 0, 0, self.FULL_BIT]))
     
     def enable_odd_channels(self, duty, mask=None):
         """Enable specified odd-numbered channels (1, 3, ..., 15) with duty cycle.

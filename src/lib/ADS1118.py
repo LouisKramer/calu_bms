@@ -12,9 +12,9 @@ class ADS1118:
     Calibration offsets are stored persistently in a JSON file and loaded at initialization.
     """
  
-    # FSR positive values based on PGA, VCC=5V
-    _FSR_5V = [5.0, 4.096, 2.048, 1.024, 0.512, 0.256, 0.256, 0.256]
-    _FSR = [3.3, 3.3, 2.048, 1.024, 0.512, 0.256, 0.256, 0.256]
+    # Full-scale range (+-FSR) per PGA setting, independent of VDD.
+    # Inputs must still stay within GND-0.1 V .. VDD+0.1 V.
+    _FSR = [6.144, 4.096, 2.048, 1.024, 0.512, 0.256, 0.256, 0.256]
 
     # Data rates in SPS
     _DR_SPS = [8, 16, 32, 64, 128, 250, 475, 860]
@@ -85,11 +85,13 @@ class ADS1118:
         self.cal_file = cal_file
         self.offset = [0, 0, 0, 0]  # Signed offsets for channels 0, 1,2,3
         self.gain = gain  # Gain correction factors for channels 0,1,2,3
-        self.frs = self._FSR_5V if vcc == 5.0 else self._FSR
+        self.frs = self._FSR
         self._load_calibration()
 
     def _load_calibration(self):
         """Load calibration offsets from file, if available."""
+        if not self.cal_file:
+            return
         try:
             with open(self.cal_file, "r") as f:
                 data = json.load(f)
@@ -113,6 +115,8 @@ class ADS1118:
 
     def _save_calibration(self):
         """Save calibration offsets to file."""
+        if not self.cal_file:
+            return
         try:
             try:
                 with open(self.cal_file, "r") as f:
@@ -217,26 +221,46 @@ class ADS1118:
             await asyncio.sleep(self._conversion_delay())
         return self._write_and_read(config)
 
-    def _get_value(self, raw, signed):
-        if signed:
-            if raw & 0x8000:  # Check MSB for negative values in differential mode
-                return raw - 0x10000  # Convert to signed (-32768 to 32767)
-            return raw
-        else:
-            return raw & 0x7FFF  # Mask MSB for 15-bit unsigned (0 to 32767)
+    def _get_value(self, raw, signed=True):
+        """Conversion result is always two's complement, also in single-ended mode."""
+        if raw & 0x8000:
+            return raw - 0x10000
+        return raw
 
-    def _get_lsb(self, signed):
+    def _get_lsb(self, signed=True):
+        """LSB size in volts: FSR / 2^15 for every input configuration."""
+        return self.frs[self.pga] / 32768
+
+    def transfer(self, mux):
         """
-        Get LSB size in volts based on mode.
-        
-        Returns:
-            Float: LSB size in volts (FSR / 32768 for single-ended, FSR / 65536 for differential).
+        Pipelined single-shot access: start a conversion with `mux` and return
+        the signed result of the *previous* conversion of this device.
         """
-        fsr = self.frs[self.pga]
-        if signed:
-            return fsr / 32768  # 15-bit resolution for single-ended
+        return self._get_value(self._write_and_read(self._build_config(1, mux, 0)))
+
+    def raw_to_volt(self, value):
+        return value * self._get_lsb()
+
+    def probe(self):
+        """
+        Check presence with a 32-bit cycle: the device echoes the config register
+        in the second word. Returns (present, echoed_config).
+        """
+        cfg = self._build_config(0, self.channel_mux[0], 0)
+        tx = bytearray([(cfg >> 8) & 0xFF, cfg & 0xFF, (cfg >> 8) & 0xFF, cfg & 0xFF])
+        rx = bytearray(4)
+        if self.demux is not None:
+            self.demux.select(self.demux_output)
         else:
-            return fsr / 65536  # 16-bit resolution for differential
+            self.cs_pin.value(0)
+        self.spi.write_readinto(tx, rx)
+        if self.demux is not None:
+            self.demux.deselect()
+        else:
+            self.cs_pin.value(1)
+        echo = (rx[2] << 8) | rx[3]
+        # Compare MUX, PGA, MODE, DR and TS_MODE fields
+        return (echo & 0x7FF0) == (cfg & 0x7FF0), echo
 
     async def calibrate(self, channel):
         """
@@ -244,8 +268,8 @@ class ADS1118:
 
         :param channel: Channel (0 or 1).
         """
-        if channel < 0 or channel > self.nr_of_ch:
-            raise ValueError(f"Channel must be 0 to {self.nr_of_ch}")
+        if channel < 0 or channel >= self.nr_of_ch:
+            raise ValueError(f"Channel must be 0 to {self.nr_of_ch - 1}")
         self._start_conversion(channel, 0)
         signed = await self._read(channel, 0)
         self.offset[channel] = signed
@@ -291,7 +315,7 @@ class ADS1118:
         if channel < 0 or channel > self.nr_of_ch:
             raise ValueError(f"Channel must be 0 to {self.nr_of_ch}")
         if ret:
-            vol = self._get_signed(self._start_conversion(channel, 0))- self.offset[channel]
+            vol = self._get_value(self._start_conversion(channel, 0)) - self.offset[channel]
             mux = self.channel_mux[channel]
             signed = (False if mux >= 4 else True)
             return vol * self._get_lsb(signed)

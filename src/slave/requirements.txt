@@ -1,11 +1,15 @@
 # local path     destination path
 ../common/common.py         ./common/common.py
 ../common/logger.py         ./common/logger.py
-../common/boot.py           ./boot.py
+../slave/boot.py            ./boot.py
 ../lib/ADS1118.py           ./lib/ADS1118.py
 ../lib/DS18B20.py           ./lib/DS18B20.py
 ../lib/PCA9685.py           ./lib/PCA9685.py
 ../lib/SN74HC154.py         ./lib/SN74HC154.py
+../lib/cell_monitor.py      ./lib/cell_monitor.py
+../lib/balancer.py          ./lib/balancer.py
+../slave/hw.py              ./hw.py
+../slave/bringup.py         ./bringup.py
 ../slave/listener.py        ./listener.py
 ../slave/main.py            ./main.py
 ../slave/slave.py           ./slave.py
