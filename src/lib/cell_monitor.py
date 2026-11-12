@@ -11,7 +11,10 @@ _RAW_LIMIT = 32700   # near full scale -> saturated
 
 class CellMonitor:
     """
-    Reads every divided cell tap single-ended against GND (= BA1-) and derives cell voltages.
+    Reads every divided cell tap single-ended against GND (= BA1-) and derives cell voltages
+    as V_tap(n) - V_tap(n-1), with V_tap = V_ain * ratio (see hw.ADC_MAP for why not differential).
+    Remaining errors (0.1 % resistor tolerance, ~0.16 % ADC input loading) are removed by the
+    per-input gain calibration.
 
     String A holds cells 1..cells_a, string B cells 17..16+cells_b (stacked on top of A).
     Fewer than 16 cells per string: bridge the balance wires of all unused taps of that

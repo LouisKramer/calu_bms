@@ -43,6 +43,15 @@ ADS_DR = const(4)          # 128 SPS
 # (demux output, tap on AIN0..AIN3, divider ratio AIN0..AIN3)
 # Tap n = BAn+ (1..32), TAP_GND = BA1- (board GND), TAP_B_BOT = BA17-.
 # ratio = (R_top + 10k) / 10k  ->  V_tap = V_ain * ratio
+# The ratios are the E24 values chosen by main:tools/resisitor_calc.py (ideal 2*n, i.e. 2 V at
+# 4 V/cell); using them directly equals applying its precalculated correction gain (ideal / actual).
+#
+# Every tap is measured single-ended (AINx vs GND). A differential pair such as AIN0-AIN1 is NOT
+# proportional to the cell voltage, because both inputs use different ratios:
+#   d = V_tap(n)/r_n - V_tap(n-1)/r_(n-1)  (0 V for two equal cells on taps 1/2)
+#   V_cell(n) = r_n*d + (r_n - r_(n-1)) * V_ain(n-1)  -> needs the absolute lower input anyway.
+# Chaining differentials from GND was evaluated and is worse here: 710 kOhm input impedance at
+# +-0.256 V (~2.7 % error on every difference) and accumulating offsets.
 ADC_MAP = (
     # string A (cells 1..16)
     (1,  (TAP_GND, 1, 3, 2),        (1.0, 2.0, 6.1, 4.0)),       # U72
