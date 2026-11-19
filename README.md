@@ -1,25 +1,20 @@
 # calu_bms
-BMS diy for ESP32 S3 WROOM N8R8
-Micropython: https://docs.micropython.org/en/latest/index.html
 
-    - ESP32_GENERIC_S3-SPIRAM_OCT-20250911-v1.26.1 
-    - esptool.exe erase_flash
-    - esptool.exe --baud 460800 write_flash 0 ESP32_GENERIC_S3-SPIRAM_OCT-20250911-v1.26.1.bin
-    - https://micropython.org/download/ESP32_GENERIC_S3/
+Battery management system for a stationary high-voltage LFP home storage
+(8 × 16S modules, wireless slaves, master with CAN to the inverter).
 
-Transfer data to esp:
+This branch is a clean restart. Development follows the documents in [docs/](docs/):
 
-    1. pip install adafruit-ampy
-    2. ampy --port COM4 get boot.py boot.py
-    3. --port COM4 put boot.py
+1. [Requirements](docs/requirements.md) (draft)
+2. Architecture (next)
 
-Put esp32 s3 into bootloader mode:  
+## Earlier work
 
-    1. Pull Pin0 to low and press reset button
-    2. Release the BOOT button after a second.
+The `main` branch is the playground where the first prototypes, firmware and hardware were built.
+It is kept as a reference only, together with these branches:
 
-After start:
-
-    1. boot.py is executed.
-    2. main.py is executed.
-
+| Branch | Content |
+|---|---|
+| `main` | first master/slave firmware (MicroPython), EasyEDA hardware 1.2/1.3, tools, datasheets |
+| `slave-hw-2.0.1.0` | firmware cleanup, drivers and bring-up for slave hardware 2.0.1.0 |
+| `slave-hw-3.0.0.0` | flying-capacitor slave in KiCad/SKiDL, active balancer review |
