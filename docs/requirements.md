@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft 0.1 |
+| Status | Draft 0.2 |
 | Scope | Battery management system for a stationary high-voltage LFP home storage |
 | Branches with earlier design work | `slave-hw-2.0.1.0` (firmware/drivers for slave 2.0.1.0), `slave-hw-3.0.0.0` (flying-capacitor slave, KiCad/SKiDL, active balancer review) |
 
@@ -31,8 +31,12 @@ Conventions:
 | Cells | LFP, 350 Ah, 128 in series (8 modules × 16S), 1P |
 | Nominal voltage / energy | 128 × 3.2 V ≈ 410 V, ≈ 143 kWh |
 | Pack voltage range | 320 V (2.50 V/cell) … 467 V (3.65 V/cell) |
-| Current (BMS rating) | 100 A charge, 100 A discharge, continuous |
-| Inverter | GoodWe GW8K-ET (or a larger model), CAN |
+| Current (BMS rating) | 100 A charge, 100 A discharge, continuous (for future larger inverters) |
+| Inverter | GoodWe GW8K-ET now, larger models later; CAN |
+
+The full configuration (128S, 100 A) is the design target for a future larger inverter. With the
+GW8K-ET the BMS runs with a smaller configuration (fewer modules and/or lower current limits) that fits
+the inverter's battery voltage and current range.
 | Installation | indoors, heated, not below 0 °C |
 
 ---
@@ -44,7 +48,8 @@ Conventions:
 | SYS-001 | The BMS shall monitor and protect a pack of 128 LFP cells in series, built from 8 modules of 16S. |
 | SYS-002 | The BMS shall consist of one master and one slave per 16S module. |
 | SYS-003 | The system shall be expandable by adding modules in series, up to the voltage limit of the connected inverter (see OPEN-01), and should support 4–16 cells per module. |
-| SYS-004 | The BMS shall be rated for 100 A continuous charge and discharge current. The actual limits sent to the inverter shall be configurable and never exceed the cell, BMS or inverter ratings. |
+| SYS-004 | The BMS hardware shall be rated for 100 A continuous charge and discharge current (future larger inverters). The actual limits sent to the inverter shall be configurable and never exceed the cell, BMS or inverter ratings. |
+| SYS-007 | The number of modules in series shall be configurable, so the same BMS can run a smaller pack within the GW8K-ET's battery range now and the full 128S pack with a larger inverter later. |
 | SYS-005 | Parameters (cell limits, current limits, number of modules/cells, balancing thresholds) shall be configurable without changing firmware. |
 | SYS-006 | Firmware of master and slaves shall be updatable without opening the modules (OTA). |
 
@@ -104,7 +109,10 @@ Conventions:
 
 | ID | Requirement |
 |---|---|
-| COM-001 | The master shall communicate with the inverter over CAN using a protocol supported by the GoodWe GW8K-ET (see OPEN-02). |
+| COM-001 | The master shall communicate with the inverter over CAN using the battery protocol the GoodWe inverter accepts. The protocol is not public and shall be reverse engineered from the traffic between an existing, working BMS and the inverter (see COM-007, OPEN-02). |
+| COM-007 | The master hardware shall support a **listen-only CAN mode** (no ACK, no transmission) and log all frames with timestamps, so the existing BMS ↔ inverter traffic can be recorded without disturbing it. |
+| COM-008 | The protocol implementation shall be documented (message IDs, cycle times, scaling, meaning, timeouts) and verified by replaying recorded sessions before it is used with the real inverter. |
+| COM-009 | The BMS shall stay within the behaviour of the original BMS on the bus (cycle times, value ranges); unknown fields shall be sent with the values observed from the original BMS. |
 | COM-002 | Master and slaves shall communicate wirelessly (ESP-NOW), which also provides galvanic isolation between modules. |
 | COM-003 | Each slave shall have a hardware-configurable module address (position in the stack). |
 | COM-004 | The master shall publish all measured values, states and faults to Home Assistant (MQTT). |
@@ -126,9 +134,8 @@ Conventions:
 
 | ID | Question |
 |---|---|
-| OPEN-01 | Inverter battery voltage range: does the GW8K-ET accept 320–467 V? If its maximum is below 467 V, fewer cells per pack or a lower charge voltage are needed. |
-| OPEN-02 | Inverter CAN protocol: which battery protocol does the GW8K-ET accept (GoodWe's own, or a supported third-party brand)? |
-| OPEN-03 | Inverter battery current limit (likely ~25 A for the GW8K-ET) vs. the 100 A BMS rating: is 100 A for a future larger inverter? |
+| OPEN-01 | GW8K-ET battery voltage and current range (datasheet) → defines the initial number of modules and current limits (SYS-007). |
+| OPEN-02 | CAN protocol reverse engineering: which existing BMS/battery is it (brand, model), CAN bit rate, and the wiring/termination for tapping the bus. Capture plan: idle, charge, discharge, full, empty, BMS fault, BMS disconnected (inverter timeout behaviour). |
 | OPEN-04 | Slave supply: from its own module or isolated auxiliary supply (affects cell load, number of cells per slave). |
 | OPEN-05 | Insulation monitoring (pack vs. earth) was decided against. Check whether the inverter monitors the battery side; otherwise an insulation fault on a 410 V pack goes undetected. |
 | OPEN-06 | Confirm all values marked **(P)**. |
