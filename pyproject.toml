@@ -1,0 +1,7 @@
+# Tool configuration only; the firmware is MicroPython code, not an installable Python package.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# firmware packages are imported as on the device: `import common...`, `import slave...`, `import master...`
+pythonpath = ["firmware"]
+addopts = "--import-mode=importlib"

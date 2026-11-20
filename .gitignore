@@ -1,3 +1,18 @@
+# Python / MicroPython
+__pycache__/
+.pytest_cache/
+*.mpy
 *.log
-__pycache__/*
-src/common/credentials.py
+
+# firmware build output
+firmware/build/out/
+
+# KiCad
+*-backups/
+*.kicad_prl
+fp-info-cache
+_autosave-*
+~*.lck
+
+# local secrets (Wi-Fi, MQTT); never commit
+credentials.py
