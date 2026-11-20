@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| Status | Draft 0.3 |
+| Status | Draft 0.4 |
 | Scope | Battery management system for a stationary high-voltage LFP home storage |
-| Related | [Slave requirements](slave_requirements.md) |
+| Related | [Slave requirements](slave_requirements.md), [Master requirements](master_requirements.md), [Master concept review](master_concept_review.md) |
 | Earlier work | branches `playground` (first prototypes), `slave-hw-2.0.1.0`, `slave-hw-3.0.0.0` |
 
 Conventions:
@@ -71,9 +71,10 @@ fits the inverter's battery voltage and current range.
 | SAF-010 | Loss of communication with any slave for longer than `slave_timeout_fault` shall be treated as a fault (allowed currents set to zero); after `slave_timeout_trip` the pack shall be disconnected. |
 | SAF-011 | Every slave shall switch off all balancing when it receives no valid command from the master within `slave_bal_timeout`, and during its own reset (hardware default off). |
 | SAF-012 | The safe state (relays open, balancing off) shall also be reached on master power loss, reset or firmware crash (fail-safe hardware defaults, watchdog). |
-| SAF-013 | All slave electronics float at their module potential (up to ~470 V to earth). Insulation between modules, slaves, enclosure and service interfaces shall be designed for the full pack voltage. Service USB on a module in the stack shall only be used through an isolator rated **≥ 1 kV**. |
+| SAF-013 | All slave and master electronics float at the potential of the module they are mounted on (up to ~470 V to earth). Insulation between modules, slaves, master domains, enclosure and service interfaces shall be designed for the full pack voltage. Service USB on a board in the stack shall only be used through an isolator rated **≥ 1 kV**. |
 | SAF-014 | Faults shall be latched and logged; restart after a protection trip shall require the fault to be cleared, and for critical faults (cell over-voltage, short circuit) an explicit user reset. |
 | SAF-015 | Protection limits shall not depend on the inverter respecting the transmitted current/voltage limits: the BMS disconnects by itself. |
+| SAF-016 | The master shall monitor the insulation resistance of the pack (HV+ and HV−) to protective earth. Below `iso_warn` an alarm shall be raised; below `iso_trip` the action `iso_trip_action` (alarm or disconnect) shall be taken. |
 
 ## 4. Measurement
 
@@ -98,6 +99,7 @@ fits the inverter's battery voltage and current range.
 | BAL-004 | Balancing shall be paused during cell voltage measurement. |
 | BAL-005 | The master shall coordinate balancing across all modules (common target voltage), so that modules are balanced to each other and not only internally. |
 | BAL-006 | Balancing shall start only above `bal_start_v` and for cells more than `bal_delta` above the target; passive and active balancing shall be enabled separately (`bal_passive_en`, `bal_active_en`). |
+| BAL-007 | The additional consumption of the master on the module that supplies it shall be compensated by the balancing coordination, so this module does not drift away from the others. |
 
 ## 6. State estimation
 
@@ -112,7 +114,7 @@ fits the inverter's battery voltage and current range.
 
 | ID | Requirement |
 |---|---|
-| COM-001 | The master shall communicate with the inverter over CAN using the battery protocol the GoodWe inverter accepts. The protocol is not public and shall be reverse engineered from the traffic between an existing, working BMS and the inverter (see COM-007, OPEN-02). |
+| COM-001 | The master shall communicate with the inverter over CAN using the battery protocol the GoodWe inverter accepts. The protocol is not public and shall be reverse engineered from the traffic between the existing BMS (**GCE RBMS07S70S50A**) and the inverter, and the master shall emulate it (see COM-007, OPEN-02). |
 | COM-002 | Master and slaves shall communicate wirelessly (ESP-NOW), which also provides galvanic isolation between modules. |
 | COM-003 | Each slave shall have a hardware-configurable module address (position in the stack). |
 | COM-004 | The master shall publish all measured values, states and faults to Home Assistant (MQTT). |
@@ -127,9 +129,10 @@ fits the inverter's battery voltage and current range.
 | ID | Requirement |
 |---|---|
 | HW-001 | Master and slaves shall use the ESP32-S3 (MicroPython firmware). |
-| HW-002 | Slaves shall be supplied from their own module **or** from an isolated auxiliary supply (decision OPEN-04). |
+| HW-002 | Each slave shall be supplied from its own module (whole module voltage, all cells loaded equally). |
 | HW-003 | All boards shall be manufacturable by JLCPCB (PCB + assembly). |
 | HW-004 | Operating ambient temperature: **0…40 °C**, indoors, non-condensing. |
+| HW-005 | The master shall be mountable at any module of the stack and be supplied from that module. |
 
 ---
 
@@ -146,7 +149,7 @@ fits the inverter's battery voltage and current range.
 | CFG-005 | Hardware ratings (100 A, 8 modules, 16 cells/module, short-circuit threshold) are fixed and not configurable; parameter ranges shall be limited to them. |
 | CFG-006 | It shall be possible to restore the defaults and to export/import the complete configuration as a file (JSON). |
 | CFG-007 | Every configuration change shall be logged with time, parameter, old and new value. |
-| CFG-008 | Configuration changes shall be possible via the web interface (COM-005); Home Assistant may read but should not change safety parameters. |
+| CFG-008 | Configuration changes shall be possible via the web interface (COM-005) and via Home Assistant (MQTT, COM-004). Both paths shall apply the same validation (CFG-003) and the same rules for safety parameters (CFG-004); the MQTT connection shall be authenticated (user/password, TLS should be supported). |
 | CFG-009 | Calibration data of a slave (measurement gain/offset) is not part of the configuration: it shall be stored on the slave itself and survive configuration resets. |
 
 ### 9.2 Parameters
@@ -186,6 +189,7 @@ of modules are reduced at commissioning (OPEN-01).
 | `t_warn_margin` (current derating starts this far before a limit) | 5 | 2 … 10 | K | | EST-004 |
 | `t_trip_margin` | 5 | 2 … 10 | K | S | SAF-008 |
 | `t_board_max` (slave/master board) | 85 | 60 … 100 | °C | S | SAF-008 |
+| `t_switch_max` (SiC switches/heatsink on the master) | 100 | 60 … 125 | °C | S | SAF-008 |
 | `temp_sensor_count` (per module) | 4 | 0 … 4 | – | | MEA-003 |
 
 **Current**
@@ -207,6 +211,16 @@ of modules are reduced at commissioning (OPEN-01).
 | `precharge_dv` | 10 | 2 … 20 | V | S | SAF-006 |
 | `precharge_timeout` | 5 | 1 … 30 | s | S | SAF-006 |
 | `precharge_retries` | 2 | 0 … 5 | – | S | SAF-006 |
+
+**Insulation monitoring**
+
+| Parameter | Default | Range | Unit | S | Used in |
+|---|---|---|---|---|---|
+| `iso_en` | true | true / false | – | S | SAF-016 |
+| `iso_warn` | 500 | 100 … 1000 | Ω/V | S | SAF-016 |
+| `iso_trip` | 100 | 50 … 500 | Ω/V | S | SAF-016 |
+| `iso_trip_action` | disconnect | alarm / disconnect | – | S | SAF-016 |
+| `iso_period` | 10 | 1 … 60 | s | | SAF-016 |
 
 **Communication and timeouts**
 
@@ -262,6 +276,6 @@ of modules are reduced at commissioning (OPEN-01).
 | ID | Question |
 |---|---|
 | OPEN-01 | GW8K-ET battery voltage and current range (datasheet) → initial `modules_count` and current limits (SYS-007). |
-| OPEN-02 | CAN protocol reverse engineering: which existing BMS/battery is it (brand, model), CAN bit rate, and the wiring/termination for tapping the bus. Capture plan: idle, charge, discharge, full, empty, BMS fault, BMS disconnected (inverter timeout behaviour). |
-| OPEN-04 | Slave supply: from its own module or isolated auxiliary supply (affects cell load, number of cells per slave). |
-| OPEN-05 | Insulation monitoring (pack vs. earth) was decided against. Check whether the inverter monitors the battery side; otherwise an insulation fault on a 410 V pack goes undetected. |
+| OPEN-02 | CAN protocol reverse engineering of the GCE RBMS07S70S50A: CAN bit rate, connector pinout, wiring/termination for tapping the bus. Capture plan: idle, charge, discharge, full, empty, BMS fault, BMS disconnected (inverter timeout behaviour). |
+| OPEN-07 | Power path for 100 A (SiC conduction losses, cooling, bus bars), see master concept review F6/F7 → plausibility check. |
+| OPEN-08 | Insulation monitoring vs. the inverter's own insulation check: can both run without interfering (pause during the inverter's check)? |
