@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft 0.3 |
+| Status | Draft 0.4 |
 | Parent | [System requirements](requirements.md) |
 
 Conventions as in the system requirements. **From** traces each requirement to its system requirement.
@@ -76,7 +76,8 @@ One slave per battery module (4–16 LFP cells in series). The slave
 |---|---|---|
 | SHW-040 | The slave shall be supplied from its own module (whole module voltage between T0 and the top tap). | HW-002, MEA-006 |
 | SHW-041 | Supply input range **10…60 V** (4…16 cells, 2.5…3.65 V), components rated ≥ 100 V, reverse-polarity and transient protection; the supply current shall come from the whole module, never from a part of it. | HW-002, MEA-006 |
-| SHW-043 | Average power consumption **≤ 2 W** (radio transmission over Wi-Fi/ESP-NOW included); the consumption shall be the same for all slaves within **1 mA** (same firmware, same duty cycle), so no module is discharged more than another. | MEA-006 |
+| SHW-043 | Average power consumption **≤ 2 W** (radio transmission over Wi-Fi/ESP-NOW included); the consumption shall be the same for all slaves within **1 mA** (same firmware, same duty cycle, radio power saving off), so no module is discharged more than another. | MEA-006 |
+| SHW-045 | In the low-power state (SAF-017) the slave shall draw **≤ 1 mA (P)** average from its module: supply converter with low quiescent current, ESP32-S3 deep sleep, measurement circuit and reference switched off. | SAF-017 |
 | SHW-044 | The slave shall be operable from USB alone (no cells) for flashing and bench tests. | SYS-006 |
 
 ### 2.6 MCU, communication, addressing, indicators
@@ -84,7 +85,7 @@ One slave per battery module (4–16 LFP cells in series). The slave
 | ID | Requirement | From |
 |---|---|---|
 | SHW-050 | MCU: ESP32-S3 module with PSRAM, running MicroPython. | HW-001 |
-| SHW-051 | The radio range shall cover the battery installation (**≥ 5 m** through the battery rack); the antenna shall be placed so it is not shielded by the module enclosure. | COM-002 |
+| SHW-051 | The radio range shall cover the battery installation (**≥ 5 m** through the battery rack); the antenna shall be placed so it is not shielded by the module enclosure. The layout shall also allow the ESP32-S3-WROOM-1**U** variant with external antenna **(P)**. | COM-002 |
 | SHW-052 | A 4-bit hardware address switch (0…15) shall set the module position in the stack. | COM-003 |
 | SHW-053 | Two LEDs (status, error) shall show the operating state locally. | – |
 | SHW-054 | A USB-C connector shall provide flashing and a serial console; a reset and a boot button shall be present. | SYS-006 |
@@ -93,7 +94,7 @@ One slave per battery module (4–16 LFP cells in series). The slave
 
 | ID | Requirement | From |
 |---|---|---|
-| SHW-060 | Inside the board: clearance and creepage for the module voltage (≤ 60 V). Between the board and its mounting/enclosure/earth: for the full pack voltage (reinforced, ≥ 600 V working voltage). | SAF-013 |
+| SHW-060 | Inside the board: clearance and creepage for the module voltage (≤ 60 V). Between the board and its mounting/enclosure/earth and the USB service port: reinforced, ≥ 600 V working voltage (SAF-013). | SAF-013 |
 | SHW-061 | Mounting holes and board edge shall keep the insulation distances of SHW-060 (no copper near mounting holes). | SAF-013 |
 | SHW-062 | Operating ambient 0…40 °C, indoors, non-condensing. | HW-004 |
 | SHW-063 | The board shall be manufacturable and assembled by JLCPCB; parts from the JLCPCB/LCSC library where possible. | HW-003 |
@@ -111,6 +112,7 @@ One slave per battery module (4–16 LFP cells in series). The slave
 | SWS-002 | After boot the slave shall run a self test (measurement circuit present, balancing driver present, number of temperature sensors, supply voltage, calibration data valid) and report the result to the master. | MEA-007 |
 | SWS-003 | The slave shall implement the states INIT → SEARCH (looking for the master) → CONFIG (waiting for configuration) → RUN, plus FAULT. Balancing is only allowed in RUN. | SAF-011, CFG-001 |
 | SWS-004 | A hardware watchdog shall reset the slave if the firmware hangs for more than **2 s**. | SAF-012 |
+| SWS-005 | Low-power state per SAF-017 (on command of the master or by itself after `slave_timeout_trip` without master while a cell is below `cell_uv_warn`): balancing off, deep sleep, wake-up every **10 min (P)**, measure, report, sleep again. | SAF-017 |
 
 ### 3.2 Measurement
 
@@ -126,7 +128,7 @@ One slave per battery module (4–16 LFP cells in series). The slave
 
 | ID | Requirement | From |
 |---|---|---|
-| SWS-020 | Communication with the master shall use ESP-NOW with encryption (pairing key set at commissioning). | COM-002 |
+| SWS-020 | Communication with the master shall use ESP-NOW with encryption (pairing key set at commissioning). The firmware shall support at least 10 encrypted peers (ESP-IDF default is 7) or authenticate messages in the application **(P)**. | COM-002 |
 | SWS-021 | Every message shall contain the module address, a message type, a sequence number and a protocol version; corrupted, duplicated, out-of-order or foreign messages shall be discarded. | COM-002, COM-003 |
 | SWS-022 | The slave shall send its measurement data after every measurement cycle. | MEA-002 |
 | SWS-023 | Limit violations detected by the slave (`cell_ov_warn`/`cell_uv_warn` and the trip levels, temperature limits) shall be sent immediately as an event message, within **200 ms** of the measurement. | SAF-007, SAF-008 |

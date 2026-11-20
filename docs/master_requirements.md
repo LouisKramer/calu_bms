@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft 0.3 |
+| Status | Draft 0.4 |
 | Parent | [System requirements](requirements.md) |
 | Based on | master concept V1.4.1.0 (`hw/master/CALU_BMS_MASTER.epro2`), see [concept review](master_concept_review.md) |
 
@@ -23,8 +23,9 @@ It can be mounted at any position of the stack; it is supplied from the whole pa
 
 ## 2. Isolation domains
 
-The board is split into domains; every barrier between them is rated for the inverter's maximum battery
-voltage (**reinforced, ≥ 600 V working voltage**, SAF-013). This replaces the single ground of concept V1.4.1.0 (F1, F2).
+The board is split into domains. Barriers between an HV domain (HV−, HV+) and the LV, CAN or PE side are
+**reinforced, ≥ 600 V working voltage**; the barrier between HV− and HV+ is at least basic for 600 V
+(SAF-013, MHW-060). This replaces the single ground of concept V1.4.1.0 (F1, F2).
 
 | Domain | Reference | Contents |
 |---|---|---|
@@ -50,18 +51,18 @@ voltage (**reinforced, ≥ 600 V working voltage**, SAF-013). This replaces the 
 
 | ID | Requirement | From |
 |---|---|---|
-| MHW-001 | The master shall be supplied from the whole pack (BAT+ − BAT−, battery side of the disconnect, behind the pack fuse) through an isolated DC/DC converter: input range **150…600 V (P)** (from the smallest pack allowed by the CFG-003 cross-check at `cell_uv_trip` up to 10 modules at 3.65 V/cell = 584 V), reinforced isolation ≥ 600 V working voltage, own input fuse, inrush limiting. Candidates: DC/DC modules for PV applications with 100…1000 V DC input. | HW-005, SAF-013, F9 |
+| MHW-001 | The master shall be supplied from the whole pack (BAT+ − BAT−, battery side of the disconnect, behind the pack fuse) through an isolated DC/DC converter: input range **150…600 V** (from the smallest pack allowed by the CFG-003 cross-check at `cell_uv_trip` up to 10 modules at 3.65 V/cell = 584 V), reinforced isolation ≥ 600 V working voltage, own input fuse (2 A / 1000 V DC), inrush limiting. Selected **(P)**: **Mornsun PV15-27B12R3** (100…1000 V DC in, 12 V / 15 W, reinforced, 4000 VAC). | HW-005, SAF-013, F9 |
 | MHW-002 | No supply current shall be taken from a part of the stack (single module or cell group); the master loads all cells equally. | HW-005, MEA-006 |
-| MHW-003 | Average power consumption **≤ 3 W** without contactor coils; the coil power is limited separately (MHW-025). The DC/DC shall deliver at least **20 W (P)** (master + pull-in of one contactor + holding of the others; contactors are closed one after another, MSW-004). | HW-005 |
+| MHW-003 | Average power consumption **≤ 3 W** without contactor coils; the coil power is limited separately (MHW-025). The DC/DC shall deliver at least **15 W (P)** continuous (master + holding of all contactors ≈ 7 W); the pull-in of one contactor at a time (≈ 12 W for ≈ 0.1 s, contactors closed one after another, MSW-004) is taken from a buffer capacitor on the 12 V rail **(P)**. | HW-005 |
 | MHW-004 | The master shall be operable from USB alone (no pack) for flashing and bench tests; the HV and contactor functions may be inactive then. Because the LV domain is separated from all HV domains by reinforced isolation (incl. the coil-to-contact isolation of the contactors), the master USB port does not need the extra isolator of SAF-013. | SYS-006, SAF-013 |
 
 ### 3.2 Stage 1 disconnect (SiC)
 
 | ID | Requirement | From |
 |---|---|---|
-| MHW-020 | Each pole (HV+, HV−) shall have a bidirectional SiC switch (back-to-back MOSFETs) rated **≥ 1200 V** and for **25 A continuous** (plus `oc1_level`/`oc2_level` for their times) within its temperature limits. The MOSFETs shall be mounted on heatsinks sized for the conduction loss at 25 A and the hottest R<sub>DS(on)</sub> (per pole ≈ 46 W with SCT020H120G3AG, ≈ 90 W with SCT040H120G3AG at T<sub>j</sub> = 175 °C, F6, MOPEN-01). Connectors and copper of the power path shall be rated for 25 A continuous. | SAF-002, SAF-003, SYS-004, F6, F7 |
+| MHW-020 | Each pole (HV+, HV−) shall have a bidirectional SiC switch of two back-to-back **ST SCT020H120G3AG** (1200 V, 18.5 mΩ typ at 25 °C / 37 mΩ at 175 °C, H²PAK-7, same footprint as the SCT040H120G3AG of the concept), rated for **25 A continuous** (plus `oc1_level`/`oc2_level` for their times) within its temperature limits. The MOSFETs shall be mounted on heatsinks sized for the conduction loss at 25 A (≤ 46 W per pole at T<sub>j</sub> = 175 °C, see plausibility check). Connectors and copper of the power path shall be rated for 25 A continuous. | SAF-002, SAF-003, SYS-004, F6, F7 |
 | MHW-021 | Each switch shall have a temperature sensor at the MOSFETs/heatsink; over-temperature (`t_switch_max`) shall open the switch. | SAF-008 |
-| MHW-022 | Each pole shall have its own isolated gate driver and its own isolated gate supply; the gate-drive grounds of HV+ and HV− shall be isolated from each other and from the LV domain. The gate voltages shall be inside the **recommended** range of the chosen MOSFET (ST G3: +18 V on, −3…−5 V off; the +15 V/−9 V of the concept gives 22 % higher R<sub>DS(on)</sub> and −9 V is outside the recommended range). | SAF-013, F1, F12 |
+| MHW-022 | Each pole shall have its own isolated gate driver and its own isolated gate supply; the gate-drive grounds of HV+ and HV− shall be isolated from each other and from the LV domain. Gate driver **Infineon 1ED3121MC12H (P)** (pin-compatible with the 1ED3121MU12H of the concept, but certified reinforced, VIOWM 1250 Vrms). Gate supply **Mornsun QA123C-1803R3 (P)** (12 V in from the coil rail, **+18 V / −3 V**, reinforced; creepage/working voltage ≥ 600 V DC to be confirmed by the vendor), fallback TI UCC14141-Q1 set to +18 V / −4 V. The gate voltages shall be inside the **recommended** range of the MOSFET (SCT020H120G3AG: −5…+18 V). | SAF-013, F1, F12, F13 |
 | MHW-023 | The gate drivers shall be off when the MCU is in reset, unpowered or not driving the inputs (pull-downs, driver UVLO); turn-on shall additionally require a separate enable that is only set after the MCU's self test. | SAF-012, F11 |
 | MHW-024 | A hardware over-current detection (fixed short-circuit threshold **50 A**, e.g. the FAULT output of the current sensor) shall switch off both SiC switches within **10 µs** without firmware involvement (BOT driver directly in the HV− domain, TOP driver through an isolator) and latch the off state until the MCU resets the latch. | SAF-004, F3, F5 |
 
@@ -69,10 +70,10 @@ voltage (**reinforced, ≥ 600 V working voltage**, SAF-013). This replaces the 
 
 | ID | Requirement | From |
 |---|---|---|
-| MHW-025 | The master shall drive at least **4** contactor/relay coils (HV+ main, HV− main, precharge, 1 spare) with **12 V** coils up to **1 A** pull-in current each. The 12 V coil supply shall be generated on the master from the HV DC/DC (MHW-001). The drivers shall reduce the coil current to holding level after pull-in (PWM economizer, or contactors with built-in economizer), so that the holding power of all closed contactors together is **≤ 4 W**. All outputs shall be off on MCU reset, power loss or firmware crash. | SAF-002, SAF-012, F10 |
-| MHW-026 | A precharge path (contactor + precharge resistor, external) shall be supported; the master measures the inverter-side voltage to verify precharge (SAF-006). | SAF-006, F8 |
+| MHW-025 | The master shall drive at least **4** contactor/relay coils (HV+ main, HV− main, precharge, 1 spare) with **12 V** coils up to **1 A** pull-in current each. The 12 V coil supply shall be generated on the master from the HV DC/DC (MHW-001). The drivers shall reduce the coil current to holding level after pull-in (PWM economizer, or contactors with built-in economizer), so that the holding power of all closed contactors together is **≤ 4 W**. All outputs shall be off on MCU reset, power loss or firmware crash. Main contactors: rated **≥ 750 V DC and ≥ 40 A continuous (P)**, able to break `oc2_level` at 600 V DC in **both** current directions as an emergency (failed-short SiC switch) **(P)**. | SAF-002, SAF-012, F10 |
+| MHW-026 | A precharge path (contactor + precharge resistor, external) shall be supported; the master measures the inverter-side voltage to verify precharge (SAF-006). The precharge resistor shall be pulse-rated for **≥ 200 J (P)** (½ C V² of the inverter DC link) and thermally protected (PTC precharge resistor or thermal fuse) **(P)**. | SAF-006, F8 |
 | MHW-027 | Each main contactor shall have an auxiliary-contact feedback input (detects welded or not-closing contactors). | SAF-012, F8 |
-| MHW-028 | The pack fuse is external; the master shall have an input to detect a blown fuse (voltage on both sides or fuse auxiliary contact). | SAF-005 |
+| MHW-028 | The pack fuse is external: ≥ 600 V DC (preferably 1000 V DC), DC breaking capacity **≥ 20 kA (P)**, **32…40 A (P)**, battery/semiconductor characteristic (e.g. 14 × 51 mm or NH00 gBat/aR). The master shall have an input to detect a blown fuse (voltage on both sides or fuse auxiliary contact). | SAF-005 |
 | MHW-029 | The existing dry-contact outputs of the concept (2 relays) may be kept as general-purpose alarm outputs. | – |
 
 ### 3.4 Measurement (HV− domain)
@@ -98,18 +99,25 @@ voltage (**reinforced, ≥ 600 V working voltage**, SAF-013). This replaces the 
 | MHW-050 | CAN to the inverter through one isolated transceiver (reinforced isolation, e.g. ISOW1044 with integrated supply); ESD protection and connector shield referenced to the CAN domain only; 120 Ω termination switchable (jumper or MCU). | COM-001, F4 |
 | MHW-051 | The CAN transceiver shall support silent (listen-only) operation for sniffing. | COM-007 |
 | MHW-052 | The CAN connector shall be pin-compatible with the cable of the existing GCE BMS (RBMS07S70S50A) to the inverter. | COM-001 |
-| MHW-053 | Wi-Fi/ESP-NOW antenna placement for ≥ 5 m range to all slaves through the battery rack. | COM-002 |
+| MHW-053 | Wi-Fi/ESP-NOW antenna placement for ≥ 5 m range to all slaves through the battery rack; the layout shall also allow the ESP32-S3-WROOM-1**U** variant with external antenna **(P)**. | COM-002 |
 | MHW-054 | LEDs (status, error, contactor states), buzzer, reset and boot buttons, USB-C (flashing/console), UART test header. | – |
 | MHW-055 | Real-time clock with backup (or NTP with fallback) for timestamps in logs. | SAF-014 |
-| MHW-056 | Non-volatile storage for at least **30 days** of 1-minute data and the complete fault log. | SAF-014, CFG-007 |
+| MHW-056 | Non-volatile storage for **30 days** of 1-minute pack data and per-module summaries (min/max/mean cell voltage, max temperature, balancing) plus **24 h (P)** of full cell data and the complete fault log (≈ 6 MB) → **ESP32-S3-WROOM-1-N16R8 (P)** (16 MB flash) or microSD card. Long-term history is kept in Home Assistant. | SAF-014, CFG-007 |
 
 ### 3.7 Insulation, environment, manufacturing
 
 | ID | Requirement | From |
 |---|---|---|
-| MHW-060 | Clearance/creepage between all domains of section 2 and to the enclosure/mounting for ≥ 600 V working voltage, reinforced. | SAF-013 |
+| MHW-060 | Clearance/creepage per SAF-013: **reinforced for ≥ 600 V working voltage** between the HV domains (HV−, HV+) and the LV domain, CAN domain, PE and enclosure; **at least basic for 600 V (P)** between HV− and HV+. Guide values for the PCB (IEC 60664-1, pollution degree 2, to be confirmed in the design) **(P)**: reinforced ≈ 6.4 mm creepage / 5.5 mm clearance; components crossing a reinforced barrier need a package with at least this creepage (e.g. wide-body SOIC-16W). | SAF-013 |
 | MHW-061 | Operating ambient 0…40 °C, indoors, non-condensing. | HW-004 |
 | MHW-062 | Manufacturable by JLCPCB; the power path (bus bars, heatsink) may be mechanical parts outside the PCB assembly. | HW-003 |
+
+### 3.8 Protection of the power path
+
+| ID | Requirement | From |
+|---|---|---|
+| MHW-070 | Each pole switch shall have an overvoltage clamp (TVS string or varistor) that absorbs the energy of the loop inductance at short-circuit turn-off (**≥ 0.5 J (P)**, ½ L I² at 3 µH, 400 A, with margin) and keeps the MOSFET voltage below 1200 V. | SAF-004 |
+| MHW-071 | The short-circuit turn-off shall be verified: the current reached at turn-off (detection + delay, loop inductance **1…3 µH (P)**) shall be inside the pulse and short-circuit ratings of the SCT020H120G3AG; otherwise a gate driver with desaturation detection and soft turn-off shall be used (e.g. EiceDRIVER X3 Analog 1ED34xx). | SAF-004 |
 
 ---
 
@@ -125,6 +133,8 @@ voltage (**reinforced, ≥ 600 V working voltage**, SAF-013). This replaces the 
 | MSW-004 | Disconnect sequence: SiC off → wait until current ≈ 0 → contactors open → verify via feedback. Connect sequence: precharge contactor → wait for `precharge_dv` → main contactors → SiC on → precharge off. | SAF-002, SAF-006 |
 | MSW-005 | A hardware watchdog shall reset the master if the firmware hangs for more than **1 s**, which opens all switches (MHW-023, MHW-025). | SAF-012 |
 | MSW-006 | Faults shall be latched and logged; critical faults require a user reset (web UI or Home Assistant, authenticated). | SAF-014 |
+| MSW-007 | Precharge plausibility: abort the precharge when the inverter voltage has not reached **50 % of the pack voltage after 1 s (P)**; wait **≥ 60 s (P)** between retries (resistor cooling). The DC-link capacitance shall be estimated from the precharge curve and logged. | SAF-006 |
+| MSW-008 | Low-power state per SAF-017: master sleeps (Wi-Fi off), wakes every 10 min, collects slave data, publishes, and stays awake on user request (button or web UI within the wake window). Charge-only reconnection per SAF-018. | SAF-017, SAF-018 |
 
 ### 4.2 Slave management
 
@@ -139,10 +149,11 @@ voltage (**reinforced, ≥ 600 V working voltage**, SAF-013). This replaces the 
 
 | ID | Requirement | From |
 |---|---|---|
-| MSW-020 | The master shall emulate the CAN protocol of the GCE BMS RBMS07S70S50A towards the GoodWe inverter, documented per COM-008. | COM-001, COM-008 |
+| MSW-020 | The master shall emulate the inverter protocol of COM-001 (first choice BYD HVS/HVM CAN, fallback the GCE RBMS07S70S50A protocol), documented per COM-008. It shall stay silent until the inverter has sent its first frame and answer the identification request. | COM-001, COM-008 |
 | MSW-021 | SNIFF mode: log all CAN frames with timestamps (≥ 1 ms resolution) to file, downloadable via web UI. | COM-007 |
 | MSW-022 | Replay/test mode: send recorded or synthetic sessions on a test bus to verify the implementation. | COM-008 |
 | MSW-023 | No frames from the inverter for `inverter_timeout` → allowed currents zero, then disconnect. | COM-001 |
+| MSW-024 | The master firmware shall be a MicroPython build with ESP32 CAN (TWAI) support including listen-only mode (mainline has no ESP32 `machine.CAN`: PR #19461 or a user C module, **(P)**); receive timestamps are taken in the RX interrupt (`time.ticks_us()`). | COM-007, HW-001 |
 
 ### 4.4 Estimation and limits
 
@@ -166,6 +177,6 @@ voltage (**reinforced, ≥ 600 V working voltage**, SAF-013). This replaces the 
 
 | ID | Question |
 |---|---|
-| MOPEN-01 | SiC part (same H²PAK-7 footprint, pin 1 gate, pin 2 Kelvin source, pins 3–7 source, tab drain). Recommended: **ST SCT020H120G3AG** (18.5 mΩ typ / 37 mΩ at 175 °C, drop-in from the same family, halves the loss). Lowest loss: Infineon IMBG120R012M2H (12.2 / 28.9 mΩ, TO-263-7, land pattern to be compared, off voltage ≥ −7 V). Middle: ST SCT025H120G3AG (27 / 48.5 mΩ). If none is available at LCSC/JLCPCB, keep SCT040H120G3AG. Then size the heatsinks (MHW-020). |
+| MOPEN-01 | *(closed in 0.4: ST SCT020H120G3AG, MHW-020)* |
 | MOPEN-02 | *(closed in 0.3: master and 12 V coil supply from the whole pack via isolated HV DC/DC, MHW-001)* |
 | MOPEN-03 | *(closed in 0.3: ACS71240LLCBTR-050B3, MHW-032)* |

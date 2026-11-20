@@ -9,7 +9,7 @@ This branch is a clean restart. Development follows the documents in [docs/](doc
 2. [Slave requirements](docs/slave_requirements.md) (draft, hardware + software)
 3. [Master requirements](docs/master_requirements.md) (draft, hardware + software), based on the
    [master concept review](docs/master_concept_review.md) of `hw/master/CALU_BMS_MASTER.epro2`
-4. Plausibility check of the requirements, then architecture
+4. [Plausibility check](docs/plausibility_check.md) of the requirements, then architecture
 
 ## Earlier work
 
