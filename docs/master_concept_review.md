@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| Status | Review 0.1 |
+| Status | Review 0.2 |
 | Source | schematic pages MAIN, CAN, RELAY, POWER and the PCB netlist of the EasyEDA project |
-| Checked against | [System requirements](requirements.md) 0.4, [Master requirements](master_requirements.md) 0.1 |
+| Checked against | [System requirements](requirements.md) 0.5, [Master requirements](master_requirements.md) 0.2 |
 
 ## 1. Concept summary
 
@@ -32,17 +32,18 @@ Severity: **C** = critical (damage/safety), **M** = major (requirement not met),
 |---|---|---|---|
 | F1 | C | **Pack short circuit through the gate-drive ground.** The Kelvin-source pins (pad 2) of all four SiC MOSFETs are on the same net `GND_ISO`. This ties the TOP source node (≈ BAT+) to the BOT source node (≈ BAT−). As soon as TOP and BOT are switched on, the full pack is shorted through the Kelvin pins and the isolated supply. | One isolated gate supply and driver ground per pole, isolated from each other for the full pack voltage (MHW-022). |
 | F2 | C | **Measurement only works with the master on the bottom module.** The BAT±/INV± dividers and the ADS1118 are referenced to master GND. With the master on any other module, BAT− is several hundred volts below master GND; the ADS1118 inputs (allowed GND…VDD) would be driven far negative. The dividers also connect master GND to both pack ends (no isolation). | HV measurement in an isolated domain referenced to pack negative (MHW-030, MHW-031). |
-| F3 | M | **Current sensor.** ACS71240: 30 A range (100 A required), SOIC-8 isolation 297 Vrms *basic* (≈ 420 V peak) < 467 V pack and not reinforced; Hall-sensor offset/drift is unlikely to reach < 50 mA (MEA-004). | Shunt in the HV− path read by an isolated ΔΣ ADC in the pack-negative domain, plus hardware over-current comparator (MHW-032, MHW-024). |
+| F3 | M | **Current sensor placement.** With the 25 A rating the Hall sensor ACS71240 (±30 A) is kept. But it sits in the HV+ path and its output is referenced to master GND: the SOIC-8 isolation is only 297 Vrms / 420 V peak *basic*, less than the up to 467 V between pack and master GND, and not reinforced. Its FAULT trip is fixed at 1 × range (30 A for the 030B3), too close to the 25 A operating current. Offset (±15 mV ≈ ±0.34 A max, ±28 mV with lifetime drift) needs automatic zeroing. | Sensor in the HV− path, supplied and read in the HV− domain (functional isolation only), auto-zero while disconnected, variant with 50 A fault (MHW-032, MHW-024, MOPEN-03). |
 | F4 | M | **CAN isolation is bypassed.** PESD1CAN (pad 3) and the RJ45 shield are connected to master GND, but CAN_H/L belong to the isolated side of the ISOW1044. The non-isolated SN65HVD230 sits on the same CAN_H/L and TWAI_TX/RX nets (output conflict on RX if both are fitted). | Only the isolated transceiver; ESD diode to `GND_CAN`; shield via RC to `GND_CAN` or open (MHW-050). |
 | F5 | M | **Hardware fault path ends at a relay.** The current-sensor FAULT# and BAT_FAULT only switch REL_SAFE (milliseconds). D_TOP/D_BOT come from the MCU only, so a short circuit is not interrupted within 10 µs independent of firmware (SAF-004). | Hardware over-current latch that disables both gate drivers directly (MHW-024). |
-| F6 | M | **Conduction losses.** Each pole has two SiC MOSFETs in series (≈ 2 × 40 mΩ class) → per pole 50 W at 25 A, 800 W at 100 A; both poles double that. Not feasible on a PCB at 100 A; already needs heatsinks at the GW8K-ET's ~25 A. | Parallel devices on a heatsink, or a hybrid switch (contactor carries the current, SiC only commutates); decided in the plausibility check (MHW-020, OPEN-07). |
-| F7 | M | **Pack current through the PCB** (BAT/INV connectors JL136HT, SiC, sensor): 100 A needs bus bars/heavy copper; the connector rating must be checked. | Power path rating (MHW-020). |
+| F6 | M | **Conduction losses.** Each pole has two SiC MOSFETs in series (≈ 2 × 40 mΩ class) → per pole ≈ 50 W at 25 A and 25 °C, ≈ 75 W when hot; both poles ≈ 100…150 W at full current (≈ 8 W per pole at 10 A). | Heatsinks on the SiC switches (MHW-020, MOPEN-01). |
+| F7 | m | **Pack current through the PCB** (BAT/INV connectors JL136HT, SiC, sensor): 25 A is possible on the PCB with wide pours / 2 oz copper; the connector rating must be checked. | Power path rating (MHW-020). |
 | F8 | M | **No precharge circuit, no contactor feedback, no insulation monitoring, no PE connection.** | MHW-026, MHW-027, MHW-040. |
 | F9 | m | **Supply LM2596HVS (60 V max)** at 58.4 V (16S full) – no margin for transients. | 100 V-rated supply (MHW-001). |
-| F10 | m | **Contactor coils.** The ULN2003 outputs switch +5 V relays; external HV contactors usually need 12/24 V and more current, and the outputs have no defined state check. | Contactor drivers with own coil supply, fail-safe off, feedback (MHW-025, MHW-027). |
+| F10 | m | **Contactor coils.** The ULN2003 outputs switch +5 V relays; the external HV contactors need 12 V and more current, and the outputs have no defined state check. | 12 V coil supply generated on the master, drivers with economizer, fail-safe off, feedback (MHW-025, MHW-027). |
 | F11 | m | **Gate-driver inputs at reset:** D_TOP/D_BOT only have an LED + 390 Ω to GND, no defined pull-down while the ESP32 boots. | Explicit pull-downs, driver enable only after MCU init (MHW-023). |
 
 ## 3. Result
 
 Feasible with the fixes above. F1 and F2 change the isolation architecture of the board (section 3 of the
-master requirements); F6/F7 are the main questions for the 100 A target and go into the plausibility check.
+master requirements). With the current rating reduced to 25 A (review 0.2) the Hall sensor stays, F7 is minor,
+and F6 is solved with heatsinks.

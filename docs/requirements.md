@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft 0.4 |
+| Status | Draft 0.5 |
 | Scope | Battery management system for a stationary high-voltage LFP home storage |
 | Related | [Slave requirements](slave_requirements.md), [Master requirements](master_requirements.md), [Master concept review](master_concept_review.md) |
 | Earlier work | branches `playground` (first prototypes), `slave-hw-2.0.1.0`, `slave-hw-3.0.0.0` |
@@ -12,6 +12,7 @@ Conventions:
 - Every requirement has an ID so tests, design and firmware can refer to it.
 - `parameter_name` refers to a configuration parameter in chapter 9 (default, range, unit).
   Values written directly in a requirement are fixed design values, not configurable.
+- Values marked **(P)** are new proposals that still need confirmation.
 
 ---
 
@@ -20,7 +21,7 @@ Conventions:
 ```
                          CAN                    ESP-NOW (wireless)
   Inverter  <──────────────────────>  MASTER  <───────────────────>  SLAVE 1 … SLAVE 8
-  (GoodWe GW8K-ET or larger)            │                              │ (one per 16S module)
+  (GoodWe GW8KN-ET)                     │                              │ (one per 16S module)
                                         │ 2-stage disconnect           │ cell voltages, temperatures,
   HV+ ──── fuse ── SiC ── relay ────────┤ current, pack voltage        │ passive balancing,
   HV- ─────────────── SiC ── relay ─────┤ SOC/SOH, protection          │ optional active balancer
@@ -33,13 +34,13 @@ Conventions:
 | Cells | LFP, 350 Ah, 128 in series (8 modules × 16S), 1P |
 | Nominal voltage / energy | 128 × 3.2 V ≈ 410 V, ≈ 143 kWh |
 | Pack voltage range | 320 V (2.50 V/cell) … 467 V (3.65 V/cell) |
-| Current (BMS rating) | 100 A charge, 100 A discharge, continuous |
-| Inverter | GoodWe GW8K-ET now, larger models later; CAN |
+| Current (BMS rating) | 25 A charge, 25 A discharge, continuous |
+| Inverter | GoodWe GW8KN-ET (ET PLUS+ 16A series, [datasheet](datasheets/GW_ET%20PLUS+%20(16A)_Datasheet_EMEA-DE.pdf)): battery 180…600 V, 25 A continuous charge/discharge, 9.6 kW, CAN, transformerless (not isolated) |
 | Installation | indoors, heated, not below 0 °C |
 
-The full configuration (128S, 100 A) is the hardware design target for a future larger inverter. With the
-GW8K-ET the BMS runs a smaller configuration (fewer modules and/or lower current limits, chapter 9) that
-fits the inverter's battery voltage and current range.
+The full pack (128S, 320…467 V) lies inside the battery voltage range of the GW8KN-ET, and the BMS current
+rating matches the inverter's 25 A. A pack with fewer modules is possible as long as its voltage stays inside
+the inverter range (`inv_v_min`, `inv_v_max`, CFG-003); with the defaults this is the case from 4 modules (64S) on.
 
 ---
 
@@ -49,11 +50,11 @@ fits the inverter's battery voltage and current range.
 |---|---|
 | SYS-001 | The BMS shall monitor and protect a pack of up to 128 LFP cells in series, built from up to 8 modules of up to 16S. |
 | SYS-002 | The BMS shall consist of one master and one slave per module. |
-| SYS-003 | The system shall be expandable by adding modules in series up to the hardware rating (8 modules, 467 V) and the voltage limit of the connected inverter. Each module shall support 4–16 cells (`cells_per_module`). |
-| SYS-004 | The BMS hardware shall be rated for 100 A continuous charge and discharge current. The limits actually sent to the inverter (`i_charge_max`, `i_discharge_max`) shall never exceed the cell, BMS or inverter ratings. |
+| SYS-003 | The system shall be expandable by adding modules in series up to the hardware rating (8 modules, 467 V) and the voltage range of the connected inverter (`inv_v_min`, `inv_v_max`). Each module shall support 4–16 cells (`cells_per_module`). |
+| SYS-004 | The BMS hardware shall be rated for 25 A continuous charge and discharge current. The limits actually sent to the inverter (`i_charge_max`, `i_discharge_max`) shall never exceed the cell, BMS or inverter ratings. |
 | SYS-005 | All operating parameters shall be configurable without changing firmware, as defined in chapter 9. |
 | SYS-006 | Firmware of master and slaves shall be updatable without opening the modules (OTA). |
-| SYS-007 | The number of modules (`modules_count`) shall be configurable, so the same BMS can run a smaller pack within the GW8K-ET's battery range now and the full 128S pack later. |
+| SYS-007 | The number of modules (`modules_count`) shall be configurable, so the pack can be built up step by step (fewer modules) and later extended to the full 128S pack. |
 
 ## 3. Safety and protection
 
@@ -74,7 +75,7 @@ fits the inverter's battery voltage and current range.
 | SAF-013 | All slave and master electronics float at the potential of the module they are mounted on (up to ~470 V to earth). Insulation between modules, slaves, master domains, enclosure and service interfaces shall be designed for the full pack voltage. Service USB on a board in the stack shall only be used through an isolator rated **≥ 1 kV**. |
 | SAF-014 | Faults shall be latched and logged; restart after a protection trip shall require the fault to be cleared, and for critical faults (cell over-voltage, short circuit) an explicit user reset. |
 | SAF-015 | Protection limits shall not depend on the inverter respecting the transmitted current/voltage limits: the BMS disconnects by itself. |
-| SAF-016 | The master shall monitor the insulation resistance of the pack (HV+ and HV−) to protective earth. Below `iso_warn` an alarm shall be raised; below `iso_trip` the action `iso_trip_action` (alarm or disconnect) shall be taken. |
+| SAF-016 | The master shall monitor the insulation resistance of the pack (HV+ and HV−) to protective earth. Below `iso_warn` an alarm shall be raised; below `iso_trip` the action `iso_trip_action` (alarm or disconnect) shall be taken. The GW8KN-ET is transformerless and has its own insulation and residual-current monitoring; if the two measurements interfere, the BMS measurement shall be switched off with `iso_en`. |
 
 ## 4. Measurement
 
@@ -83,7 +84,7 @@ fits the inverter's battery voltage and current range.
 | MEA-001 | Every cell voltage shall be measured with an accuracy of **±2 mV** over the operating temperature range, after calibration. |
 | MEA-002 | All cells of the pack shall be measured at least every `meas_period` (≤ 1 s). |
 | MEA-003 | Each slave shall measure up to 4 temperatures per module (`temp_sensor_count`, cells/bus bars) plus its own board temperature. |
-| MEA-004 | The master shall measure the pack current, both directions, with an accuracy of **±0.5 %** and an offset error **< 50 mA**. |
+| MEA-004 | The master shall measure the pack current, both directions, with a Hall current sensor: accuracy **±1 % (P)** of reading after calibration, offset error **≤ 150 mA (P)** after automatic zeroing (every time the pack is disconnected the current is exactly zero and the offset shall be re-measured). |
 | MEA-005 | The master shall measure the pack voltage (battery side) and the inverter-side voltage (for precharge, SAF-006). |
 | MEA-006 | The slave measurement shall not load the cells unevenly; the current a slave draws from its cells shall be equal for all cells of a module, and equal between modules within **1 mA**. |
 | MEA-007 | Measurement shall detect open tap wires and implausible values (e.g. sum of cells vs. module voltage, tolerance `plaus_tol`) and report them as faults. |
@@ -144,9 +145,9 @@ fits the inverter's battery voltage and current range.
 |---|---|
 | CFG-001 | The configuration shall be held by the master and distributed to the slaves. Each slave shall confirm the received configuration (version number + checksum); the master shall not start operation while a slave runs a different configuration version. |
 | CFG-002 | The configuration shall be stored non-volatile on master and slaves and survive power loss and firmware updates. |
-| CFG-003 | Every parameter shall have a default, a minimum, a maximum and a unit. Values outside the range shall be rejected. Cross-checks shall be enforced (e.g. warning level inside trip level, `oc1_level` < `oc2_level`, current limits ≤ hardware rating). |
+| CFG-003 | Every parameter shall have a default, a minimum, a maximum and a unit. Values outside the range shall be rejected. Cross-checks shall be enforced (e.g. warning level inside trip level, `oc1_level` < `oc2_level`, current limits ≤ hardware rating, and the pack voltage inside the inverter range: total cells × `discharge_cell_v` ≥ `inv_v_min` and total cells × `cell_ov_trip` ≤ `inv_v_max`). |
 | CFG-004 | Parameters marked **S** (safety) shall only be changed while the pack is disconnected and after authentication; all other parameters may be changed during operation. |
-| CFG-005 | Hardware ratings (100 A, 8 modules, 16 cells/module, short-circuit threshold) are fixed and not configurable; parameter ranges shall be limited to them. |
+| CFG-005 | Hardware ratings (25 A, 8 modules, 16 cells/module, short-circuit threshold) are fixed and not configurable; parameter ranges shall be limited to them. |
 | CFG-006 | It shall be possible to restore the defaults and to export/import the complete configuration as a file (JSON). |
 | CFG-007 | Every configuration change shall be logged with time, parameter, old and new value. |
 | CFG-008 | Configuration changes shall be possible via the web interface (COM-005) and via Home Assistant (MQTT, COM-004). Both paths shall apply the same validation (CFG-003) and the same rules for safety parameters (CFG-004); the MQTT connection shall be authenticated (user/password, TLS should be supported). |
@@ -154,8 +155,7 @@ fits the inverter's battery voltage and current range.
 
 ### 9.2 Parameters
 
-Defaults are for the full pack (8 × 16S LFP 350 Ah). For the GW8K-ET the current limits and the number
-of modules are reduced at commissioning (OPEN-01).
+Defaults are for the full pack (8 × 16S LFP 350 Ah) on the GW8KN-ET.
 
 **Pack**
 
@@ -164,6 +164,8 @@ of modules are reduced at commissioning (OPEN-01).
 | `modules_count` | 8 | 1 … 8 | – | S | SYS-007 |
 | `cells_per_module` (per module) | 16 | 4 … 16 | – | S | SYS-003 |
 | `cell_capacity_ah` | 350 | 10 … 1000 | Ah | | EST-002 |
+| `inv_v_min` (lowest battery voltage of the inverter) | 180 | 0 … 600 | V | S | SYS-003, CFG-003 |
+| `inv_v_max` (highest battery voltage of the inverter) | 600 | 100 … 600 | V | S | SYS-003, CFG-003 |
 
 **Cell voltage**
 
@@ -196,11 +198,11 @@ of modules are reduced at commissioning (OPEN-01).
 
 | Parameter | Default | Range | Unit | S | Used in |
 |---|---|---|---|---|---|
-| `i_charge_max` | 100 | 0 … 100 | A | S | SYS-004 |
-| `i_discharge_max` | 100 | 0 … 100 | A | S | SYS-004 |
-| `oc1_level` | 110 | 50 … 120 | A | S | SAF-009 |
+| `i_charge_max` | 25 | 0 … 25 | A | S | SYS-004 |
+| `i_discharge_max` | 25 | 0 … 25 | A | S | SYS-004 |
+| `oc1_level` | 27 | 10 … 29 | A | S | SAF-009 |
 | `oc1_time` | 10 | 1 … 60 | s | S | SAF-009 |
-| `oc2_level` | 150 | 100 … 200 | A | S | SAF-009 |
+| `oc2_level` (≤ measuring range of the current sensor) | 30 | 15 … 30 | A | S | SAF-009 |
 | `oc2_time` | 1 | 0.1 … 5 | s | S | SAF-009 |
 | `charge_taper` (allowed charge current vs. SOC) | 0 %→100 %, 90 %→100 %, 95 %→40 %, 98 %→20 %, 99 %→8 %, 100 %→0 % | table, 2 … 10 points, monotonic | %, % | | EST-004 |
 
@@ -254,10 +256,10 @@ of modules are reduced at commissioning (OPEN-01).
 
 | Parameter | Default | Range | Unit | S | Used in |
 |---|---|---|---|---|---|
-| `soc_rest_current` | 1.0 | 0.1 … 10 | A | | EST-001 |
+| `soc_rest_current` (above the current-sensor offset) | 1.0 | 0.3 … 5 | A | | EST-001 |
 | `soc_rest_time` | 30 | 5 … 240 | min | | EST-001 |
 | `full_cell_v` (highest cell for "full" detection) | 3.45 | 3.40 … 3.60 | V | | EST-001 |
-| `full_current` (charge current below which "full" is detected) | 5 | 1 … 20 | A | | EST-001 |
+| `full_current` (charge current below which "full" is detected) | 5 | 1 … 10 | A | | EST-001 |
 
 **User interfaces**
 
@@ -275,7 +277,10 @@ of modules are reduced at commissioning (OPEN-01).
 
 | ID | Question |
 |---|---|
-| OPEN-01 | GW8K-ET battery voltage and current range (datasheet) → initial `modules_count` and current limits (SYS-007). |
 | OPEN-02 | CAN protocol reverse engineering of the GCE RBMS07S70S50A: CAN bit rate, connector pinout, wiring/termination for tapping the bus. Capture plan: idle, charge, discharge, full, empty, BMS fault, BMS disconnected (inverter timeout behaviour). |
-| OPEN-07 | Power path for 100 A (SiC conduction losses, cooling, bus bars), see master concept review F6/F7 → plausibility check. |
-| OPEN-08 | Insulation monitoring vs. the inverter's own insulation check: can both run without interfering (pause during the inverter's check)? |
+| OPEN-09 | Supply of master and contactor coils from one module (HW-005): ≈ 3 W master + ≈ 3…4 W coil hold power ≈ 0.13 A from that module ≈ 3 Ah/day (≈ 1 %/day). Compensating this with passive balancing (BAL-007) means bleeding the same current from all other modules (≈ 45 W heat). Alternative: supply from the whole pack through an isolated HV DC/DC (180…600 V in), which loads all cells equally → plausibility check. |
+| OPEN-10 | With the transformerless GW8KN-ET the pack potential to earth is set by the inverter (DC link around earth plus switching common-mode voltage). Measure BAT+/BAT− to PE in operation and confirm that the insulation rating of SAF-013 (≥ 470 V working voltage) is sufficient, or raise it to the inverter maximum of 600 V. |
+
+Closed: OPEN-01 (GW8KN-ET: 180…600 V, 25 A → full 128S pack fits, current rating reduced to 25 A),
+OPEN-07 (power path: 25 A instead of 100 A, heatsinks on the SiC switches, see master MOPEN-01),
+OPEN-08 (insulation monitoring can be switched off with `iso_en` if it interferes with the inverter).
