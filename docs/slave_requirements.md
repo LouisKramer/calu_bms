@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft 0.2 |
+| Status | Draft 0.3 |
 | Parent | [System requirements](requirements.md) |
 
 Conventions as in the system requirements. **From** traces each requirement to its system requirement.
@@ -93,7 +93,7 @@ One slave per battery module (4–16 LFP cells in series). The slave
 
 | ID | Requirement | From |
 |---|---|---|
-| SHW-060 | Inside the board: clearance and creepage for the module voltage (≤ 60 V). Between the board and its mounting/enclosure/earth: for the full pack voltage (≤ 470 V working voltage). | SAF-013 |
+| SHW-060 | Inside the board: clearance and creepage for the module voltage (≤ 60 V). Between the board and its mounting/enclosure/earth: for the full pack voltage (reinforced, ≥ 600 V working voltage). | SAF-013 |
 | SHW-061 | Mounting holes and board edge shall keep the insulation distances of SHW-060 (no copper near mounting holes). | SAF-013 |
 | SHW-062 | Operating ambient 0…40 °C, indoors, non-condensing. | HW-004 |
 | SHW-063 | The board shall be manufacturable and assembled by JLCPCB; parts from the JLCPCB/LCSC library where possible. | HW-003 |

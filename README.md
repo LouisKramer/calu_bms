@@ -1,7 +1,7 @@
 # calu_bms
 
 Battery management system for a stationary high-voltage LFP home storage
-(8 × 16S modules, wireless slaves, master with CAN to the inverter).
+(8 × 16S modules, expandable to 10, wireless slaves, master with CAN to the inverter).
 
 This branch is a clean restart. Development follows the documents in [docs/](docs/):
 
