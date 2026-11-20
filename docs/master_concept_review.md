@@ -42,7 +42,7 @@ Severity: **C** = critical (damage/safety), **M** = major (requirement not met),
 | F10 | m | **Contactor coils.** The ULN2003 outputs switch +5 V relays; the external HV contactors need 12 V and more current, and the outputs have no defined state check. | 12 V coil supply on the master from the HV DC/DC, drivers with economizer, fail-safe off, feedback (MHW-025, MHW-027). |
 | F11 | m | **Gate-driver inputs at reset:** D_TOP/D_BOT only have an LED + 390 Ω to GND, no defined pull-down while the ESP32 boots. | Explicit pull-downs, driver enable only after MCU init (MHW-023). |
 | F12 | m | **Gate voltage and supply isolation.** The R05P21509D gives +15 V/−9 V and has only **basic** insulation. The ST G3 MOSFETs are specified at +18 V (SCT040: 49 mΩ instead of 40 mΩ at 15 V), recommended off level −5…0 V; −9 V is inside the absolute maximum (−10 V) but without margin. | Mornsun QA123C-1803R3 (+18/−3 V, reinforced) or TI UCC14141-Q1 (MHW-022, plausibility check P13). |
-| F13 | M | **Gate driver isolation not certified reinforced.** The 1ED3121MU12H datasheet gives only UL 1577 (5.7 kVrms), no VIORM/VIOWM. | Pin-compatible 1ED3121MC12H, reinforced per IEC 60747-17, VIOWM 1250 Vrms (MHW-022). |
+| F13 | M | **Gate driver isolation not certified reinforced.** The 1ED3121MU12H datasheet gives only UL 1577 (5.7 kVrms), no VIORM/VIOWM. | EiceDRIVER X3 Digital 1ED3860MC12M, reinforced per IEC 60747-17, VIOWM 1250 Vrms, with DESAT and soft turn-off (MHW-022, MHW-071). |
 
 ## 3. Result
 

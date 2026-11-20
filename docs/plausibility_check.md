@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | 0.1 |
+| Status | 0.2 (decisions of 2026-11-20 in section 4) |
 | Checked | [System requirements](requirements.md) 0.6, [Slave requirements](slave_requirements.md) 0.3, [Master requirements](master_requirements.md) 0.4 |
 | Result | Requirements are feasible. Some need a change or an added requirement, marked **(P)** in the requirement documents (section 3). |
 
@@ -34,7 +34,7 @@ order of magnitude and have to be confirmed in the detailed design.
 | P15 | HV voltage measurement ±0.5 % up to 600 V | MHW-031 | ✅ | Divider chain of ≥ 6 resistors, calibration |
 | P16 | Insulation monitoring at 600 V | SAF-016, MHW-040 | ✅ | Trip 100 Ω/V = 60 kΩ, warn 500 Ω/V = 300 kΩ inside 10 kΩ…10 MΩ |
 | P17 | Deep discharge by the BMS itself | – (missing) | ❌ | New: low-power state after under-voltage trip, charge-only recovery |
-| P18 | Radio through a metal rack | SHW-051, MHW-053 | ⚠️ | Option for an external antenna (ESP32-S3-WROOM-1U) |
+| P18 | Radio through a metal rack | SHW-051, MHW-053 | ⚠️ | External antenna option proposed – **not accepted** (section 4) |
 
 ---
 
@@ -295,3 +295,19 @@ All changes are marked **(P)** in the requirement documents.
 | Master | MHW-025, MHW-026, MHW-028, MHW-053, MHW-056, MHW-060 | Contactors, precharge resistor, fuse, antenna option, logging, isolation (P2, P10–P13, P18) |
 | Master | new MHW-070, MHW-071, MSW-007, MSW-008, MSW-024; MSW-020 | Overvoltage clamp, short-circuit verification, precharge abort, low-power state, CAN firmware; protocol choice |
 | Slave | SHW-043, SHW-051, SHW-060, SWS-020, new SHW-045, SWS-005 | Radio always on, antenna option, isolation, encrypted peers, low-power state |
+
+---
+
+## 4. Decisions (2026-11-20)
+
+| # | Decision |
+|---|---|
+| P1 | Accepted: `oc2_time` 0.5…5 s. |
+| P2 | Changed: history limited to **≤ 7 days** of 1-minute data, configurable with `log_days` (0…7, default 7), ≈ 4 MB → ESP32-S3-WROOM-1-N16R8 (MHW-056). |
+| P3 | Accepted, plus: `espnow_channel` 1…13 states that the router's 2.4 GHz channel is fixed to this channel (no scanning); `auto` = router may change it. |
+| P7 | Accepted with `full_charge_interval` default **0 = off**. The capacity is configurable with `cell_capacity_ah` (10…1000 Ah). |
+| P9 | Gate driver with DESAT and soft turn-off from the **EiceDRIVER X3 Digital** family (1ED38xx, I²C), if the GPIO budget allows (MHW-071, master architecture). |
+| P10 | Accepted, fuse rated **1000 V DC**. |
+| P11, P13, P14, P17 | Accepted. |
+| P18 | **Not accepted**: on-module PCB antenna only. |
+| P4, P12 | Not decided yet (SWS-020 encrypted peers, MHW-025 contactor ratings remain (P)). |

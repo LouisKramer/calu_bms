@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| Status | Draft 0.7 |
+| Status | Draft 0.8 |
 | Scope | Battery management system for a stationary high-voltage LFP home storage |
-| Related | [Slave requirements](slave_requirements.md), [Master requirements](master_requirements.md), [Master concept review](master_concept_review.md), [Plausibility check](plausibility_check.md) |
+| Related | [Slave requirements](slave_requirements.md), [Master requirements](master_requirements.md), [Master concept review](master_concept_review.md), [Plausibility check](plausibility_check.md), [System architecture](system_architecture.md), [Plan](plan.md) |
 | Earlier work | branches `playground` (first prototypes), `slave-hw-2.0.1.0`, `slave-hw-3.0.0.0` |
 
 Conventions:
@@ -66,7 +66,7 @@ CFG-003); with the defaults this is the case from 4 modules (64S) on.
 | SAF-002 | Disconnection shall be two-stage: **stage 1** SiC semiconductor switches open the current fast; **stage 2** relays/contactors then open galvanically at (near) zero current. Relays shall not be required to break load current. |
 | SAF-003 | The stage-1 switches shall block current in both directions (charge and discharge). |
 | SAF-004 | Short-circuit current shall be interrupted by stage 1 within **10 µs**, independently of the firmware (hardware comparator, fixed threshold). |
-| SAF-005 | The pack shall have a DC fuse rated for the pack voltage as backup for a failed (shorted) stage-1 switch and for cable short circuits; its DC breaking capacity shall exceed the prospective short-circuit current of the pack (≈ 12 kA → **≥ 20 kA (P)**). |
+| SAF-005 | The pack shall have a DC fuse rated for the pack voltage as backup for a failed (shorted) stage-1 switch and for cable short circuits; its DC breaking capacity shall exceed the prospective short-circuit current of the pack (≈ 12 kA → **≥ 20 kA**); fuse rated **1000 V DC**. |
 | SAF-006 | Connecting the pack to the inverter shall use precharge of the inverter DC-link capacitance; the master shall close only when the voltage difference is below `precharge_dv` within `precharge_timeout`. |
 | SAF-007 | Cell voltage protection: a cell above `cell_ov_trip` or below `cell_uv_trip` for longer than `cell_v_trip_delay` shall disconnect the pack. Above `cell_ov_warn` / below `cell_uv_warn` the allowed charge / discharge current shall be reduced to zero before a trip occurs. |
 | SAF-008 | Temperature protection: charging only between `t_charge_min` and `t_charge_max`, discharging only between `t_discharge_min` and `t_discharge_max`; outside these limits the respective current shall be set to zero, and the pack disconnected if the limit is exceeded by more than `t_trip_margin`. Charging below 0 °C shall never be allowed (no cell heating). |
@@ -74,11 +74,11 @@ CFG-003); with the defaults this is the case from 4 modules (64S) on.
 | SAF-010 | Loss of communication with any slave for longer than `slave_timeout_fault` shall be treated as a fault (allowed currents set to zero); after `slave_timeout_trip` the pack shall be disconnected. |
 | SAF-011 | Every slave shall switch off all balancing when it receives no valid command from the master within `slave_bal_timeout`, and during its own reset (hardware default off). |
 | SAF-012 | The safe state (relays open, balancing off) shall also be reached on master power loss, reset or firmware crash (fail-safe hardware defaults, watchdog). |
-| SAF-013 | Slave electronics float at the potential of their module; the master's HV domains float at the pack potential. With the transformerless inverter the pack potential to earth is set by the inverter. All insulation shall therefore be designed for the inverter's maximum battery voltage (600 V DC): **reinforced, ≥ 600 V working voltage** between HV circuits and everything that can be touched or is connected to other equipment (master LV domain, CAN, USB, PE, enclosure); **at least basic for 600 V (P)** between HV circuits that are not accessible (e.g. HV− and HV+ domains of the master). Service USB on a board in the stack shall only be used through an isolator rated **≥ 1 kV**. |
+| SAF-013 | Slave electronics float at the potential of their module; the master's HV domains float at the pack potential. With the transformerless inverter the pack potential to earth is set by the inverter. All insulation shall therefore be designed for the inverter's maximum battery voltage (600 V DC): **reinforced, ≥ 600 V working voltage** between HV circuits and everything that can be touched or is connected to other equipment (master LV domain, CAN, USB, PE, enclosure); **at least basic for 600 V** between HV circuits that are not accessible (e.g. HV− and HV+ domains of the master). Service USB on a board in the stack shall only be used through an isolator rated **≥ 1 kV**. |
 | SAF-014 | Faults shall be latched and logged; restart after a protection trip shall require the fault to be cleared, and for critical faults (cell over-voltage, short circuit) an explicit user reset. |
 | SAF-015 | Protection limits shall not depend on the inverter respecting the transmitted current/voltage limits: the BMS disconnects by itself. |
 | SAF-016 | The master shall monitor the insulation resistance of the pack (HV+ and HV−) to protective earth. Below `iso_warn` an alarm shall be raised; below `iso_trip` the action `iso_trip_action` (alarm or disconnect) shall be taken. The GW8KN-ET is transformerless and has its own insulation and residual-current monitoring; if the two measurements interfere, the BMS measurement shall be switched off with `iso_en`. |
-| SAF-017 | After an under-voltage trip, and whenever the pack is disconnected with a cell below `cell_uv_warn`, master and slaves shall enter a low-power state so the BMS itself does not deep-discharge the cells: slave **≤ 1 mA (P)** average from its module, master **≤ 0.5 W (P)** from the pack (incl. HV DC/DC no-load loss); they wake up periodically (**every 10 min (P)**) to measure and report. |
+| SAF-017 | After an under-voltage trip, and whenever the pack is disconnected with a cell below `cell_uv_warn`, master and slaves shall enter a low-power state so the BMS itself does not deep-discharge the cells: slave **≤ 1 mA** average from its module, master **≤ 0.5 W** from the pack (incl. HV DC/DC no-load loss); they wake up periodically (**every 10 min**) to measure and report. |
 | SAF-018 | After an under-voltage trip a user reset shall allow reconnecting **for charging only** (discharge limit 0) until all cells are above `cell_uv_warn` again. |
 
 ## 4. Measurement
@@ -110,7 +110,7 @@ CFG-003); with the defaults this is the case from 4 modules (64S) on.
 
 | ID | Requirement |
 |---|---|
-| EST-001 | The master shall estimate the state of charge (SOC) of the pack with an error of **< 5 %**, using coulomb counting with correction at rest (`soc_rest_current`, `soc_rest_time`) and at full charge (`full_cell_v`, `full_current`). Because the current-sensor offset drift adds up to ≈ 1 %/day, the master shall request a full charge when none was detected within `full_charge_interval` **(P)**. |
+| EST-001 | The master shall estimate the state of charge (SOC) of the pack with an error of **< 5 %**, using coulomb counting with correction at rest (`soc_rest_current`, `soc_rest_time`) and at full charge (`full_cell_v`, `full_current`). The capacity used for SOC is `cell_capacity_ah` (configurable). Because the current-sensor offset drift adds up to ≈ 1 %/day, the master shall request a full charge when none was detected within `full_charge_interval` (off by default). |
 | EST-002 | The master shall estimate the state of health (SOH, remaining capacity relative to `cell_capacity_ah`). |
 | EST-003 | SOC and SOH shall be stored non-volatile and survive a power loss. |
 | EST-004 | The master shall calculate the allowed charge/discharge current and voltage limits continuously from cell voltages, temperatures, SOC (`charge_taper`) and configuration, and send them to the inverter. |
@@ -119,7 +119,7 @@ CFG-003); with the defaults this is the case from 4 modules (64S) on.
 
 | ID | Requirement |
 |---|---|
-| COM-001 | The master shall communicate with the inverter over CAN using a battery protocol the GoodWe inverter accepts. First choice **(P)**: the **BYD HVS/HVM CAN protocol** (listed as compatible by GoodWe, documented in open-source code, 500 kbit/s, see plausibility check P14). Fallback and cross-check: the protocol of the existing BMS (**GCE RBMS07S70S50A**), reverse engineered from its traffic with the inverter (COM-007, OPEN-02). |
+| COM-001 | The master shall communicate with the inverter over CAN using a battery protocol the GoodWe inverter accepts. First choice: the **BYD HVS/HVM CAN protocol** (listed as compatible by GoodWe, documented in open-source code, 500 kbit/s, see plausibility check P14). Fallback and cross-check: the protocol of the existing BMS (**GCE RBMS07S70S50A**), reverse engineered from its traffic with the inverter (COM-007, OPEN-02). |
 | COM-002 | Master and slaves shall communicate wirelessly (ESP-NOW), which also provides galvanic isolation between modules. |
 | COM-003 | Each slave shall have a hardware-configurable module address (position in the stack). |
 | COM-004 | The master shall publish all measured values, states and faults to Home Assistant (MQTT). |
@@ -207,7 +207,7 @@ Defaults are for the full pack (8 × 16S LFP 350 Ah) on the GW8KN-ET.
 | `oc1_level` | 27 | 10 … 29 | A | S | SAF-009 |
 | `oc1_time` | 10 | 1 … 60 | s | S | SAF-009 |
 | `oc2_level` (below the 50 A hardware short-circuit threshold) | 30 | 15 … 45 | A | S | SAF-009 |
-| `oc2_time` | 1 | 0.5 … 5 (P) | s | S | SAF-009 |
+| `oc2_time` | 1 | 0.5 … 5 | s | S | SAF-009 |
 | `charge_taper` (allowed charge current vs. SOC) | 0 %→100 %, 90 %→100 %, 95 %→40 %, 98 %→20 %, 99 %→8 %, 100 %→0 % | table, 2 … 10 points, monotonic | %, % | | EST-004 |
 
 **Precharge and disconnect**
@@ -237,7 +237,7 @@ Defaults are for the full pack (8 × 16S LFP 350 Ah) on the GW8KN-ET.
 | `slave_bal_timeout` | 30 | 10 … 120 | s | S | SAF-011 |
 | `inverter_timeout` (no CAN frames from inverter → currents zero) | 10 | 2 … 60 | s | S | COM-001 |
 | `can_bitrate` | 500 | 125, 250, 500, 1000 | kbit/s | | COM-001 (confirm by sniffing) |
-| `espnow_channel` (auto = channel of the Wi-Fi access point, slaves scan) | auto (P) | auto, 1 … 13 | – | | COM-002 |
+| `espnow_channel` (`auto`: the router may change its 2.4 GHz channel, master follows it, slaves scan; 1…13: the router's 2.4 GHz channel is **fixed** to this channel, master and slaves use it directly) | auto | auto, 1 … 13 | – | | COM-002 |
 
 **Measurement**
 
@@ -264,7 +264,7 @@ Defaults are for the full pack (8 × 16S LFP 350 Ah) on the GW8KN-ET.
 | `soc_rest_time` | 30 | 5 … 240 | min | | EST-001 |
 | `full_cell_v` (highest cell for "full" detection) | 3.45 | 3.40 … 3.60 | V | | EST-001 |
 | `full_current` (charge current below which "full" is detected) | 5 | 1 … 10 | A | | EST-001 |
-| `full_charge_interval` (request a full charge if none within; 0 = off) (P) | 7 | 0 … 30 | days | | EST-001 |
+| `full_charge_interval` (request a full charge if none within; 0 = off) | 0 | 0 … 30 | days | | EST-001 |
 
 **User interfaces**
 
@@ -274,6 +274,7 @@ Defaults are for the full pack (8 × 16S LFP 350 Ah) on the GW8KN-ET.
 | `mqtt_host`, `mqtt_port`, `mqtt_user`, `mqtt_password` | –, 1883, –, – | text / 1 … 65535 | – | | COM-004 |
 | `mqtt_prefix` | `calu_bms` | text | – | | COM-004 |
 | `mqtt_period` | 10 | 1 … 300 | s | | COM-004 |
+| `log_days` (history of 1-minute data on the master; 0 = off) | 7 | 0 … 7 | days | | SAF-014 |
 | `web_password` | – (must be set at commissioning) | text | – | | CFG-004 |
 
 ---
