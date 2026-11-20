@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft 0.5 |
+| Status | Draft 0.6 |
 | Parent | [System requirements](requirements.md) |
 
 Conventions as in the system requirements. **From** traces each requirement to its system requirement.
@@ -128,7 +128,7 @@ One slave per battery module (4–16 LFP cells in series). The slave
 
 | ID | Requirement | From |
 |---|---|---|
-| SWS-020 | Communication with the master shall use ESP-NOW with encryption (pairing key set at commissioning). The firmware shall support at least 10 encrypted peers (ESP-IDF default is 7) or authenticate messages in the application **(P)**. | COM-002 |
+| SWS-020 | Communication with the master shall use ESP-NOW **without encryption**. Master and slave register each other's MAC address at pairing (commissioning); messages from unregistered senders shall be discarded (SWS-021). | COM-002 |
 | SWS-021 | Every message shall contain the module address, a message type, a sequence number and a protocol version; corrupted, duplicated, out-of-order or foreign messages shall be discarded. | COM-002, COM-003 |
 | SWS-022 | The slave shall send its measurement data after every measurement cycle. | MEA-002 |
 | SWS-023 | Limit violations detected by the slave (`cell_ov_warn`/`cell_uv_warn` and the trip levels, temperature limits) shall be sent immediately as an event message, within **200 ms** of the measurement. | SAF-007, SAF-008 |

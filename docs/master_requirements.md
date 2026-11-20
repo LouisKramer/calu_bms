@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft 0.5 |
+| Status | Draft 0.6 |
 | Parent | [System requirements](requirements.md) |
 | Based on | master concept V1.4.1.0 (`hw/master/CALU_BMS_MASTER.epro2`), see [concept review](master_concept_review.md) |
 
@@ -70,7 +70,7 @@ The board is split into domains. Barriers between an HV domain (HV−, HV+) and 
 
 | ID | Requirement | From |
 |---|---|---|
-| MHW-025 | The master shall drive at least **4** contactor/relay coils (HV+ main, HV− main, precharge, 1 spare) with **12 V** coils up to **1 A** pull-in current each. The 12 V coil supply shall be generated on the master from the HV DC/DC (MHW-001). The drivers shall reduce the coil current to holding level after pull-in (PWM economizer, or contactors with built-in economizer), so that the holding power of all closed contactors together is **≤ 4 W**. All outputs shall be off on MCU reset, power loss or firmware crash. Main contactors: rated **≥ 750 V DC and ≥ 40 A continuous (P)**, able to break `oc2_level` at 600 V DC in **both** current directions as an emergency (failed-short SiC switch) **(P)**. | SAF-002, SAF-012, F10 |
+| MHW-025 | The master shall drive at least **4** contactor/relay coils (HV+ main, HV− main, precharge, 1 spare) with **12 V** coils up to **1 A** pull-in current each. The 12 V coil supply shall be generated on the master from the HV DC/DC (MHW-001). The drivers shall reduce the coil current to holding level after pull-in (PWM economizer, or contactors with built-in economizer), so that the holding power of all closed contactors together is **≤ 4 W**. All outputs shall be off on MCU reset, power loss or firmware crash. Main contactors: rated **≥ 750 V DC and ≥ 40 A continuous (P)**, able to break `oc2_level` at 600 V DC in **both** current directions as an emergency (failed-short SiC switch). | SAF-002, SAF-012, F10 |
 | MHW-026 | A precharge path (contactor + precharge resistor, external) shall be supported; the master measures the inverter-side voltage to verify precharge (SAF-006). The precharge resistor shall be pulse-rated for **≥ 200 J** (½ C V² of the inverter DC link) and thermally protected (PTC precharge resistor or thermal fuse). | SAF-006, F8 |
 | MHW-027 | Each main contactor shall have an auxiliary-contact feedback input (detects welded or not-closing contactors). | SAF-012, F8 |
 | MHW-028 | The pack fuse is external: **1000 V DC**, DC breaking capacity **≥ 20 kA**, **32…40 A**, battery/semiconductor characteristic (e.g. 14 × 51 mm or NH00 gBat/aR). The master shall have an input to detect a blown fuse (voltage on both sides or fuse auxiliary contact). | SAF-005 |
@@ -102,7 +102,7 @@ The board is split into domains. Barriers between an HV domain (HV−, HV+) and 
 | MHW-053 | Wi-Fi/ESP-NOW antenna placement (on-module PCB antenna) for ≥ 5 m range to all slaves through the battery rack. | COM-002 |
 | MHW-054 | LEDs (status, error, contactor states), buzzer, reset and boot buttons, USB-C (flashing/console), UART test header. | – |
 | MHW-055 | Real-time clock with backup (or NTP with fallback) for timestamps in logs. | SAF-014 |
-| MHW-056 | Non-volatile storage for `log_days` (≤ **7 days**) of 1-minute data (pack values and all cell voltages/temperatures, ≈ 400 B/min → ≈ 4 MB for 7 days) plus the complete fault log → **ESP32-S3-WROOM-1-N16R8** (16 MB flash; the N8R8 has only ≈ 3…4 MB left after two OTA slots). Long-term history is kept in Home Assistant. | SAF-014, CFG-007 |
+| MHW-056 | Non-volatile storage for `log_days` (≤ **7 days**) of 1-minute data: pack values plus one summary per module (min/max/mean cell voltage, min/max temperature, balancing state), ≈ 130 B/min → ≈ 1.3 MB for 7 days; full cell voltages/temperatures only for the **last 24 h** (≈ 0.6 MB); plus the complete fault log. **ESP32-S3-WROOM-1-N16R8** (16 MB flash) for margin: firmware with frozen modules and web UI in two OTA slots plus ≈ 2 MB of logs would leave little room on the N8R8. Long-term history is kept in Home Assistant. | SAF-014, CFG-007 |
 
 ### 3.7 Insulation, environment, manufacturing
 
@@ -154,7 +154,7 @@ The board is split into domains. Barriers between an HV domain (HV−, HV+) and 
 | MSW-021 | SNIFF mode: log all CAN frames with timestamps (≥ 1 ms resolution) to file, downloadable via web UI. | COM-007 |
 | MSW-022 | Replay/test mode: send recorded or synthetic sessions on a test bus to verify the implementation. | COM-008 |
 | MSW-023 | No frames from the inverter for `inverter_timeout` → allowed currents zero, then disconnect. | COM-001 |
-| MSW-024 | The master firmware shall be a MicroPython build with ESP32 CAN (TWAI) support including listen-only mode (mainline has no ESP32 `machine.CAN`: PR #19461 or a user C module); receive timestamps are taken in the RX interrupt (`time.ticks_us()`). | COM-007, HW-001 |
+| MSW-024 | The master firmware shall be a MicroPython build with ESP32 CAN (TWAI) support including listen-only mode (mainline has no ESP32 `machine.CAN`: micropython/micropython#19461 or a user C module); receive timestamps are taken in the RX interrupt (`time.ticks_us()`). | COM-007, HW-001 |
 
 ### 4.4 Estimation and limits
 

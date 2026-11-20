@@ -39,7 +39,7 @@ work; ○ = typical choice, to be checked during the schematic design (rating, L
 
 | Block | Part | Requirement | Verified | Note |
 |---|---|---|---|---|
-| MCU | ESP32-S3-WROOM-1-N16R8 (on-module antenna) | HW-001, MHW-053, MHW-056 | ✔ | 16 MB flash for ≤ 7 days of history; GPIO35…37 used by octal PSRAM |
+| MCU | ESP32-S3-WROOM-1-N16R8 (on-module antenna) | HW-001, MHW-053, MHW-056 | ✔ | 16 MB flash: firmware in two OTA slots + ≈ 2 MB history; GPIO35…37 used by octal PSRAM |
 | HV supply | Mornsun PV15-27B12R3 (100…1000 V DC → 12 V / 15 W, reinforced) + F2 2 A 1000 V DC | MHW-001…003 | ✔ | off-board or THT; not in the LCSC library |
 | 12 V buffer | 2 × 2200 µF / 25 V low-ESR | MHW-003 | ○ | contactor pull-in peaks |
 | 3.3 V | synchronous buck 12 V → 3.3 V, ≥ 1 A (e.g. TPS62933) + USB-VBUS OR-ing | MHW-004 | ○ | USB-only bench mode |
@@ -131,7 +131,7 @@ firmware/master/
 | Insulation | `iso_period` | switch bridge, wait for settling, compute R<sub>iso+</sub>/R<sub>iso−</sub> |
 | SOC/limits | 1 s | SOC, SOH, current/voltage limits, full-charge request |
 | MQTT / web | `mqtt_period` / on request | publish, apply validated configuration changes |
-| History | 60 s | 1-minute record (≈ 400 B) to LittleFS ring buffer (`log_days`) |
+| History | 60 s | 1-minute record: pack values + per-module summaries (≈ 130 B) to a LittleFS ring buffer (`log_days`); full cell data (≈ 400 B) to a separate 24 h ring buffer |
 | Watchdog | 250 ms | feed only if protection and measurement tasks ran |
 
 Garbage collection is triggered explicitly once per 100 ms cycle (plausibility P1).
@@ -139,6 +139,6 @@ Garbage collection is triggered explicitly once per 100 ms cycle (plausibility P
 ### 2.3 Firmware build
 
 The master needs a **custom MicroPython build** (MSW-024): ESP-IDF ≥ 5.4 with the ESP32 `machine.CAN` port
-(PR #19461) or the user C module `micropython-esp32-twai`, the encrypted-peer limit raised for ESP-NOW
-(SWS-020), and the application frozen into the firmware. The build runs in a container (ESP-IDF image), later
+(micropython/micropython#19461) or the user C module `micropython-esp32-twai`, and the application frozen
+into the firmware. The build runs in a container (ESP-IDF image), later
 in GitHub Actions; the same build (without CAN) is used for the slaves.

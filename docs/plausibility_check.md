@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | 0.2 (decisions of 2026-11-20 in section 4) |
+| Status | 0.3 (decisions of 2026-11-20 in section 4) |
 | Checked | [System requirements](requirements.md) 0.6, [Slave requirements](slave_requirements.md) 0.3, [Master requirements](master_requirements.md) 0.4 |
 | Result | Requirements are feasible. Some need a change or an added requirement, marked **(P)** in the requirement documents (section 3). |
 
@@ -20,7 +20,7 @@ order of magnitude and have to be confirmed in the detailed design.
 | P1 | ESP32-S3 + MicroPython as master | HW-001, MSW-003 | ⚠️ | Feasible; GC pauses → `oc2_time` ≥ 0.5 s, all fast protection in hardware |
 | P2 | Data logging on the master | MHW-056 | ❌ | 30 days of full cell data do not fit into flash → summary data, N16R8 module or microSD |
 | P3 | Wi-Fi and ESP-NOW on one radio | COM-002, COM-005, `espnow_channel` | ❌ | ESP-NOW must use the channel of the Wi-Fi access point → `espnow_channel` = auto |
-| P4 | ESP-NOW with 10 slaves | MEA-002, MEA-008, SAF-010 | ✅ | Airtime < 1 %; encrypted-peer limit must be raised |
+| P4 | ESP-NOW with 10 slaves | MEA-002, MEA-008, SAF-010 | ✅ | Airtime < 1 %; no encryption (decision), 20-peer limit sufficient |
 | P5 | Cell voltage ±2 mV | MEA-001, SHW-002 | ✅ | Feasible with 24-bit ADC + precision reference + calibration |
 | P6 | Slave consumption ≤ 2 W, equal within 1 mA | SHW-043 | ✅ | ≈ 0.5 W expected; radio permanently on |
 | P7 | Hall current sensor and SOC < 5 % | MEA-004, EST-001 | ⚠️ | Needs a full charge at least every ≈ 4 days → new `full_charge_interval` |
@@ -82,9 +82,8 @@ Per slave and second: one data message (≈ 16 × 2 B cells + temperatures + sta
 → 10 messages/s ≈ 10 × 0.5 ms airtime ≈ 0.5 % of the channel. Synchronisation (MEA-008, 100 ms) via a
 broadcast trigger plus the synchronised time base (SWS-024); a lost broadcast is covered by the time base.
 
-Condition: SWS-020 requires encryption. ESP-IDF allows 20 peers, but by default only 7 encrypted peers
-(configurable up to 17). With 10 slaves the firmware build must raise this limit, or the master uses
-encrypted unicast only for the slaves and broadcast messages are authenticated in the application (HMAC).
+Peers: ESP-IDF allows 20 peers (by default only 7 of them encrypted). Without encryption (decision P4,
+section 4) the 10 slaves fit without changing the build.
 
 ### P5 – Cell voltage ±2 mV ✅
 
@@ -294,7 +293,7 @@ All changes are marked **(P)** in the requirement documents.
 | Master | MHW-001, MHW-003, MHW-022 | PV15-27B12R3, 15 W + buffered pull-in, 1ED3121MC12H + QA123C-1803R3 (P13) |
 | Master | MHW-025, MHW-026, MHW-028, MHW-053, MHW-056, MHW-060 | Contactors, precharge resistor, fuse, antenna option, logging, isolation (P2, P10–P13, P18) |
 | Master | new MHW-070, MHW-071, MSW-007, MSW-008, MSW-024; MSW-020 | Overvoltage clamp, short-circuit verification, precharge abort, low-power state, CAN firmware; protocol choice |
-| Slave | SHW-043, SHW-051, SHW-060, SWS-020, new SHW-045, SWS-005 | Radio always on, antenna option, isolation, encrypted peers, low-power state |
+| Slave | SHW-043, SHW-051, SHW-060, SWS-020, new SHW-045, SWS-005 | Radio always on, antenna option, isolation, ESP-NOW peers, low-power state |
 
 ---
 
@@ -303,11 +302,12 @@ All changes are marked **(P)** in the requirement documents.
 | # | Decision |
 |---|---|
 | P1 | Accepted: `oc2_time` 0.5…5 s. |
-| P2 | Changed: history limited to **≤ 7 days** of 1-minute data, configurable with `log_days` (0…7, default 7), ≈ 4 MB → ESP32-S3-WROOM-1-N16R8 (MHW-056). |
+| P2 | Changed: history limited to **≤ 7 days**, configurable with `log_days` (0…7, default 7), with the reduced slave data: pack values + per-module summaries for `log_days`, full cell data only for the last 24 h (≈ 2 MB in total); ESP32-S3-WROOM-1-N16R8 kept for margin (MHW-056). |
 | P3 | Accepted, plus: `espnow_channel` 1…13 states that the router's 2.4 GHz channel is fixed to this channel (no scanning); `auto` = router may change it. |
 | P7 | Accepted with `full_charge_interval` default **0 = off**. The capacity is configurable with `cell_capacity_ah` (10…1000 Ah). |
 | P9 | Gate driver with DESAT and soft turn-off from the **EiceDRIVER X3 Digital** family (1ED38xx, I²C), if the GPIO budget allows (MHW-071, master architecture). |
 | P10 | Accepted, fuse rated **1000 V DC**. |
 | P11, P13, P14, P17 | Accepted. |
 | P18 | **Not accepted**: on-module PCB antenna only. |
-| P4, P12 | Not decided yet (SWS-020 encrypted peers, MHW-025 contactor ratings remain (P)). |
+| P4 | **No encryption** on ESP-NOW (SWS-020); peers are filtered by the MAC addresses registered at pairing. Accepted risk: messages can be read, and with effort forged, within radio range; sequence numbers, plausibility checks and the slaves' local safety stops remain. |
+| P12 | Accepted. |

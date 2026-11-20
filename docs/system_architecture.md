@@ -52,7 +52,7 @@
 | F1 pack fuse | 1000 V DC, 32…40 A, ≥ 20 kA, gBat/aR (14 × 51 or NH00) | HV box | SAF-005, MHW-028 |
 | SiC TOP / BOT | 2 × SCT020H120G3AG back-to-back per pole, on the master | master | SAF-002…004, MHW-020 |
 | Current sensor | ACS71240LLCBTR-050B3 in the BAT− path | master HV− domain | MEA-004, MHW-032 |
-| K1, K2 main contactors | 12 V coil, ≥ 750 V DC, ≥ 40 A, aux contact, bidirectional breaking (P12) | HV box | MHW-025, MHW-027 |
+| K1, K2 main contactors | 12 V coil, ≥ 750 V DC, ≥ 40 A, aux contact, bidirectional breaking | HV box | MHW-025, MHW-027 |
 | K3 + R_pre precharge | 12 V coil; R_pre PTC/pulse resistor ≥ 200 J, ≈ 100 Ω | HV box | SAF-006, MHW-026 |
 | F2 + HV DC/DC | 2 A 1000 V DC fuse; Mornsun PV15-27B12R3 | master | HW-005, MHW-001 |
 
@@ -79,7 +79,7 @@ reported by the slaves is the voltage before F1. A large difference means a blow
 | 3 Master firmware | cell/temperature/current limits, slave timeouts, insulation | SiC off, then contactors open | 0.1…1 s | – |
 | 4 Watchdogs | firmware hang (master 1 s, slave 2 s) | reset → all outputs in safe state | ≤ 2 s | yes |
 | 5 Fuse F1 | cable short circuit, failed-short SiC | melts | ms | yes |
-| 6 Contactors | emergency break if SiC failed short (P12) | open | ≈ 10 ms | – |
+| 6 Contactors | emergency break if SiC failed short | open | ≈ 10 ms | – |
 
 Slaves protect themselves locally (balancing off below `cell_uv_warn`, over temperature, without master),
 but they never switch the pack current – disconnecting is the master's job.
@@ -90,7 +90,7 @@ but they never switch the pack current – disconnecting is the master's job.
                Wi-Fi (router channel)                     CAN 500 kbit/s (BYD HVS/HVM protocol)
  Home Assistant ◄── MQTT ──► MASTER ◄────────────────────────────────────────────────► GW8KN-ET
  Browser ◄──── web UI ─────►   ▲
-                               │ ESP-NOW (same channel as Wi-Fi), encrypted, star
+                               │ ESP-NOW (same channel as Wi-Fi), unencrypted, paired MACs, star
                     ┌──────────┼──────────┬───────── … ──┐
                  slave 1    slave 2    slave 3       slave 10
 ```

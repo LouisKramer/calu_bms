@@ -69,8 +69,6 @@ Suggested first sprint: W-01, W-02, W-07 (in parallel), then W-03/W-04 and W-05/
 
 | Item | Affects |
 |---|---|
-| P4 (SWS-020: ≥ 10 encrypted ESP-NOW peers or application authentication) | W-02, W-04 |
-| P12 (MHW-025: contactor ratings) | W-13 |
 | QA123C-1803R3 isolation rating confirmation by the vendor | W-14 |
 | 1ED3860MC12M availability (6 pcs at LCSC) | W-13, W-14 |
 | Protocol decision (BYD or GCE) | W-18 |

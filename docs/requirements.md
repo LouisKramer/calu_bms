@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft 0.8 |
+| Status | Draft 0.9 |
 | Scope | Battery management system for a stationary high-voltage LFP home storage |
 | Related | [Slave requirements](slave_requirements.md), [Master requirements](master_requirements.md), [Master concept review](master_concept_review.md), [Plausibility check](plausibility_check.md), [System architecture](system_architecture.md), [Plan](plan.md) |
 | Earlier work | branches `playground` (first prototypes), `slave-hw-2.0.1.0`, `slave-hw-3.0.0.0` |
@@ -274,7 +274,7 @@ Defaults are for the full pack (8 × 16S LFP 350 Ah) on the GW8KN-ET.
 | `mqtt_host`, `mqtt_port`, `mqtt_user`, `mqtt_password` | –, 1883, –, – | text / 1 … 65535 | – | | COM-004 |
 | `mqtt_prefix` | `calu_bms` | text | – | | COM-004 |
 | `mqtt_period` | 10 | 1 … 300 | s | | COM-004 |
-| `log_days` (history of 1-minute data on the master; 0 = off) | 7 | 0 … 7 | days | | SAF-014 |
+| `log_days` (history of 1-minute pack data and per-module summaries on the master; full cell data is kept for 24 h; 0 = off) | 7 | 0 … 7 | days | | SAF-014 |
 | `web_password` | – (must be set at commissioning) | text | – | | CFG-004 |
 
 ---

@@ -83,7 +83,7 @@ firmware/slave/
 ├─ hal/               ads1220.py · mux.py (tap/transfer sequencing) · pca9685.py · ds18b20.py · addr.py · power.py
 ├─ measurement/       scan.py (one module scan) · calib.py (gain/offset per channel) · plaus.py (open tap, sum check)
 ├─ balancing/         executor.py (apply master command, local safety stops, pause during scan) · active.py
-├─ link/              espnow_client.py (pairing, channel scan, encryption) · timesync.py
+├─ link/              espnow_client.py (pairing, channel scan, MAC filter) · timesync.py
 ├─ app/               states.py (INIT/SEARCH/CONFIG/RUN/FAULT/LOW_POWER) · config_store.py · faultlog.py · console.py · ota.py
 └─ uses firmware/common/ (protocol, config schema, crc)
 ```
