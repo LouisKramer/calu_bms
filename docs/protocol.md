@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft 0.1 – design and test plan for review (work item W-04, issue #5); not yet implemented |
+| Status | 0.2 – design approved 2026-11-23 (decisions in section 10); implementation W-04, issue #5 |
 | Requirements | COM-002, COM-003, MEA-002, MEA-008, SAF-010, SAF-011, SAF-017, CFG-001, BAL-005, SWS-002…005, SWS-010…034, SWS-040…050, MSW-008, MSW-010…013 |
 | Implementation | `firmware/common/` (codec, sequence filter, time base) – shared by master and slave, testable on the PC |
 
@@ -214,13 +214,14 @@ Size with 16 cells and 6 temperatures: 18 + 12 + 32 = 62 bytes (+ 12 header/CRC 
 |---|---|---|
 | 4 | `t` | network time of detection |
 | 1 | `count` | events in this message (≤ 16) |
-| 8 × count | `code` (u8), `index` (u8, cell or sensor), `value` (i16), `limit` (i16), `active` (u8: 1 set, 0 cleared), reserved (u8) | codes: CELL_OV_WARN, CELL_OV_TRIP, CELL_UV_WARN, CELL_UV_TRIP, T_CHARGE_LOW/HIGH, T_DISCHARGE_LOW/HIGH, T_BOARD_HIGH, plus every fault bit of 5.8 |
+| 12 × count | `code` (u8), `index` (u8, cell or sensor), `active` (u8: 1 set, 0 cleared), reserved (u8), `value` (i32), `limit` (i32) – value and limit in the unit of the quantity (cell voltage 0.1 mV, temperature 0.1 °C) | codes: CELL_OV_WARN, CELL_OV_TRIP, CELL_UV_WARN, CELL_UV_TRIP, T_CHARGE_LOW/HIGH, T_DISCHARGE_LOW/HIGH, T_BOARD_HIGH, plus every fault bit of 5.8 (`0x40` + bit number) |
 
 ### 5.7 CONFIG_ACK and RESPONSE (slave → master)
 
 CONFIG_ACK: `cfg_version` (u16), `cfg_crc` (u32), `result` (u8: 0 OK, 1 CRC error, 2 out of range, 3 cross-check failed, 4 unknown required ID, 5 storage error), `param_id` (u8, first failing parameter).
 
-RESPONSE: `cmd` (u8), `token` (u8), `result` (u8), `data` (≤ 235 bytes; GET_LOG: index, total, log entries of 12 bytes: time u32, code u8, index u8, value i16, value2 i16, reserved u16).
+RESPONSE: `cmd` (u8), `token` (u8), `result` (u8), `data` (≤ 235 bytes; GET_LOG: index (u8), total (u8), then
+up to 14 log entries of 16 bytes: time u32, code u8, index u8, reserved u16, value i32, value2 i32).
 
 ### 5.8 Fault bits (`faults`, SWS-013)
 
@@ -350,7 +351,7 @@ beyond the result record; MicroPython subset only.
 | T08 | Sequence filter: in order, duplicate, older, gap, wrap 65535 → 0, session change | accept/drop per 3.4 |
 | T09 | Time base: simulated SYNCs with latency jitter (± 2 ms) and 20 % loss; ms wrap at 2³² | estimate within ± 5 ms; grid start identical for 10 simulated slaves |
 | T10 | Configuration CRC: same parameter set in different order → same CRC; one value changed → different CRC | |
-| T11 | Golden vectors: one encoded frame per type stored in `tests/common/vectors_v1.json` | encoder output matches byte for byte (protects the wire format against accidental changes) |
+| T11 | Golden vectors: one encoded frame per type stored in `tests/common/vectors_v1.json` (regenerate only after an intended format change with a version bump: `UPDATE_VECTORS=1 pytest -k golden`) | encoder output matches byte for byte (protects the wire format against accidental changes) |
 | T12 | MicroPython syntax: `mpy-cross` compiles all `firmware/common/*.py` (skipped if not installed) | no errors |
 
 ### 9.2 On-device tests (MicroPython, `tools/espnow_bench/`)
@@ -363,17 +364,17 @@ beyond the result record; MicroPython subset only.
 | H04 | 2 boards + logic analyser | both toggle a GPIO at each grid point | skew < 10 ms (requirement 100 ms) |
 | H05 | 2 boards | encode/decode time per message, RAM use | decode < 2 ms; no growth of the heap over 10 min |
 
-Done criterion of W-04: T01…T12 pass; H01 and H02 pass on two ESP32-S3 boards. H03…H05 may move to W-11/W-17
-if the transport code is not ready.
+Done criterion of W-04: T01…T12 pass. H01…H05 need two ESP32-S3 boards (none available yet, D5); they move to
+W-11/W-17 together with the radio transport code.
 
 ---
 
-## 10. Decisions for review
+## 10. Decisions (2026-11-23)
 
-| # | Question | Proposal |
+| # | Question | Decision |
 |---|---|---|
-| D1 | Balancing commands in the broadcast SYNC (masks for all modules) or as unicast per slave | SYNC broadcast: one frame per cycle, refreshes all slaves at once; a lost SYNC only delays by one cycle |
-| D2 | Configuration encoding | ID/value list (extensible with minor versions), not a fixed structure |
-| D3 | Frame CRC | CRC-32 (C implementation in MicroPython, 4 bytes) in addition to the link-layer FCS: also catches software errors and foreign ESP-NOW traffic |
-| D4 | Slave OTA transport (later work item) | ESP-NOW chunks (no Wi-Fi credentials on the slaves, works on a fixed channel); type range reserved |
-| D5 | Hardware for H01…H05 | two ESP32-S3 boards (dev kits or old slave boards) |
+| D1 | Balancing commands in the broadcast SYNC (masks for all modules) or as unicast per slave | **SYNC broadcast**: one frame per cycle, refreshes all slaves at once; a lost SYNC only delays by one cycle |
+| D2 | Configuration encoding | **ID/value list** (extensible with minor versions), not a fixed structure |
+| D3 | Frame CRC | **CRC-32** (C implementation in MicroPython, 4 bytes) in addition to the link-layer FCS: also catches software errors and foreign ESP-NOW traffic |
+| D4 | Slave OTA transport (later work item) | **ESP-NOW chunks** (no Wi-Fi credentials on the slaves, works on a fixed channel); type range reserved |
+| D5 | Hardware for H01…H05 | **none yet** → on-device tests later (W-11/W-17) |
