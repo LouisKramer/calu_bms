@@ -61,3 +61,8 @@ remaining differences.
 
 Remaining differences reported by the check: R504 missing (FC_GND merged into GND), R226/R228/R230/R232 1 kΩ
 instead of 4.7 kΩ.
+
+## Closed (2026-11-24, third draft, commit "First slave 4.0 draft")
+
+R504 added, R226…R232 = 4.7 kΩ, D230…D233 green. `check_easyeda_netlist.py` reports **no differences**
+(319 parts). The schematic is ready for layout (W-08).

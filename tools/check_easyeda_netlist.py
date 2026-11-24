@@ -278,8 +278,11 @@ def fmt_nets(nets):
 
 
 def norm_value(v):
-    v = v.replace("µ", "u").replace("Ω", "").replace(" ", "").lower()
-    return re.sub(r"^(\d+)\.?0*([a-z]*)$", r"\1\2", v.split(",")[0])
+    v = v.replace("µ", "u").replace("Ω", "").replace("\u2126", "").replace("ohm", "").replace(" ", "").lower()
+    v = v.split(",")[0]
+    v = re.sub(r"^(\d+)([rkm])(\d+)$", r"\1.\3\2", v)  # 4k7 -> 4.7k, 0r1 -> 0.1r
+    v = re.sub(r"^(\d+(?:\.\d+)?)r$", r"\1", v)  # 0R -> 0
+    return re.sub(r"^(\d+)\.?0*([a-z]*)$", r"\1\2", v)
 
 
 def report(issues, ref, eda, alias):

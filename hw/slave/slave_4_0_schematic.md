@@ -974,9 +974,9 @@ Diagnostics: open tap wire (reads ≈ 0 V), stuck tap switch (discharge, transfe
 
 ## 15. Check before ordering
 
-- [ ] Schematic drawn in EasyEDA; netlist compared with [slave_4_0_netlist.csv](slave_4_0_netlist.csv):
+- [x] Schematic drawn in EasyEDA; netlist compared with [slave_4_0_netlist.csv](slave_4_0_netlist.csv):
       `python tools/check_easyeda_netlist.py hw/slave/slave_4_0.epro2 hw/slave/slave_4_0_netlist.csv`
-      (needs "Update PCB from schematic" first; reviews: [1](slave_4_0_review_1.md))
+      (needs "Update PCB from schematic" first; reviews: [1](slave_4_0_review_1.md)) – no differences on 2026-11-24
 - [ ] L101: saturation current ≥ 1.8 A in the datasheet of the chosen part
 - [ ] C402 footprint: THT, 10 mm pitch (ECWFD2W474Q1)
 - [ ] REF5045AIDR stock (38 + 63 pcs at the time of writing) – order early
