@@ -16,7 +16,7 @@ parallel on dev kits.**
 | Reason | |
 |---|---|
 | Biggest technical risk first | ±2 mV cell measurement (MEA-001) is the core function of the BMS and can only be verified on real hardware. |
-| Most mature design | The slave 3.0 design (KiCad/SKiDL) exists; slave 4.0 is a small update (slave architecture 1.3). |
+| Most mature design | The slave 3.0 design exists (KiCad/SKiDL, ERC clean); slave 4.0 is specified from it for drawing in EasyEDA (hw/slave/slave_4_0_schematic.md). |
 | Low voltage, low risk | 60 V per board; can be tested on one module without the HV box. |
 | Quantity | 10 boards needed; their lead time determines the integration date. |
 | Master needs slaves | The master firmware can only be integrated with real slave data; host tests use simulated slaves meanwhile. |

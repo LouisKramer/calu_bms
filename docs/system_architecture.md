@@ -141,7 +141,7 @@ repo
 │  ├─ master/        hal/ · core/ (states, protection, SOC, limits, balancing) · comm/ (espnow, can, mqtt,
 │  │                 web) · app (config store, logger, OTA)
 │  └─ build/         custom MicroPython build (ESP32 CAN module, frozen modules) for master and slave
-├─ hw/slave/, hw/master/   KiCad (SKiDL) projects
+├─ hw/slave/, hw/master/   EasyEDA Pro projects, schematic specifications, reference netlists
 ├─ tools/            CAN sniffer/replay, calibration, production test, work-item scripts
 └─ tests/            host tests (CPython + pytest) with simulated HAL, slaves and inverter
 ```

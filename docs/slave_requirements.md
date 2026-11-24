@@ -95,7 +95,7 @@ One slave per battery module (4–16 LFP cells in series). The slave
 | ID | Requirement | From |
 |---|---|---|
 | SHW-060 | Inside the board: clearance and creepage for the module voltage (≤ 60 V). Between the board and its mounting/enclosure/earth and the USB service port: reinforced, ≥ 600 V working voltage (SAF-013). | SAF-013 |
-| SHW-061 | Mounting holes and board edge shall keep the insulation distances of SHW-060 (no copper near mounting holes). | SAF-013 |
+| SHW-061 | Mounting holes and board edge shall keep the insulation distances of SHW-060 (no copper near mounting holes), **or** the board shall be mounted with insulating parts only (nylon screws and spacers in an insulating enclosure), which then provide the insulation of SHW-060. | SAF-013 |
 | SHW-062 | Operating ambient 0…40 °C, indoors, non-condensing. | HW-004 |
 | SHW-063 | The board shall be manufacturable and assembled by JLCPCB; parts from the JLCPCB/LCSC library where possible. | HW-003 |
 | SHW-064 | Each board shall have test points for supply rails and key measurement signals, so the calibration and production test can be done without probing component pins. | SWS-070 |
