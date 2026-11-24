@@ -47,3 +47,17 @@ address-LED change (S3). 6 errors must be fixed before layout; 3 points need a d
 
 After the fixes: "Update PCB from schematic" in EasyEDA, then run the command above again – it reports only the
 remaining differences.
+
+## Follow-up (2026-11-24, second draft)
+
+| Item | Status |
+|---|---|
+| E1…E6 | ✅ fixed |
+| Designators C402, D101, F101 | ✅ renamed |
+| S3 address LEDs | ✅ pull-downs back (R225, R227, R229, R231 = 100 kΩ); LED resistors R226…R232. Decision: LEDs red/green with **4.7 kΩ** (≈ 0.28 mA each) – with 1 kΩ the low-power budget would rise to ≈ 0.9 mA (spec section 12.1) → **to do** |
+| S1 star point | decision: R504 0 Ω 0603 between `FC_GND` (K420.3, K421.3, R503) and `GND`, at the ADC → **to do** |
+| S2 mounting holes | decision: plated M4 holes stay; nylon screws/spacers and an insulating enclosure only |
+| Accepted deviations | taken into the reference netlist and the specification (0.2, section 2 rows 12…14) |
+
+Remaining differences reported by the check: R504 missing (FC_GND merged into GND), R226/R228/R230/R232 1 kΩ
+instead of 4.7 kΩ.

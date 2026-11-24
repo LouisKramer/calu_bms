@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | 0.1 – for drawing in EasyEDA Pro (work item W-07, issue #8) |
+| Status | 0.2 – updated with the decisions of review 1 (work item W-07, issue #8) |
 | Requirements | [slave requirements](../../docs/slave_requirements.md) 0.6, [slave architecture](../../docs/slave_architecture.md) |
 | Basis | slave 3.0.0.0 (branch `slave-hw-3.0.0.0`, KiCad/SKiDL, ERC clean), updated per section 2 |
 | Reference netlist | [slave_4_0_netlist.csv](slave_4_0_netlist.csv) – every pin of every part (sheet, ref, pin, pin name, net) |
@@ -41,10 +41,13 @@ to check the drawing automatically (section 15).
 | 5 | Flying capacitor **470 nF** polypropylene (THT, Panasonic ECWFD2W474Q1) instead of 1 µF | SHW-005: scan ≤ 0.5 s (3.0: ≈ 0.6 s); no SMD PP part in stock |
 | 6 | NTC NCP18XH103F03RB (B = 3434 K) instead of a B3950 type | stock; firmware uses the B value of this part |
 | 7 | Cell connector 18-pin 3.5 mm pluggable (DB2ERC-3.5-18P), power connector 2-pin same series | 3.0 placeholder footprints |
-| 8 | Mounting holes non-plated, copper keep-out | SHW-060/061: reinforced insulation (600 V) to the enclosure |
+| 8 | Mounting holes M4 plated, nylon screws/spacers, insulating enclosure (review 1) | SHW-060/061: reinforced insulation (600 V) to the enclosure |
 | 9 | Test point TP301 at VSTR_DIV | SHW-064 |
 | 10 | No analog load switch (planned in the architecture) | not needed: low-power budget is met without it (section 9.1) |
 | 11 | Readable names for all local nets | drawing aid |
+| 12 | Connectors MX15EDGRM-3.5 pluggable series (J101, J301…J306), USB-C TYPE-C 16PIN 2MD(073), 6 × 6 mm push buttons, 2.54 mm DIP switch, PRTR5V0U2X C21713980, 22 µF 25 V output capacitors (review 1) | chosen while drawing; all in stock |
+| 13 | Address LEDs D230…D233 with 4.7 kΩ (R226…R232), pull-downs renamed R225…R231; LED resistors R213/R214 1 kΩ (review 1) | address visible on the board; 4.7 kΩ keeps the low-power budget (section 12.1) |
+| 14 | Star point `FC_GND` – `GND` through R504 0 Ω instead of the net tie NT501 (review 1) | EasyEDA; keeps the star point visible for the layout |
 
 Everything else (measurement matrix, decoders, ADC, balancing, MCU pinout) is unchanged from 3.0.
 
@@ -125,7 +128,7 @@ Buck design (datasheet SNVSAU4D equations, V<sub>IN</sub> 10…60 V, V<sub>OUT</
 | UVLO | on 8.96 V, off 8.37 V | R101 2 MΩ / R102 402 kΩ, EN thresholds 1.5 V / 1.4 V; divider current 24 µA |
 | Input protection | F101 0.5 A 63 V, D101 SS110 (100 V), D102 SMAJ60A (standoff 60 V, clamp < 100 V) | max. module voltage 16 × 3.65 V = 58.4 V |
 
-**J101** B+ / B− · 3.5 mm pluggable 2P · DB2ERC-3.5-2P-GN · C395830 – 1 = B+ (module top, own wire), 2 = B− (module negative, own wire)
+**J101** B+ / B− · 3.5 mm pluggable 2P · MX15EDGRM-3.5-02P-GN01-Cu-A · C5188341 – 1 = B+ (module top, own wire), 2 = B− (module negative, own wire)
 
 | Pin | Name | Net |
 |---|---|---|
@@ -165,8 +168,8 @@ Buck design (datasheet SNVSAU4D equations, V<sub>IN</sub> 10…60 V, V<sub>OUT</
 | C103 | 2.2uF 100V | 1210 | TCC1210X7R225K101MT · C5449052 | `VIN_HV` – `GND` |  |
 | C104 | 100nF 100V | 0603 | 0603B104K101NT · C88219 | `VIN_HV` – `GND` |  |
 | C105 | 2.2nF | 0603 | CC0603KRX7R9BB222 · C107082 | `BUCK_BST` – `BUCK_SW` |  |
-| C106 | 22uF 10V | 1206 |  | `+5V` – `GND` | X7R/X5R ≥ 10 V |
-| C107 | 22uF 10V | 1206 |  | `+5V` – `GND` | X7R/X5R ≥ 10 V |
+| C106 | 22uF 25V | 1206 | CL31A226KAHNNNE · C12891 | `+5V` – `GND` |  |
+| C107 | 22uF 25V | 1206 | CL31A226KAHNNNE · C12891 | `+5V` – `GND` |  |
 | C108 | 10uF | 0603 |  | `+5VA` – `GND` | X7R/X5R ≥ 10 V |
 | C109 | 100nF | 0603 |  | `+5VA` – `GND` | X7R/X5R ≥ 10 V |
 | C110 | 1uF | 0603 |  | `+5V` – `GND` | X7R/X5R ≥ 10 V |
@@ -213,14 +216,14 @@ ESP32-S3-WROOM-1-N8R8. Module pins with their GPIO:
 | IO18 | 11 | BAL_OE_n | **10 kΩ pull-up**: balancing off in reset/crash/sleep |
 | IO21 / IO38 | 23 / 31 | ACT_BAL_EN / ACT_BAL_PWM | 100 kΩ pull-down |
 | IO39 / IO40 | 32 / 33 | LED_ERR / LED_USR | LEDs to +3V3, active low |
-| IO41, IO42, IO47, IO48 | 34, 35, 24, 25 | ADDR0…ADDR3 | DIP to +3V3, 100 kΩ pull-down |
+| IO41, IO42, IO47, IO48 | 34, 35, 24, 25 | ADDR0…ADDR3 | DIP to +3V3, 100 kΩ pull-down, address LED (4.7 kΩ + LED to GND) |
 | IO19 / IO20 | 13 / 14 | USB_D− / USB_D+ | native USB |
 | TXD0 / RXD0 | 37 / 36 | TXD0 / RXD0 | test points |
 | **nc** | 15, 16, 26, 28, 29, 30 | – | IO3, IO46, IO45 (strapping), IO35…IO37 (octal PSRAM) |
 
 USB GND = module negative: with cells connected, connect a PC **only through a USB isolator ≥ 1 kV** (SAF-013).
 
-**D203** PRTR5V0U2X · SOT-143 · PRTR5V0U2X · C2827688
+**D203** PRTR5V0U2X · SOT-143 · PRTR5V0U2X · C21713980
 
 | Pin | Name | Net |
 |---|---|---|
@@ -229,7 +232,7 @@ USB GND = module negative: with cells connected, connect a PC **only through a U
 | 3 | I/O2 | `USB_D-` |
 | 4 | VCC | `VBUS` |
 
-**J201** USB-C · USB-C 16P SMD · TYPE-C-31-M-12 · C165948
+**J201** USB-C · USB-C 16P SMD · TYPE-C 16PIN 2MD(073) · C2765186
 
 | Pin | Name | Net |
 |---|---|---|
@@ -251,7 +254,7 @@ USB GND = module negative: with cells connected, connect a PC **only through a U
 | A12 | GND | `GND` |
 | B12 | GND | `GND` |
 
-**SW203** ADDR · DIP-4 SMD 1.27 mm · DSHP04TSGET · C40736
+**SW203** ADDR · DIP-4 SMD 2.54 mm · 2.54-4P TPGT · C6331176
 
 | Pin | Name | Net |
 |---|---|---|
@@ -321,6 +324,10 @@ USB GND = module negative: with cells connected, connect a PC **only through a U
 | C205 | 4.7nF | 0603 |  | `USB_SHIELD` – `GND` | X7R ≥ 10 V |
 | D201 | red | 0603 | KT-0603R · C2286 | K: `LED_ERR` · A: `LED_RED_A` |  |
 | D202 | green | 0603 |  | K: `LED_USR` · A: `LED_GREEN_A` |  |
+| D230 | red/green | LED_0603 |  | K: `GND` · A: `D230_A` | address bit indicator |
+| D231 | red/green | LED_0603 |  | K: `GND` · A: `D231_A` | address bit indicator |
+| D232 | red/green | LED_0603 |  | K: `GND` · A: `D232_A` | address bit indicator |
+| D233 | red/green | LED_0603 |  | K: `GND` · A: `D233_A` | address bit indicator |
 | R201 | 10k | 0603 |  | `+3V3` – `EN` |  |
 | R202 | 10k | 0603 |  | `+3V3` – `BOOT` |  |
 | R203 | 10k | 0603 |  | `+3V3` – `TAP_EN_n` |  |
@@ -333,18 +340,22 @@ USB GND = module negative: with cells connected, connect a PC **only through a U
 | R210 | 100k | 0603 |  | `ACT_BAL_PWM` – `GND` |  |
 | R211 | 4.7k | 0603 |  | `+3V3` – `I2C_SDA` |  |
 | R212 | 4.7k | 0603 |  | `+3V3` – `I2C_SCL` |  |
-| R213 | 820 | 0603 |  | `+3V3` – `LED_RED_A` |  |
-| R214 | 390 | 0603 |  | `+3V3` – `LED_GREEN_A` |  |
-| R215 | 100k | 0603 |  | `ADDR0` – `GND` |  |
-| R216 | 100k | 0603 |  | `ADDR1` – `GND` |  |
-| R217 | 100k | 0603 |  | `ADDR2` – `GND` |  |
-| R218 | 100k | 0603 |  | `ADDR3` – `GND` |  |
+| R213 | 1k | 0603 |  | `+3V3` – `LED_RED_A` |  |
+| R214 | 1k | 0603 |  | `+3V3` – `LED_GREEN_A` |  |
 | R219 | 4.7k | 0603 |  | `+3V3` – `ONEWIRE` |  |
 | R220 | 5.1k | 0603 |  | `USB_CC1` – `GND` |  |
 | R221 | 5.1k | 0603 |  | `USB_CC2` – `GND` |  |
 | R222 | 1M | 0603 |  | `USB_SHIELD` – `GND` |  |
-| SW201 | RESET | 5.1 × 5.1 mm SMD | TS-1187A-B-A-B · C318884 | `EN` – `GND` |  |
-| SW202 | BOOT | 5.1 × 5.1 mm SMD | TS-1187A-B-A-B · C318884 | `BOOT` – `GND` |  |
+| R225 | 100k | 0603 |  | `ADDR0` – `GND` |  |
+| R226 | 4.7k | 0603 |  | `D230_A` – `ADDR0` | address LED, ≈ 0.28 mA |
+| R227 | 100k | 0603 |  | `ADDR1` – `GND` |  |
+| R228 | 4.7k | 0603 |  | `D231_A` – `ADDR1` | address LED, ≈ 0.28 mA |
+| R229 | 100k | 0603 |  | `ADDR2` – `GND` |  |
+| R230 | 4.7k | 0603 |  | `D232_A` – `ADDR2` | address LED, ≈ 0.28 mA |
+| R231 | 100k | 0603 |  | `ADDR3` – `GND` |  |
+| R232 | 4.7k | 0603 |  | `D233_A` – `ADDR3` | address LED, ≈ 0.28 mA |
+| SW201 | RESET | 6 × 6 mm SMD, 4 pads | 1TS005F-2500-5001 · C255812 | `EN` – `GND` |  |
+| SW202 | BOOT | 6 × 6 mm SMD, 4 pads | 1TS005F-2500-5001 · C255812 | `BOOT` – `GND` |  |
 | TP201 | TXD0 | – |  | `TXD0` |  |
 | TP202 | RXD0 | – |  | `RXD0` |  |
 
@@ -362,7 +373,7 @@ USB GND = module negative: with cells connected, connect a PC **only through a U
 - Connectors: J301 cell taps (pin 18 spare), J302 active balancer control, J303…J306 DS18B20 (1 = data,
   2 = +3V3, 3 = GND).
 
-**J301** CELL TAPS · 3.5 mm pluggable 18P · DB2ERC-3.5-18P-GN (plug DB2EK-3.5-18P-GN-S C430574) · C430575 – pin n+1 = Tn, pin 18 spare
+**J301** CELL TAPS · 3.5 mm pluggable 18P · MX15EDGRM-3.5-18P-GN01-Cu-A · C5188355 – pin n+1 = Tn, pin 18 spare
 
 | Pin | Name | Net |
 |---|---|---|
@@ -385,7 +396,7 @@ USB GND = module negative: with cells connected, connect a PC **only through a U
 | 17 | T16 | `T16` |
 | 18 | spare | nc |
 
-**J302** ACT BAL CTRL · JST XH 4P · B4B-XH-A · C144395
+**J302** ACT BAL CTRL · 3.5 mm pluggable 4P · MX15EDGRM-3.5-04P-GN01-Cu-A · C5188343
 
 | Pin | Name | Net |
 |---|---|---|
@@ -394,7 +405,7 @@ USB GND = module negative: with cells connected, connect a PC **only through a U
 | 3 | EN | `ACT_BAL_EN_OUT` |
 | 4 | PWM | `ACT_BAL_PWM_OUT` |
 
-**J303** DS18B20 · JST XH 3P · B3B-XH-A · C144394
+**J303** DS18B20 · 3.5 mm pluggable 3P · MX15EDGRM-3.5-03P-GN01-Cu-A · C5188342
 
 | Pin | Name | Net |
 |---|---|---|
@@ -402,7 +413,7 @@ USB GND = module negative: with cells connected, connect a PC **only through a U
 | 2 | VDD | `+3V3` |
 | 3 | GND | `GND` |
 
-**J304** DS18B20 · JST XH 3P · B3B-XH-A · C144394
+**J304** DS18B20 · 3.5 mm pluggable 3P · MX15EDGRM-3.5-03P-GN01-Cu-A · C5188342
 
 | Pin | Name | Net |
 |---|---|---|
@@ -410,7 +421,7 @@ USB GND = module negative: with cells connected, connect a PC **only through a U
 | 2 | VDD | `+3V3` |
 | 3 | GND | `GND` |
 
-**J305** DS18B20 · JST XH 3P · B3B-XH-A · C144394
+**J305** DS18B20 · 3.5 mm pluggable 3P · MX15EDGRM-3.5-03P-GN01-Cu-A · C5188342
 
 | Pin | Name | Net |
 |---|---|---|
@@ -418,7 +429,7 @@ USB GND = module negative: with cells connected, connect a PC **only through a U
 | 2 | VDD | `+3V3` |
 | 3 | GND | `GND` |
 
-**J306** DS18B20 · JST XH 3P · B3B-XH-A · C144394
+**J306** DS18B20 · 3.5 mm pluggable 3P · MX15EDGRM-3.5-03P-GN01-Cu-A · C5188342
 
 | Pin | Name | Net |
 |---|---|---|
@@ -630,7 +641,7 @@ USB GND = module negative: with cells connected, connect a PC **only through a U
 ## 9. Sheet ADC (500)
 
 - `FC_HI` → R501 10 kΩ → OPA333 unity-gain buffer → R502 100 Ω / C502 10 nF C0G → ADS1220 AIN0.
-- `FC_GND` → R503 100 Ω / C503 → AIN1, and to GND **only** through the net tie NT501 at the ADC (star point).
+- `FC_GND` → R503 100 Ω / C503 → AIN1, and to GND **only** through R504 (0 Ω) at the ADC (star point).
 - ADS1220: AIN0−AIN1 = cell voltage, AIN2 = `VSTR_DIV`, AIN3 = `NTC_DIV`; reference REFP0/REFN0 = REF5045
   (4.5 V), AVDD = +5VA, DVDD = +3V3 (3.3 V logic). Configuration: PGA bypassed, gain 1, single shot, 330 SPS.
 - REF5045 needs V<sub>IN</sub> ≥ 4.7 V: with USB power only (+5V ≈ 4.6 V after D103) the reference is not in
@@ -694,10 +705,10 @@ USB GND = module negative: with cells connected, connect a PC **only through a U
 | C508 | 1uF | 0603 |  | `+5VA` – `GND` | X7R/X5R ≥ 10 V |
 | C509 | 10uF | 0805 |  | `VREF` – `GND` | X7R/X5R ≥ 10 V |
 | C510 | 100nF | 0805 |  | `VREF` – `GND` | X7R/X5R ≥ 10 V |
-| NT501 | STAR | net tie |  | `FC_GND` – `GND` |  |
 | R501 | 10k | 0603 |  | `FC_HI` – `BUF_IN` |  |
 | R502 | 100 | 0603 |  | `BUF_OUT` – `AIN0_F` |  |
 | R503 | 100 | 0603 |  | `FC_GND` – `AIN1_F` |  |
+| R504 | 0R | 0603 |  | `FC_GND` – `GND` | star point FC_GND – GND, place at the ADC |
 | TP501 | VREF | – |  | `VREF` |  |
 | TP502 | FC_HI | – |  | `FC_HI` |  |
 | TP503 | BUF_OUT | – |  | `BUF_OUT` |  |
@@ -865,14 +876,14 @@ USB GND = module negative: with cells connected, connect a PC **only through a U
 
 | Ref | Value | Note |
 |---|---|---|
-| H901 | M3 NPTH | non-plated, copper keep-out ≥ 6.5 mm |
-| H902 | M3 NPTH | non-plated, copper keep-out ≥ 6.5 mm |
-| H903 | M3 NPTH | non-plated, copper keep-out ≥ 6.5 mm |
-| H904 | M3 NPTH | non-plated, copper keep-out ≥ 6.5 mm |
+| SCREW1 | M4 plated | nylon screws/spacers only, insulating enclosure (SHW-060/061) |
+| SCREW2 | M4 plated | nylon screws/spacers only, insulating enclosure (SHW-060/061) |
+| SCREW3 | M4 plated | nylon screws/spacers only, insulating enclosure (SHW-060/061) |
+| SCREW4 | M4 plated | nylon screws/spacers only, insulating enclosure (SHW-060/061) |
 
-Mounting holes: **non-plated** M3, copper keep-out ≥ 6.5 mm around each hole and along board edges that touch
-the enclosure, or nylon spacers in an insulating enclosure (SHW-060/061: reinforced, ≥ 600 V working voltage
-to the enclosure). Antenna keep-out of the ESP32 module at the board edge.
+Mounting holes (decision review 1): plated M4 holes, **mounted with nylon screws and spacers in an insulating
+enclosure**; the reinforced insulation (≥ 600 V working voltage to the enclosure, SHW-060/061) is provided by the
+insulating mounting. Never use metal screws. Antenna keep-out of the ESP32 module at the board edge.
 
 ---
 
@@ -881,19 +892,23 @@ to the enclosure). Antenna keep-out of the ESP32 module at the board edge.
 ### 12.1 Low-power state (SHW-045: ≤ 1 mA from the module)
 
 Firmware puts the PCA9685 into SLEEP, the ADS1220 into power-down, and the ESP32 into deep sleep; the pull-ups
-keep taps, transfer and balancing off.
+keep taps, transfer and balancing off. Worst case address: 3 bits set (addresses 1…10, e.g. 7).
 
-| Load | Current | Power |
-|---|---|---|
-| REF5045 (always on, 1 mA max) | 1 mA at 5 V | 5 mW |
-| ESP32-S3 module deep sleep (estimate incl. PSRAM) | ≤ 100 µA at 3.3 V | 0.33 mW |
-| TLV75733 + OPA333 + 2 × 74HCT + PCA9685 sleep + 4 × DS18B20 standby | ≈ 60 µA | 0.3 mW |
-| Address pull-downs (4 × 100 kΩ, all switches on) | 132 µA at 3.3 V | 0.44 mW |
-| **Sum on the 5 V side** | | **≈ 6.1 mW** |
-| LM5164-Q1 at ≈ 1.2 mA load (efficiency ≈ 60 % at light load, I<sub>Q</sub> 10.5 µA) | | ≈ 10.5 mW |
-| From the module at 40 V (16 × 2.5 V) | | **0.26 mA** |
-| + module divider (36 µA) + UVLO divider (24 µA at 58 V) | | **≈ 0.32 mA** |
-| + wake-up every 10 min (≈ 2 s at 0.5 W, averaged) | | **≈ 0.36 mA ≤ 1 mA** ✓ |
+| Load (current on the 5 V rail; 3.3 V loads pass through the LDO) | Current |
+|---|---|
+| REF5045 (always on, 1 mA max) | 1.0 mA |
+| ESP32-S3 module deep sleep (estimate incl. PSRAM) | ≤ 0.1 mA |
+| TLV75733 + OPA333 + 2 × 74HCT + PCA9685 sleep + 4 × DS18B20 standby | ≈ 0.06 mA |
+| Address pull-downs (3 × 100 kΩ at 3.3 V) | 0.1 mA |
+| Address LEDs (3 × red/green with 4.7 kΩ, ≈ 0.28 mA each) | 0.84 mA |
+| **Sum on the 5 V rail** | **≈ 2.1 mA = 10.5 mW** |
+| LM5164-Q1 (efficiency ≈ 60 % at light load, I<sub>Q</sub> 10.5 µA) → from the module at 40 V (16 × 2.5 V) | **0.44 mA** |
+| + module divider (36 µA) + UVLO divider (≤ 24 µA) | **≈ 0.50 mA** |
+| + wake-up every 10 min (≈ 2 s at 0.5 W, averaged) | **≈ 0.54 mA ≤ 1 mA** ✓ |
+
+The address LEDs make the consumption depend on the address: 2 bits more = 0.56 mA at 3.3 V ≈ 0.05 mA from the
+module – well inside the 1 mA equality of SHW-043. With 1 kΩ they would draw ≈ 1.3 mA each and the budget would
+reach ≈ 0.9 mA, too close to the limit.
 
 ### 12.2 Scan time (SHW-005: ≤ 0.5 s)
 
@@ -931,7 +946,7 @@ average balancing current is reduced by the scan pause (≈ 0.34 s per `meas_per
    ≥ 1 mm between tap traces wherever possible.
 2. Measurement matrix, C402, buffer and ADC in one compact area with a GND guard ring around
    BUS_A/BUS_B/C402/BUF_IN.
-3. Star ground at NT501: FC_GND, ADC AVSS/REFN0, REF5045 GND. The buck current loop and the J101 return
+3. Star ground at R504: FC_GND, ADC AVSS/REFN0, REF5045 GND. The buck current loop and the J101 return
    must not flow through it.
 4. Balancing current only on the `Tj_F` → AQY282 → 33 Ω path, never through the 1 kΩ / matrix path.
 5. Bleed resistors along the board edge with copper pours, NTC in between.
@@ -961,7 +976,7 @@ Diagnostics: open tap wire (reads ≈ 0 V), stuck tap switch (discharge, transfe
 
 - [ ] Schematic drawn in EasyEDA; netlist compared with [slave_4_0_netlist.csv](slave_4_0_netlist.csv):
       `python tools/check_easyeda_netlist.py hw/slave/slave_4_0.epro2 hw/slave/slave_4_0_netlist.csv`
-      (needs "Update PCB from schematic" first; review 1: [slave_4_0_review_1.md](slave_4_0_review_1.md))
+      (needs "Update PCB from schematic" first; reviews: [1](slave_4_0_review_1.md))
 - [ ] L101: saturation current ≥ 1.8 A in the datasheet of the chosen part
 - [ ] C402 footprint: THT, 10 mm pitch (ECWFD2W474Q1)
 - [ ] REF5045AIDR stock (38 + 63 pcs at the time of writing) – order early
